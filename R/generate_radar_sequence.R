@@ -14,9 +14,9 @@ s3_set_key(username = "flippert",
            password = "eFd5cqJqpv8hJN2D")
 
 # time range of interest
-ts <- as.POSIXct("2016-10-4 21:00", "UTC")  # POSIXct start time
-tr <- 5                                     # time resolution [min]
-tl <- 15                                     # total length [min]
+ts <- as.POSIXct("2016-10-3 17:00", "UTC")  # POSIXct start time
+tr <- 15                                     # time resolution [min]
+tl <- 50                                     # total length [min]
 tseq <- seq(0, tl, tr)                      # delta t sequence
 te <- ts + minutes(tl)                      # POSIXct end time
 
@@ -29,7 +29,7 @@ bbox <- st_bbox(get_radars_df(radars)$geometry)
 extent_x <- bbox$xmax - bbox$xmin
 extent_y <- bbox$ymax - bbox$ymin
 
-reach <- 6
+reach <- 5
 grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=0.01)
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
@@ -55,7 +55,7 @@ for(dt in tseq) {
                     integrate_to_ppi(pvol=pvol_list[[k]],
                                      vp=vp_list[[k]],
                                      raster=grid)
-                    }) #, mc.cores=num_cores-1)
+                    })#, mc.cores=num_cores-1)
 
     #message(ppi_list)
 
@@ -72,13 +72,14 @@ strs <- do.call(c, c(l, list(along=3)))
 result <- st_set_dimensions(strs, 3, names="time",
                     values = as.POSIXct(st_get_dimension_values(strs, 3)))
 
-write_stars(result, "test_dataset.tif", driver = "GTiff")
+write_stars(result, "2016-10-3_200min.tif", driver = "GTiff")
+write_stars(result, "2016-10-3_200min.nc")
 
-png("composite_ts.png")
+#png("composite_ts.png")
 
 # plot first attribute (result only has one, namely "param") at time point ts
-plot(result[1,,,1])
+#plot(result[1,,,1])
 
-print("done")
-dev.off()
-browseURL("composite_ts.png")
+#print("done")
+#dev.off()
+#browseURL("composite_ts.png")
