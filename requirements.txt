@@ -1,3 +1,5 @@
 nose
 numpy
 scipy
+rasterio
+matplotlib
