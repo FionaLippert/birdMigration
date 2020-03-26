@@ -9,6 +9,7 @@ __pycache__/
 # large files
 *.tif
 *.png
+*.json
 
 # Distribution / packaging
 .Python
