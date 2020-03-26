@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # large files
-*.tiff
+*.tif
 *.png
 
 # Distribution / packaging
