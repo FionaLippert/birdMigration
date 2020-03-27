@@ -22,14 +22,14 @@ if(!dir.exists(dir)){
 
 # time range of interest
 ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
-te <- as.POSIXct("2016-10-8 00:00", "UTC")  # POSIXct end time
+te <- as.POSIXct("2016-10-1 06:00", "UTC")  # POSIXct end time
 tl <- as.numeric(difftime(te, ts, units = "mins"))      # total ength in minutes
 tr <- 15                                     # time resolution [min]
 #tl <- 50                                     # total length [min]
 tseq <- seq(0, tl, tr)                      # delta t sequence
 #te <- ts + minutes(tl)                      # POSIXct end time
 
-radars <- c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
+radars <- c("NL/DBL", "NL/DHL")#, "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
 param  <- "VID"                             # quantity of interest
 res    <- 500                               # raster resolution [m]
 
@@ -50,6 +50,13 @@ if(!dir.exists(subdir)){
 }
 
 composite_timeseries <- function(job_idx){
+
+    path <- file.path(dir, subdir, job_idx)
+
+    log<-file(paste0(path, ".log"), open="w")
+    sink(log)
+    sink(log,type='message',append=TRUE)
+
     ts_job = ts + minutes((job_idx-1) * (chunk_size) * tr)
     te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
 
@@ -92,12 +99,17 @@ composite_timeseries <- function(job_idx){
     if(length(l)>1){
        result <- st_set_dimensions(strs, 3, names="time",
                         values = as.POSIXct(st_get_dimension_values(strs, 3)))
-       write_json(as.POSIXct(st_get_dimension_values(strs, 3)), paste0(file.path(dir, subdir, job_idx), ".json"))
-       write_stars(result, paste0(file.path(dir, subdir, job_idx), ".tif"), driver = "GTiff")
+       write_json(as.POSIXct(st_get_dimension_values(strs, 3)), paste0(path, ".json"))
+       write_stars(result, paste0(path, ".tif"), driver = "GTiff")
     }else{
-       write_json(ts_job, paste0(file.path(dir, subdir, job_idx), ".json"))
-       write_stars(strs, paste0(file.path(dir, subdir, job_idx), ".tif"), driver = "GTiff")
+       write_json(ts_job, paste0(path, ".json"))
+       write_stars(strs, paste0(path, ".tif"), driver = "GTiff")
     }
+
+    blabla(3)
+
+    sink(NULL,type='message')
+    sink(NULL)
 }
 
 jobs <- seq(1, num_cores)
