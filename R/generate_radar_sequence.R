@@ -32,7 +32,7 @@ tseq <- seq(0, tl, tr)                      # delta t sequence
 
 message(length(tseq))
 
-radars <- c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
+radars <- c("BE/WID")  # c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
 param  <- "VID"                             # quantity of interest
 res    <- 500                               # raster resolution [m]
 
@@ -129,14 +129,13 @@ composite_timeseries <- function(job_idx){
             write_stars(strs, fname_d, driver = "GTiff")
           }
         }
-      }
+      },
       error = function(e) print(e),
       finally = {
         sink(NULL,type='message')
         sink(NULL)
       }
     )
-  }
 }
 
 jobs <- seq(1, num_cores)
