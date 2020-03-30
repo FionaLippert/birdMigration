@@ -23,7 +23,7 @@ if(!dir.exists(dir)){
 
 # time range of interest
 ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
-te <- as.POSIXct("2016-10-1 20:00", "UTC")  # POSIXct end time
+te <- as.POSIXct("2016-10-8 00:00", "UTC")  # POSIXct end time
 tl <- as.numeric(difftime(te, ts, units = "mins"))      # total ength in minutes
 tr <- 15                                     # time resolution [min]
 #tl <- 50                                     # total length [min]
@@ -32,7 +32,7 @@ tseq <- seq(0, tl, tr)                      # delta t sequence
 
 message(length(tseq))
 
-radars <- c("BE/WID")  # c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
+radars <- c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV")
 param  <- "VID"                             # quantity of interest
 res    <- 500                               # raster resolution [m]
 
@@ -76,7 +76,6 @@ composite_timeseries <- function(job_idx){
             dir.create(path)
           }
           log <- file(file.path(path, "log.txt"), open="w")
-          sink(log)
           sink(log, type='message', append=TRUE)
 
           message(paste(ts_job, te_job))
@@ -102,6 +101,8 @@ composite_timeseries <- function(job_idx){
 
               vp_list <- sapply(keys, retrieve_vp, simplify = FALSE, USE.NAMES = TRUE)
 
+              # TODO; fix error arising when vp$data[['eta']] is all NAN (with BE/WID at 2016-10-01 00:15)
+              # maybe fix it by using 'dens' instead of 'eta'?
               ppi_list <- lapply(keys, function(k) {
                         integrate_to_ppi(pvol=pvol_list[[k]],
                                          vp=vp_list[[k]],
@@ -133,7 +134,6 @@ composite_timeseries <- function(job_idx){
       error = function(e) print(e),
       finally = {
         sink(NULL,type='message')
-        sink(NULL)
       }
     )
 }
