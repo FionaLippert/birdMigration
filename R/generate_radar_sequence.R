@@ -55,7 +55,7 @@ if(!dir.exists(subdir)){
 }
 
 composite_timeseries <- function(job_idx){
-    
+
     #path <- file.path(getwd(), dir, subdir, job_idx)
     #if(!dir.exists(path)){
     #  dir.create(path)
@@ -69,7 +69,7 @@ composite_timeseries <- function(job_idx){
       {
         ts_job = ts + minutes((job_idx-1) * (chunk_size) * tr)
         te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
-    
+
         if(ts_job <= te){
           path <- file.path(getwd(), dir, subdir, formatC(job_idx, width=floor(log10(num_cores))+1, flag="0"))
           if(!dir.exists(path)){
@@ -128,12 +128,13 @@ composite_timeseries <- function(job_idx){
             write_json(ts_job, fname_t)
             write_stars(strs, fname_d, driver = "GTiff")
           }
+        }
       }
-      error = function(e) print(e) #,
-      #finally = {
-      #  sink(NULL,type='message')
-      #  sink(NULL)
-      #}
+      error = function(e) print(e),
+      finally = {
+        sink(NULL,type='message')
+        sink(NULL)
+      }
     )
   }
 }
