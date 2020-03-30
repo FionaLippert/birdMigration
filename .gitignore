@@ -6,10 +6,11 @@ __pycache__/
 # C extensions
 *.so
 
-# large files
+# data
 *.tif
 *.png
 *.json
+*.txt
 
 # Distribution / packaging
 .Python

@@ -6,6 +6,7 @@ require(stars)
 library(jsonlite)
 library(parallel)
 library(MASS)
+require(numform)
 
 num_cores <- detectCores() - 1
 
@@ -22,14 +23,16 @@ if(!dir.exists(dir)){
 
 # time range of interest
 ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
-te <- as.POSIXct("2016-10-1 06:00", "UTC")  # POSIXct end time
+te <- as.POSIXct("2016-10-1 20:00", "UTC")  # POSIXct end time
 tl <- as.numeric(difftime(te, ts, units = "mins"))      # total ength in minutes
 tr <- 15                                     # time resolution [min]
 #tl <- 50                                     # total length [min]
 tseq <- seq(0, tl, tr)                      # delta t sequence
 #te <- ts + minutes(tl)                      # POSIXct end time
 
-radars <- c("NL/DBL", "NL/DHL")#, "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
+message(length(tseq))
+
+radars <- c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV", "BE/WID")
 param  <- "VID"                             # quantity of interest
 res    <- 500                               # raster resolution [m]
 
@@ -42,7 +45,9 @@ reach <- 5
 grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=0.01)
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
-chunk_size = ceiling(length(tseq)/num_cores)
+chunk_size <- ceiling(length(tseq)/num_cores)
+#job_names <- f_pad_zero(seq(1, num_cores))
+
 
 subdir <- paste(ts, "-", te)
 if(!dir.exists(subdir)){
@@ -50,66 +55,87 @@ if(!dir.exists(subdir)){
 }
 
 composite_timeseries <- function(job_idx){
+    
+    #path <- file.path(getwd(), dir, subdir, job_idx)
+    #if(!dir.exists(path)){
+    #  dir.create(path)
+    #}
 
-    path <- file.path(dir, subdir, job_idx)
+    #log<-file(file.path(path, "log.txt"), open="w")
+    #sink(log)
+    #sink(log,type='output',append=FALSE)
 
-    log<-file(paste0(path, ".log"), open="w")
-    sink(log)
-    sink(log,type='message',append=TRUE)
+    tryCatch(
+      {
+        ts_job = ts + minutes((job_idx-1) * (chunk_size) * tr)
+        te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
+    
+        if(ts_job <= te){
+          path <- file.path(getwd(), dir, subdir, formatC(job_idx, width=floor(log10(num_cores))+1, flag="0"))
+          if(!dir.exists(path)){
+            dir.create(path)
+          }
+          log <- file(file.path(path, "log.txt"), open="w")
+          sink(log)
+          sink(log, type='message', append=TRUE)
 
-    ts_job = ts + minutes((job_idx-1) * (chunk_size) * tr)
-    te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
+          message(paste(ts_job, te_job))
 
-    message(paste(ts_job, te_job))
+          tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
+          tseq_job <- seq(0, tl_job, tr)
 
-    tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
-    tseq_job <- seq(0, tl_job, tr)
+          # for each time step compute vertically integrated radar composite
+          l <- list()
+          for(dt in tseq_job) {
+            timestamp <- ts_job + minutes(dt)
+            keys <- get_keys(radars, timestamp)
+            message(timestamp)
 
-    # for each time step compute vertically integrated radar composite
-    l <- list()
-    for(dt in tseq_job) {
-      timestamp <- ts_job + minutes(dt)
-      keys <- get_keys(radars, timestamp)
-      message(timestamp)
+            # apply vertical integration to all available radars at time t=ts+dt
+            # and combine the resulting ppi's into composite raster
 
-      # apply vertical integration to all available radars at time t=ts+dt
-      # and combine the resulting ppi's into composite raster
-
-      # TODO: load pvol and vp prior to parallel execution of vertical integration
-      if(length(keys) > 0) {
-        names(keys) <- keys
-        pvol_list <- sapply(keys, function(k) { retrieve_pvol(vp_key_to_pvol(k))},
+            # TODO: load pvol and vp prior to parallel execution of vertical integration
+            if(length(keys) > 0) {
+              names(keys) <- keys
+              pvol_list <- sapply(keys, function(k) { retrieve_pvol(vp_key_to_pvol(k))},
                             simplify = FALSE, USE.NAMES = TRUE)
 
-        vp_list <- sapply(keys, retrieve_vp, simplify = FALSE, USE.NAMES = TRUE)
+              vp_list <- sapply(keys, retrieve_vp, simplify = FALSE, USE.NAMES = TRUE)
 
-        ppi_list <- lapply(keys, function(k) {
+              ppi_list <- lapply(keys, function(k) {
                         integrate_to_ppi(pvol=pvol_list[[k]],
                                          vp=vp_list[[k]],
                                          raster=grid)
                         })#, mc.cores=num_cores-1)
 
-        # TODO: adjust when new bioRad release is available (with res as input)
-        composite <- composite_ppi(ppi_list, param=param, dim=img_size)
-        l[[as.character(timestamp)]] <- st_as_stars(composite$data)
+              # TODO: adjust when new bioRad release is available (with res as input)
+              composite <- composite_ppi(ppi_list, param=param, dim=img_size)
+              l[[as.character(timestamp)]] <- st_as_stars(composite$data)
+            }
+          }
+
+          strs <- do.call(c, c(l, list(along=3)))
+
+          fname_t <- file.path(path, "timestamps.json")
+          fname_d <- file.path(path, paste0(param, ".tif"))
+
+          if(length(l)>1){
+            #result <- st_set_dimensions(strs, 3, names="time",
+            #                 values = as.POSIXct(st_get_dimension_values(strs, 3)))
+            write_json(as.POSIXct(st_get_dimension_values(strs, 3)), fname_t)
+            write_stars(strs, fname_d, driver = "GTiff")
+          }else{
+            write_json(ts_job, fname_t)
+            write_stars(strs, fname_d, driver = "GTiff")
+          }
       }
-    }
-    strs <- do.call(c, c(l, list(along=3)))
-
-    if(length(l)>1){
-       result <- st_set_dimensions(strs, 3, names="time",
-                        values = as.POSIXct(st_get_dimension_values(strs, 3)))
-       write_json(as.POSIXct(st_get_dimension_values(strs, 3)), paste0(path, ".json"))
-       write_stars(result, paste0(path, ".tif"), driver = "GTiff")
-    }else{
-       write_json(ts_job, paste0(path, ".json"))
-       write_stars(strs, paste0(path, ".tif"), driver = "GTiff")
-    }
-
-    blabla(3)
-
-    sink(NULL,type='message')
-    sink(NULL)
+      error = function(e) print(e) #,
+      #finally = {
+      #  sink(NULL,type='message')
+      #  sink(NULL)
+      #}
+    )
+  }
 }
 
 jobs <- seq(1, num_cores)
