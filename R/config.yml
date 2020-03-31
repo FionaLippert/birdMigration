@@ -1,12 +1,12 @@
 # path to preprocessed data
-datadir : ~/birdMigration/R/data
+datadir : data
 # login to radar database
 username : flippert
 password : eFd5cqJqpv8hJN2D
 # start time
 ts : 2016-10-1 00:00
 # end time
-te : 2016-10-8 00:00
+te : 2016-10-1 04:00
 # time resolution in minutes
 tr : 15
 # list of radar stations
@@ -17,6 +17,6 @@ radars :
   - BE/JAB
   - BE/ZAV
 # radar quantity
-param : VID
+quantity : VID
 #
 res : 0.01

@@ -33,7 +33,7 @@ tseq <- seq(0, tl, tr)                                  # delta t sequence
 message(length(tseq))
 
 radars <- config$radars #c("NL/DBL", "NL/DHL")#, "NL/HRW", "BE/JAB", "BE/ZAV")
-param  <- config$param #"VID"                             # quantity of interest
+param  <- config$quantity #"VID"                             # quantity of interest
 res    <- config$res #0.01                              # raster resolution
 
 message(radars)
@@ -53,12 +53,13 @@ chunk_size <- ceiling(length(tseq)/num_cores)
 if(!dir.exists(config$datadir)){
   dir.create(config$datadir)
 }
-subdir <- paste(ts, "-", te)
+subdir <- file.path(config$datadir, paste(ts, "-", te))
 if(!dir.exists(subdir)){
-  dir.create(config$datadir, subdir))
+  dir.create(subdir)
 }
 
-write_yaml(config, file.path(config$datadir, subdir, 'config.yml'))
+config_file <- file(file.path(subdir, "config.yml"), open="w")
+write_yaml(config, config_file)
 
 #settings <- '{"ts" : ts, "te" : te, "tr" : tr, "radars" : radars, "param" : param, "res" : res}'
 #write_json(settings, file.path(getwd(), dir, subdir, 'settings.json'))
@@ -80,7 +81,7 @@ composite_timeseries <- function(job_idx){
         te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
 
         if(ts_job <= te){
-          path <- file.path(config$datadir, subdir, formatC(job_idx,
+          path <- file.path(subdir, formatC(job_idx,
                             width=floor(log10(num_cores))+1, flag="0"))
           if(!dir.exists(path)){
             dir.create(path)
