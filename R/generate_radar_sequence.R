@@ -14,8 +14,8 @@ num_cores <- detectCores() - 1
 config = yaml.load_file("config.yml")
 
 # set credentials for UvA Radar Data Storage
-s3_set_key(username = "flippert",
-           password = "eFd5cqJqpv8hJN2D")
+s3_set_key(username = config$username,
+           password = config$password)
 
 
 # time range of interest
@@ -32,9 +32,11 @@ tseq <- seq(0, tl, tr)                                  # delta t sequence
 
 message(length(tseq))
 
-radars <- c("NL/DBL", "NL/DHL")#, "NL/HRW", "BE/JAB", "BE/ZAV")
-param  <- "VID"                             # quantity of interest
-res    <- 0.01                              # raster resolution
+radars <- config$radars #c("NL/DBL", "NL/DHL")#, "NL/HRW", "BE/JAB", "BE/ZAV")
+param  <- config$param #"VID"                             # quantity of interest
+res    <- config$res #0.01                              # raster resolution
+
+message(radars)
 
 bbox <- st_bbox(get_radars_df(radars)$geometry)
 extent_x <- bbox$xmax - bbox$xmin
@@ -47,17 +49,19 @@ img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 chunk_size <- ceiling(length(tseq)/num_cores)
 #job_names <- f_pad_zero(seq(1, num_cores))
 
-dir <- "data"
-if(!dir.exists(dir)){
-  dir.create(file.path(getwd(), dir))
+#dir <- "data"
+if(!dir.exists(config$datadir)){
+  dir.create(config$datadir)
 }
 subdir <- paste(ts, "-", te)
 if(!dir.exists(subdir)){
-  dir.create(file.path(getwd(), dir, subdir))
+  dir.create(config$datadir, subdir))
 }
 
-settings <- '{"ts" : ts, "te" : te, "tr" : tr, "radars" : radars, "param" : param, "res" : res}'
-write_json(settings, file.path(getwd(), dir, subdir, 'settings.json'))
+write_yaml(config, file.path(config$datadir, subdir, 'config.yml'))
+
+#settings <- '{"ts" : ts, "te" : te, "tr" : tr, "radars" : radars, "param" : param, "res" : res}'
+#write_json(settings, file.path(getwd(), dir, subdir, 'settings.json'))
 
 composite_timeseries <- function(job_idx){
 
@@ -76,7 +80,7 @@ composite_timeseries <- function(job_idx){
         te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
 
         if(ts_job <= te){
-          path <- file.path(getwd(), dir, subdir, formatC(job_idx,
+          path <- file.path(config$datadir, subdir, formatC(job_idx,
                             width=floor(log10(num_cores))+1, flag="0"))
           if(!dir.exists(path)){
             dir.create(path)
