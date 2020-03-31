@@ -14,45 +14,43 @@ num_cores <- detectCores() - 1
 s3_set_key(username = "flippert",
            password = "eFd5cqJqpv8hJN2D")
 
-dir <- "data"
-if(!dir.exists(dir)){
-  dir.create(file.path(getwd(), dir))
-}
-#filename <- "2016-10"
-#path <- file.path(dir, filename)
+settings <- list()
 
 # time range of interest
-ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
-te <- as.POSIXct("2016-10-8 00:00", "UTC")  # POSIXct end time
-tl <- as.numeric(difftime(te, ts, units = "mins"))      # total ength in minutes
-tr <- 15                                     # time resolution [min]
-#tl <- 50                                     # total length [min]
-tseq <- seq(0, tl, tr)                      # delta t sequence
-#te <- ts + minutes(tl)                      # POSIXct end time
+settings['ts'] <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
+settings['te'] <- as.POSIXct("2016-10-8 00:00", "UTC")  # POSIXct end time
+settings['tr'] <- 15                                    # time resolution [min]
+tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
+tseq <- seq(0, tl, tr)                                  # delta t sequence
 
 message(length(tseq))
 
-radars <- c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV")
-param  <- "VID"                             # quantity of interest
-res    <- 500                               # raster resolution [m]
+settings['radars'] <- c("NL/DBL", "NL/DHL", "NL/HRW", "BE/JAB", "BE/ZAV")
+settings['param']  <- "VID"                             # quantity of interest
+settings['res']    <- 0.01                              # raster resolution
 
 
-bbox <- st_bbox(get_radars_df(radars)$geometry)
+bbox <- st_bbox(get_radars_df(settings['radars'])$geometry)
 extent_x <- bbox$xmax - bbox$xmin
 extent_y <- bbox$ymax - bbox$ymin
 
 reach <- 5
-grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=0.01)
+grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=settings['res'])
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 chunk_size <- ceiling(length(tseq)/num_cores)
 #job_names <- f_pad_zero(seq(1, num_cores))
 
-
+dir <- "data"
+if(!dir.exists(dir)){
+  dir.create(file.path(getwd(), dir))
+}
 subdir <- paste(ts, "-", te)
 if(!dir.exists(subdir)){
   dir.create(file.path(getwd(), dir, subdir))
 }
+
+write_json(settings, file.path(getwd(), dir, subdir, 'settings.json'))
 
 composite_timeseries <- function(job_idx){
 
@@ -67,11 +65,12 @@ composite_timeseries <- function(job_idx){
 
     tryCatch(
       {
-        ts_job = ts + minutes((job_idx-1) * (chunk_size) * tr)
-        te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
+        ts_job = settings['ts'] + minutes((job_idx-1) * (chunk_size) * settings['tr'])
+        te_job = min(ts_job + minutes((chunk_size-1) * settings['tr']), settings['te'])
 
-        if(ts_job <= te){
-          path <- file.path(getwd(), dir, subdir, formatC(job_idx, width=floor(log10(num_cores))+1, flag="0"))
+        if(ts_job <= settings['te']){
+          path <- file.path(getwd(), dir, subdir, formatC(job_idx,
+                            width=floor(log10(num_cores))+1, flag="0"))
           if(!dir.exists(path)){
             dir.create(path)
           }
@@ -81,13 +80,13 @@ composite_timeseries <- function(job_idx){
           message(paste(ts_job, te_job))
 
           tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
-          tseq_job <- seq(0, tl_job, tr)
+          tseq_job <- seq(0, tl_job, settings['tr'])
 
           # for each time step compute vertically integrated radar composite
           l <- list()
           for(dt in tseq_job) {
             timestamp <- ts_job + minutes(dt)
-            keys <- get_keys(radars, timestamp)
+            keys <- get_keys(settings['radars'], timestamp)
             message(timestamp)
 
             # apply vertical integration to all available radars at time t=ts+dt
