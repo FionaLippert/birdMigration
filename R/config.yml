@@ -1,0 +1,19 @@
+# path to preprocessed data
+datapath : ~/birdMigration/R/data
+# start time
+ts : 2016-10-1 00:00
+# end time
+te : 2016-10-8 00:00
+# time resolution in minutes
+tr : 15
+# list of radar stations
+radars :
+  - NL/DBL
+  - NL/DHL
+  - NL/HRW
+  - BE/JAB
+  - BE/ZAV
+# radar quantity
+param : VID
+# 
+res : 0.01

@@ -3,12 +3,15 @@ require(uvaRadar)
 require(lubridate)
 require(raster)
 require(stars)
-library(jsonlite)
-library(parallel)
-library(MASS)
+require(jsonlite)
+require(parallel)
+require(MASS)
 require(numform)
+require(yaml)
 
 num_cores <- detectCores() - 1
+
+config = yaml.load_file("config.yml")
 
 # set credentials for UvA Radar Data Storage
 s3_set_key(username = "flippert",
@@ -16,9 +19,14 @@ s3_set_key(username = "flippert",
 
 
 # time range of interest
-ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
-te <- as.POSIXct("2016-10-1 05:00", "UTC")  # POSIXct end time
-tr <- 15                                    # time resolution [min]
+#ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
+#te <- as.POSIXct("2016-10-1 05:00", "UTC")  # POSIXct end time
+#tr <- 15
+
+ts <- as.POSIXct(config$ts, "UTC")  # POSIXct start time
+te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
+
+tr <- config$tr                                    # time resolution [min]
 tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
 tseq <- seq(0, tl, tr)                                  # delta t sequence
 
