@@ -33,7 +33,7 @@ img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 chunk_size <- ceiling(length(tseq)/num_cores)
 
 if(!dir.exists(config$data$tiff)){
-  dir.create(config$data$tiff)
+  dir.create(config$data$tiff, recursive=TRUE)
 }
 subdir <- file.path(config$data$tiff, paste(ts, "-", te))
 if(!dir.exists(subdir)){

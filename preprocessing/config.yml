@@ -1,8 +1,8 @@
 # directories containing preprocessed data
 data :
-  tiff : data_tiff
-  numpy : data_numpy
-  png : data_png
+  tiff : data/tiff
+  numpy : data/numpy
+  png : data/png
 # login to radar database
 login:
   username : flippert
@@ -10,7 +10,7 @@ login:
 # start time
 ts : 2016-10-1 00:00
 # end time
-te : 2016-10-8 00:00
+te : 2016-10-1 02:45
 # time resolution in minutes
 tr : 15
 # list of radar stations
