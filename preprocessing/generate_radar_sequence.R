@@ -14,8 +14,8 @@ num_cores <- detectCores() - 1
 config = yaml.load_file("config.yml")
 
 # set credentials for UvA Radar Data Storage
-s3_set_key(username = config$username,
-           password = config$password)
+s3_set_key(username = config$login$username,
+           password = config$login$password)
 
 ts <- as.POSIXct(config$ts, "UTC")  # POSIXct start time
 te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
@@ -32,10 +32,10 @@ img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 chunk_size <- ceiling(length(tseq)/num_cores)
 
-if(!dir.exists(config$datadir)){
-  dir.create(config$datadir)
+if(!dir.exists(config$data$tiff)){
+  dir.create(config$data$tiff)
 }
-subdir <- file.path(config$datadir, paste(ts, "-", te))
+subdir <- file.path(config$data$tiff, paste(ts, "-", te))
 if(!dir.exists(subdir)){
   dir.create(subdir)
 }
@@ -100,7 +100,7 @@ composite_timeseries <- function(job_idx){
           strs <- do.call(c, c(l, list(along=3)))
 
           fname_t <- file.path(path, "timestamps.json")
-          fname_d <- file.path(path, paste0(param, ".tif"))
+          fname_d <- file.path(path, paste0(config['quantity'], ".tif"))
 
           if(length(l)>1){
             #result <- st_set_dimensions(strs, 3, names="time",
