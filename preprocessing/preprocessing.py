@@ -4,7 +4,7 @@ import json
 import rasterio as rio
 import numpy as np
 
-def tiff_to_numpy():
+def tiff_timeseries_to_numpy():
 
     with open('config.yml') as f:
         config = yaml.load(f, Loader=yaml.FullLoader)
@@ -33,6 +33,33 @@ def tiff_to_numpy():
                         data = np.vstack((data, data_chunk.read()))
 
             result = RadarTimeSeries(data, timestamps, bounds)
+            result.save(numpy_dir)
+
+def tiff_images_to_numpy():
+
+    with open('config.yml') as f:
+        config = yaml.load(f, Loader=yaml.FullLoader)
+
+    dirs = [f.path for f in os.scandir(config['data']['tiff']) if f.is_dir()]
+
+    for d in dirs:
+        numpy_dir = os.path.join(config['data']['numpy'], os.path.basename(d))
+        if not os.path.isdir(numpy_dir):
+            # if not yet processed to numpy
+            data = {}
+            for _, _, files in os.walk(d):
+               for idx, f in enumerate(sorted(files)):
+                   if f.endswith('.tif'):
+                        data_chunk = rio.open(os.path.join(d, f))
+                        if idx == 0:
+                            bounds = np.array([[data_chunk.bounds.bottom, data_chunk.bounds.left], \
+                                    [data_chunk.bounds.top, data_chunk.bounds.right]])
+                        timestamp = os.path.splitext(os.path.basename(f))[0])
+                        data[timestamp] = data_chunk.read()
+
+            result = RadarTimeSeries(data = np.array(list(data.values())), /
+                                     timestamps = np.array(list(data.keys())), /
+                                     bounds = bounds)
             result.save(numpy_dir)
 
 
