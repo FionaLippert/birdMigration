@@ -9,6 +9,6 @@ ipyleaflet
 ipywidgets
 folium
 pillow
-cv2
+opencv-python
 pyyaml
-base64
+pybase64

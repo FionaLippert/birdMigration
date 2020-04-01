@@ -5,33 +5,30 @@ import rasterio as rio
 import numpy as np
 
 with open('config.yml') as f:
-    config = yaml.load(f, Loader=yaml.FullLoader))
+    config = yaml.load(f, Loader=yaml.FullLoader)
 
 dirs = [f.path for f in os.scandir(config['data']['tiff']) if f.is_dir()]
 
 for d in dirs:
-    numpy_dir = os.path.join(config['data']['numpy'], os.basename(d))
+    numpy_dir = os.path.join(config['data']['numpy'], os.path.basename(d))
     if not os.path.isdir(numpy_dir):
         # if not yet processed to numpy
         for root, subdirs, _ in os.walk(d):
            for idx, sd in enumerate(sorted(subdirs)):
-                print(sd)
                 with open(os.path.join(root, sd, 'timestamps.json')) as f:
                     t = json.load(f)
-                    print(t)
                     if idx == 0:
                         timestamps = np.array(t)
                     else:
                         timestamps = np.hstack((timestamps, np.array(t)))
 
-                with open(os.path.join(root, sd, f'{config['quantity']}.tif')) as f:
-                    data_chunk = rio.open(f)
-                    if idx == 0:
-                        bounds = np.array([[data_chunk.bounds.bottom, data_chunk.bounds.left], \
-                                [data_chunk.bounds.top, data_chunk.bounds.right]])
-                        data = data_chunk.read()
-                    else:
-                        data = np.vstack((data, data_chunk.read()))
+                data_chunk = rio.open(os.path.join(root, sd, f'{config["quantity"]}.tif'))
+                if idx == 0:
+                    bounds = np.array([[data_chunk.bounds.bottom, data_chunk.bounds.left], \
+                            [data_chunk.bounds.top, data_chunk.bounds.right]])
+                    data = data_chunk.read()
+                else:
+                    data = np.vstack((data, data_chunk.read()))
 
         os.makedirs(numpy_dir)
         np.save(os.path.join(numpy_dir, 'data.npy'), data)

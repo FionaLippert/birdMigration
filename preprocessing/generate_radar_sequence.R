@@ -20,7 +20,7 @@ s3_set_key(username = config$login$username,
 ts <- as.POSIXct(config$ts, "UTC")  # POSIXct start time
 te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
 tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
-tseq <- seq(0, tl, tr)                                  # delta t sequence
+tseq <- seq(0, tl, config$tr)                                  # delta t sequence
 
 bbox <- st_bbox(get_radars_df(config$radars)$geometry)
 extent_x <- bbox$xmax - bbox$xmin
