@@ -3,3 +3,12 @@ numpy
 scipy
 rasterio
 matplotlib
+seaborn
+scikit-learn
+ipyleaflet
+ipywidgets
+folium
+pillow
+cv2
+pyyaml
+base64

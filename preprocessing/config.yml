@@ -1,8 +1,12 @@
-# path to preprocessed data
-datadir : data
+# directories containing preprocessed data
+data :
+  tiff : data_tiff
+  numpy : data_numpy
+  png : data_png
 # login to radar database
-username : flippert
-password : eFd5cqJqpv8hJN2D
+login:
+  username : flippert
+  password : eFd5cqJqpv8hJN2D
 # start time
 ts : 2016-10-1 00:00
 # end time

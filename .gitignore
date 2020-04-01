@@ -7,10 +7,9 @@ __pycache__/
 *.so
 
 # data
+data/
 *.tif
 *.png
-*.json
-*.txt
 
 # Distribution / packaging
 .Python

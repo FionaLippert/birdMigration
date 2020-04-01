@@ -17,39 +17,21 @@ config = yaml.load_file("config.yml")
 s3_set_key(username = config$username,
            password = config$password)
 
-
-# time range of interest
-#ts <- as.POSIXct("2016-10-1 00:00", "UTC")  # POSIXct start time
-#te <- as.POSIXct("2016-10-1 05:00", "UTC")  # POSIXct end time
-#tr <- 15
-
 ts <- as.POSIXct(config$ts, "UTC")  # POSIXct start time
 te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
-
-tr <- config$tr                                    # time resolution [min]
 tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
 tseq <- seq(0, tl, tr)                                  # delta t sequence
 
-message(length(tseq))
-
-radars <- config$radars #c("NL/DBL", "NL/DHL")#, "NL/HRW", "BE/JAB", "BE/ZAV")
-param  <- config$quantity #"VID"                             # quantity of interest
-res    <- config$res #0.01                              # raster resolution
-
-message(radars)
-
-bbox <- st_bbox(get_radars_df(radars)$geometry)
+bbox <- st_bbox(get_radars_df(config$radars)$geometry)
 extent_x <- bbox$xmax - bbox$xmin
 extent_y <- bbox$ymax - bbox$ymin
 
 reach <- 5
-grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=res)
+grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=config$res)
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 chunk_size <- ceiling(length(tseq)/num_cores)
-#job_names <- f_pad_zero(seq(1, num_cores))
 
-#dir <- "data"
 if(!dir.exists(config$datadir)){
   dir.create(config$datadir)
 }
@@ -61,24 +43,13 @@ if(!dir.exists(subdir)){
 config_file <- file(file.path(subdir, "config.yml"), open="w")
 write_yaml(config, config_file)
 
-#settings <- '{"ts" : ts, "te" : te, "tr" : tr, "radars" : radars, "param" : param, "res" : res}'
-#write_json(settings, file.path(getwd(), dir, subdir, 'settings.json'))
 
 composite_timeseries <- function(job_idx){
 
-    #path <- file.path(getwd(), dir, subdir, job_idx)
-    #if(!dir.exists(path)){
-    #  dir.create(path)
-    #}
-
-    #log<-file(file.path(path, "log.txt"), open="w")
-    #sink(log)
-    #sink(log,type='output',append=FALSE)
-
     tryCatch(
       {
-        ts_job = ts + minutes((job_idx-1) * (chunk_size) * tr)
-        te_job = min(ts_job + minutes((chunk_size-1) * tr), te)
+        ts_job = ts + minutes((job_idx-1) * (chunk_size) * config$tr)
+        te_job = min(ts_job + minutes((chunk_size-1) * config$tr), te)
 
         if(ts_job <= te){
           path <- file.path(subdir, formatC(job_idx,
@@ -92,13 +63,13 @@ composite_timeseries <- function(job_idx){
           message(paste(ts_job, te_job))
 
           tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
-          tseq_job <- seq(0, tl_job, tr)
+          tseq_job <- seq(0, tl_job, config$tr)
 
           # for each time step compute vertically integrated radar composite
           l <- list()
           for(dt in tseq_job) {
             timestamp <- ts_job + minutes(dt)
-            keys <- get_keys(radars, timestamp)
+            keys <- get_keys(config$radars, timestamp)
             message(timestamp)
 
             # apply vertical integration to all available radars at time t=ts+dt
@@ -121,7 +92,7 @@ composite_timeseries <- function(job_idx){
                         })#, mc.cores=num_cores-1)
 
               # TODO: adjust when new bioRad release is available (with res as input)
-              composite <- composite_ppi(ppi_list, param=param, dim=img_size)
+              composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
               l[[as.character(timestamp)]] <- st_as_stars(composite$data)
             }
           }
