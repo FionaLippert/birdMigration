@@ -43,24 +43,26 @@ if(!dir.exists(subdir)){
 config_file <- file(file.path(subdir, "config.yml"), open="w")
 write_yaml(config, config_file)
 
+log <- file(file.path(subdir, "log.txt"), open="w")
+sink(log, type='message', append=TRUE)
+
+message(paste('number of frames to be processed:', length(tseq)))
+
 
 create_composites <- function(job_idx){
+
+  tryCatch(
+    {
 
     ts_job = ts + minutes((job_idx-1) * (chunk_size) * config$tr)
     te_job = min(ts_job + minutes((chunk_size-1) * config$tr), te)
 
     if(ts_job <= te){
-      #path <- file.path(subdir, formatC(job_idx,
-      #                  width=floor(log10(num_cores))+1, flag="0"))
-      #if(!dir.exists(path)){
-      #  dir.create(path)
-      #}
 
       tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
       tseq_job <- seq(0, tl_job, config$tr)
 
       # for each time step compute vertically integrated radar composite
-      l <- list()
       for(dt in tseq_job) {
         timestamp <- ts_job + minutes(dt)
         keys <- get_keys(config$radars, timestamp)
@@ -87,15 +89,25 @@ create_composites <- function(job_idx){
 
           # TODO: adjust when new bioRad release is available (with res as input)
           composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
-          fname <- file.path(subdir, paste0(as.character(timestamp), ".tif"))
+          timestamp <- as.character(timestamp)
+          if(length(timestamp) < 11){
+            timestamp <- paste(timestamp, '00:00:00')
+          }
+          fname <- file.path(subdir, paste0(timestamp, ".tif"))
           strs <- st_as_stars(composite$data)
           write_stars(strs, fname, driver = "GTiff")
         }
       }
    }
+
+ },
+ error = function(e) print(e)
+ )
 }
 
 jobs <- seq(1, num_cores)
 system.time({
   results <- mclapply(jobs, create_composites, mc.cores = num_cores)
 })
+
+sink(NULL,type='message')
