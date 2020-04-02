@@ -49,65 +49,59 @@ sink(log, type='message', append=TRUE)
 message(paste('number of frames to be processed:', length(tseq)))
 
 
-create_composites <- function(job_idx){
+create_composite <- function(idx){
 
   tryCatch(
     {
 
-    ts_job = ts + minutes((job_idx-1) * (chunk_size) * config$tr)
-    te_job = min(ts_job + minutes((chunk_size-1) * config$tr), te)
+    timestamp = ts + minutes(tseq[[idx]])
+    # compute vertically integrated radar composite
+    keys <- get_keys(config$radars, timestamp)
 
-    if(ts_job <= te){
+    timestamp <- as.character(timestamp)
+    if(nchar(timestamp) < 11){
+      timestamp <- paste(timestamp, '00:00:00')
+    }
+    message(timestamp)
 
-      tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
-      tseq_job <- seq(0, tl_job, config$tr)
+    # apply vertical integration to all available radars at time t=ts+dt
+    # and combine the resulting ppi's into composite raster
 
-      # for each time step compute vertically integrated radar composite
-      for(dt in tseq_job) {
-        timestamp <- ts_job + minutes(dt)
-        keys <- get_keys(config$radars, timestamp)
-        message(timestamp)
+    # TODO: load pvol and vp prior to parallel execution of vertical integration
+    if(length(keys) > 0) {
+      names(keys) <- keys
+      pvol_list <- sapply(keys, function(k) { retrieve_pvol(vp_key_to_pvol(k))},
+                    simplify = FALSE, USE.NAMES = TRUE)
 
-        # apply vertical integration to all available radars at time t=ts+dt
-        # and combine the resulting ppi's into composite raster
+      vp_list <- sapply(keys, retrieve_vp, simplify = FALSE, USE.NAMES = TRUE)
 
-        # TODO: load pvol and vp prior to parallel execution of vertical integration
-        if(length(keys) > 0) {
-          names(keys) <- keys
-          pvol_list <- sapply(keys, function(k) { retrieve_pvol(vp_key_to_pvol(k))},
-                        simplify = FALSE, USE.NAMES = TRUE)
+      # TODO; fix error arising when vp$data[['eta']] is all NAN (with BE/WID at 2016-10-01 00:15)
+      # maybe fix it by using 'dens' instead of 'eta'?
+      ppi_list <- lapply(keys, function(k) {
+                integrate_to_ppi(pvol=pvol_list[[k]],
+                                 vp=vp_list[[k]],
+                                 raster=grid)
+                })#, mc.cores=num_cores-1)
 
-          vp_list <- sapply(keys, retrieve_vp, simplify = FALSE, USE.NAMES = TRUE)
+      # TODO: adjust when new bioRad release is available (with res as input)
+      composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
 
-          # TODO; fix error arising when vp$data[['eta']] is all NAN (with BE/WID at 2016-10-01 00:15)
-          # maybe fix it by using 'dens' instead of 'eta'?
-          ppi_list <- lapply(keys, function(k) {
-                    integrate_to_ppi(pvol=pvol_list[[k]],
-                                     vp=vp_list[[k]],
-                                     raster=grid)
-                    })#, mc.cores=num_cores-1)
-
-          # TODO: adjust when new bioRad release is available (with res as input)
-          composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
-          timestamp <- as.character(timestamp)
-          if(length(timestamp) < 11){
-            timestamp <- paste(timestamp, '00:00:00')
-          }
-          fname <- file.path(subdir, paste0(timestamp, ".tif"))
-          strs <- st_as_stars(composite$data)
-          write_stars(strs, fname, driver = "GTiff")
-        }
-      }
-   }
+      fname <- file.path(subdir, paste0(timestamp, ".tif"))
+      strs <- st_as_stars(composite$data)
+      write_stars(strs, fname, driver = "GTiff")
+    }
+    else{
+      message(paste('no data for timestamp', timestamp))
+    }
 
  },
  error = function(e) print(e)
  )
 }
 
-jobs <- seq(1, num_cores)
+jobs <- seq(length(tseq))
 system.time({
-  results <- mclapply(jobs, create_composites, mc.cores = num_cores)
+  results <- mclapply(jobs, create_composite, mc.cores = num_cores)
 })
 
 sink(NULL,type='message')
