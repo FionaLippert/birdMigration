@@ -50,11 +50,11 @@ create_composites <- function(job_idx){
     te_job = min(ts_job + minutes((chunk_size-1) * config$tr), te)
 
     if(ts_job <= te){
-      path <- file.path(subdir, formatC(job_idx,
-                        width=floor(log10(num_cores))+1, flag="0"))
-      if(!dir.exists(path)){
-        dir.create(path)
-      }
+      #path <- file.path(subdir, formatC(job_idx,
+      #                  width=floor(log10(num_cores))+1, flag="0"))
+      #if(!dir.exists(path)){
+      #  dir.create(path)
+      #}
 
       tl_job <- as.numeric(difftime(te_job, ts_job, units = "mins"))
       tseq_job <- seq(0, tl_job, config$tr)
@@ -87,11 +87,12 @@ create_composites <- function(job_idx){
 
           # TODO: adjust when new bioRad release is available (with res as input)
           composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
-          fname <- paste0(as.character(timestamp), ".tif")
+          fname <- file.path(subdir, paste0(as.character(timestamp), ".tif"))
           strs <- st_as_stars(composite$data)
           write_stars(strs, fname, driver = "GTiff")
         }
       }
+   }
 }
 
 jobs <- seq(1, num_cores)
