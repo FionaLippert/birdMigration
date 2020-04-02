@@ -89,19 +89,24 @@ create_composite <- function(idx){
       fname <- file.path(subdir, paste0(timestamp, ".tif"))
       strs <- st_as_stars(composite$data)
       write_stars(strs, fname, driver = "GTiff")
+
+      return 1
     }
     else{
       message(paste('no data for timestamp', timestamp))
+      return 0
     }
 
  },
- error = function(e) print(e)
- )
+ error = {
+   function(e) print(e)
+   return 0
+ })
 }
 
 jobs <- seq(length(tseq))
 system.time({
   results <- mclapply(jobs, create_composite, mc.cores = num_cores)
 })
-
+message(paste(Reduce("+", results), 'of', length(jobs), 'frames have been processed successfully'))
 sink(NULL,type='message')
