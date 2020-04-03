@@ -9,7 +9,6 @@ with open('config.yml') as f:
       config = yaml.load(f, Loader = yaml.FullLoader)
 
 time_delta = timedelta(minutes = config['tr'])
-
 time_range = np.arange(start = config['ts'],
                        stop  = config['te'] + time_delta,
                        step  = time_delta,
@@ -21,19 +20,16 @@ os.makedirs(subdir, exist_ok = True)
 
 subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 
-#subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(time_range[0])])
+start_time = datetime.now()
 
 processes = set()
-max_processes = 5
-
-
-start_time = datetime.now()
+max_processes = 20
 
 for t in time_range:
     print('---------- start new process ------------')
     processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
-                            stdout=open(os.path.join(subdir, 'stdout.txt'), 'a+'),
-                            stderr=open(os.path.join(subdir, 'stderr.txt'), 'a+')))
+                            stdout=open(os.path.join(subdir, 'log.txt'), 'a+'),
+                            stderr=open(os.path.join(subdir, 'log.txt'), 'a+')))
     if len(processes) >= max_processes:
         os.wait()
         processes.difference_update(

@@ -8,10 +8,8 @@ require(raster)
 require(stars)
 require(parallel)
 require(MASS)
-#require(numform)
 require(yaml)
 
-#num_cores <- detectCores() - 1
 subdir <- args[1]
 config = yaml.load_file(file.path(subdir, "config.yml"))
 
@@ -19,14 +17,6 @@ config = yaml.load_file(file.path(subdir, "config.yml"))
 s3_set_key(username = config$login$username,
            password = config$login$password)
 
-ts <- as.POSIXct(config$ts, "UTC")  # POSIXct start time
-te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
-tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
-tseq <- seq(0, tl, config$tr)                                  # delta t sequence
-
-#bbox <- st_bbox(get_radars_df(config$radars)$geometry)
-#extent_x <- bbox$xmax - bbox$xmin
-#extent_y <- bbox$ymax - bbox$ymin
 
 xmin <- config$bbox[[1]] - config$reach
 ymin <- config$bbox[[2]] - config$reach
@@ -36,17 +26,9 @@ grid <- raster(xmn=xmin, xmx=xmax, ymn=ymin, ymx=ymax, res=config$res)
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 
-#subdir <- file.path(config$data$tiff, paste(ts, "-", te))
-
-#log <- file(file.path(subdir, "log.txt"), open="w")
-#sink(log, type='message', append=TRUE)
-
-message(paste(length(tseq), 'frames to be processed:'))
-
 
 create_composite <- function(timestamp){
 
-    #timestamp = ts + minutes(tseq[[idx]])
     # compute vertically integrated radar composite
     keys <- get_keys(config$radars, timestamp)
 
@@ -88,12 +70,5 @@ create_composite <- function(timestamp){
     }
 }
 
-#jobs <- seq(length(tseq))
-#system.time({
-#  results <- mclapply(jobs, create_composite, mc.cores = num_cores)
-#})
-#message(paste(Reduce("+", results), 'of', length(jobs), 'frames have been processed successfully'))
 
 create_composite(as.POSIXct(args[2], "UTC"))
-
-#sink(NULL,type='message')
