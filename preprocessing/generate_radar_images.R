@@ -8,7 +8,7 @@ require(raster)
 require(stars)
 require(parallel)
 require(MASS)
-require(numform)
+#require(numform)
 require(yaml)
 
 #num_cores <- detectCores() - 1
@@ -38,16 +38,13 @@ img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 #subdir <- file.path(config$data$tiff, paste(ts, "-", te))
 
-log <- file(file.path(subdir, "log.txt"), open="w")
-sink(log, type='message', append=TRUE)
+#log <- file(file.path(subdir, "log.txt"), open="w")
+#sink(log, type='message', append=TRUE)
 
 message(paste(length(tseq), 'frames to be processed:'))
 
 
 create_composite <- function(timestamp){
-
-  tryCatch(
-    {
 
     #timestamp = ts + minutes(tseq[[idx]])
     # compute vertically integrated radar composite
@@ -85,18 +82,10 @@ create_composite <- function(timestamp){
       strs <- st_as_stars(composite$data)
       write_stars(strs, fname, driver = "GTiff")
 
-      return(1)
     }
     else{
       message(paste('no data for timestamp', timestamp))
-      return(0)
     }
-
- },
- error = function(e) {
-   print(e)
-   return(0)
- })
 }
 
 #jobs <- seq(length(tseq))
@@ -105,9 +94,6 @@ create_composite <- function(timestamp){
 #})
 #message(paste(Reduce("+", results), 'of', length(jobs), 'frames have been processed successfully'))
 
-system.time({
-  create_composite(as.POSIXct(args[2], "UTC"))
-})
+create_composite(as.POSIXct(args[2], "UTC"))
 
-
-sink(NULL,type='message')
+#sink(NULL,type='message')
