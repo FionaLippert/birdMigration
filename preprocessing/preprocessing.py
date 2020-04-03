@@ -3,6 +3,7 @@ import os
 import json
 import rasterio as rio
 import numpy as np
+from datetime import datetime, timedelta
 
 def tiff_timeseries_to_numpy():
 
@@ -61,6 +62,23 @@ def tiff_images_to_numpy():
                                      timestamps = np.array(list(data.keys())), /
                                      bounds = bounds)
             result.save(numpy_dir)
+
+def get_radar_sequence(dir, ts, tl, tr):
+
+    i = 0
+    data = []
+    for _, _, files in os.walk(dir):
+       for f in sorted(files):
+           if f == (f'{datetime(ts) + timedelta(minutes=tr*i)}.tif'):
+               data.append(rio.open(os.path.join(dir, f)).read())
+               i += 1
+           if i == tl:
+               return np.array(data)
+    if i < tl:
+        return None
+
+
+
 
 
 class RadarTimeSeries:

@@ -1,15 +1,17 @@
+#!/usr/bin/env Rscript
+args = commandArgs(trailingOnly=TRUE)
+
 require(bioRad)
 require(uvaRadar)
 require(lubridate)
 require(raster)
 require(stars)
-require(jsonlite)
 require(parallel)
 require(MASS)
 require(numform)
 require(yaml)
 
-num_cores <- detectCores() - 1
+#num_cores <- detectCores() - 1
 
 config = yaml.load_file("config.yml")
 
@@ -22,31 +24,25 @@ te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
 tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
 tseq <- seq(0, tl, config$tr)                                  # delta t sequence
 
-bbox <- st_bbox(get_radars_df(config$radars)$geometry)
-extent_x <- bbox$xmax - bbox$xmin
-extent_y <- bbox$ymax - bbox$ymin
+#bbox <- st_bbox(get_radars_df(config$radars)$geometry)
+#extent_x <- bbox$xmax - bbox$xmin
+#extent_y <- bbox$ymax - bbox$ymin
 
 reach <- 5
-grid <- raster(xmn=bbox$xmin-reach,xmx=bbox$xmax+reach,ymn=bbox$ymin-reach,ymx=bbox$ymax+reach, res=config$res)
-img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
+xmin <- config$bbox[[1]]
+ymin <- config$bbox[[2]]
+xmax <- config$bbox[[3]]
+ymax <- config$bbox[[4]]
+grid <- raster(xmn=xmin-reach,xmx=xmax+reach,ymn=ymin-reach,ymx=ymax+reach, res=config$res)
+#img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
-chunk_size <- ceiling(length(tseq)/num_cores)
 
-if(!dir.exists(config$data$tiff)){
-  dir.create(config$data$tiff, recursive=TRUE)
-}
 subdir <- file.path(config$data$tiff, paste(ts, "-", te))
-if(!dir.exists(subdir)){
-  dir.create(subdir)
-}
-
-config_file <- file(file.path(subdir, "config.yml"), open="w")
-write_yaml(config, config_file)
 
 log <- file(file.path(subdir, "log.txt"), open="w")
 sink(log, type='message', append=TRUE)
 
-message(paste('number of frames to be processed:', length(tseq)))
+message(paste(length(tseq), 'frames to be processed:'))
 
 
 create_composite <- function(idx){
@@ -90,23 +86,29 @@ create_composite <- function(idx){
       strs <- st_as_stars(composite$data)
       write_stars(strs, fname, driver = "GTiff")
 
-      return 1
+      return(1)
     }
     else{
       message(paste('no data for timestamp', timestamp))
-      return 0
+      return(0)
     }
 
  },
- error = {
-   function(e) print(e)
-   return 0
+ error = function(e) {
+   print(e)
+   return(0)
  })
 }
 
-jobs <- seq(length(tseq))
+#jobs <- seq(length(tseq))
+#system.time({
+#  results <- mclapply(jobs, create_composite, mc.cores = num_cores)
+#})
+#message(paste(Reduce("+", results), 'of', length(jobs), 'frames have been processed successfully'))
+
 system.time({
-  results <- mclapply(jobs, create_composite, mc.cores = num_cores)
+  create_composite(args[1])
 })
-message(paste(Reduce("+", results), 'of', length(jobs), 'frames have been processed successfully'))
+
+
 sink(NULL,type='message')
