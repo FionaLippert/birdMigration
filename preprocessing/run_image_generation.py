@@ -26,11 +26,14 @@ subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 processes = set()
 max_processes = 5
 
+
+start_time = datetime.now()
+
 for t in time_range:
     print('---------- start new process ------------')
     processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
-                            stdout=open(os.path.join(subdir, 'log.txt'), 'w'),
-                            stderr=open(os.path.join(subdir, 'log.txt'), 'w')))
+                            stdout=open(os.path.join(subdir, 'stdout.txt'), 'a+'),
+                            stderr=open(os.path.join(subdir, 'stderr.txt'), 'a+')))
     if len(processes) >= max_processes:
         os.wait()
         processes.difference_update(
@@ -39,3 +42,7 @@ for t in time_range:
 for p in processes:
     if p.poll() is None:
         p.wait()
+
+
+time_elapsed = datetime.now() - start_time
+print('Time elapsed (hh:mm:ss.ms) {}'.format(time_elapsed))
