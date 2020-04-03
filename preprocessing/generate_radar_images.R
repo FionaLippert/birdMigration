@@ -28,13 +28,12 @@ tseq <- seq(0, tl, config$tr)                                  # delta t sequenc
 #extent_x <- bbox$xmax - bbox$xmin
 #extent_y <- bbox$ymax - bbox$ymin
 
-reach <- 5
-xmin <- config$bbox[[1]]
-ymin <- config$bbox[[2]]
-xmax <- config$bbox[[3]]
-ymax <- config$bbox[[4]]
-grid <- raster(xmn=xmin-reach,xmx=xmax+reach,ymn=ymin-reach,ymx=ymax+reach, res=config$res)
-#img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
+xmin <- config$bbox[[1]] - config$reach
+ymin <- config$bbox[[2]] - config$reach
+xmax <- config$bbox[[3]] + config$reach
+ymax <- config$bbox[[4]] + config$reach
+grid <- raster(xmn=xmin, xmx=xmax, ymn=ymin, ymx=ymax, res=config$res)
+img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 
 #subdir <- file.path(config$data$tiff, paste(ts, "-", te))
