@@ -12,8 +12,8 @@ require(numform)
 require(yaml)
 
 #num_cores <- detectCores() - 1
-
-config = yaml.load_file("config.yml")
+subdir <- args[1]
+config = yaml.load_file(file.path(subdir, "config.yml"))
 
 # set credentials for UvA Radar Data Storage
 s3_set_key(username = config$login$username,
@@ -37,7 +37,7 @@ grid <- raster(xmn=xmin-reach,xmx=xmax+reach,ymn=ymin-reach,ymx=ymax+reach, res=
 #img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 
-subdir <- file.path(config$data$tiff, paste(ts, "-", te))
+#subdir <- file.path(config$data$tiff, paste(ts, "-", te))
 
 log <- file(file.path(subdir, "log.txt"), open="w")
 sink(log, type='message', append=TRUE)
@@ -45,12 +45,12 @@ sink(log, type='message', append=TRUE)
 message(paste(length(tseq), 'frames to be processed:'))
 
 
-create_composite <- function(idx){
+create_composite <- function(timestamp){
 
   tryCatch(
     {
 
-    timestamp = ts + minutes(tseq[[idx]])
+    #timestamp = ts + minutes(tseq[[idx]])
     # compute vertically integrated radar composite
     keys <- get_keys(config$radars, timestamp)
 
@@ -107,7 +107,7 @@ create_composite <- function(idx){
 #message(paste(Reduce("+", results), 'of', length(jobs), 'frames have been processed successfully'))
 
 system.time({
-  create_composite(args[1])
+  create_composite(as.POSIXct(args[2], "UTC"))
 })
 
 
