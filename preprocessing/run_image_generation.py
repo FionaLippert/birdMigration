@@ -17,6 +17,7 @@ time_range = np.arange(start = config['ts'],
 
 subdir = os.path.join(config['data']['tiff'], f'{time_range[0]} - {time_range[-1]}')
 os.makedirs(subdir, exist_ok = True)
+logfile = os.path.join(subdir, 'log.txt')
 
 subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 
@@ -28,8 +29,8 @@ max_processes = 20
 for t in time_range:
     print('---------- start new process ------------')
     processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
-                            stdout=open(os.path.join(subdir, 'log.txt'), 'a+'),
-                            stderr=open(os.path.join(subdir, 'log.txt'), 'a+')))
+                            stdout=open(logfile, 'a+'),
+                            stderr=open(logfile, 'a+')))
     if len(processes) >= max_processes:
         os.wait()
         processes.difference_update(
@@ -41,4 +42,7 @@ for p in processes:
 
 
 time_elapsed = datetime.now() - start_time
-print('Time elapsed (hh:mm:ss.ms) {}'.format(time_elapsed))
+
+with open(logfile, 'a+') as f:
+    f.write('\n')
+    f.write('Time elapsed (hh:mm:ss.ms) {}'.format(time_elapsed))
