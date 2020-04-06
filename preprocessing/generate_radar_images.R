@@ -11,7 +11,7 @@ require(MASS)
 require(yaml)
 
 root <- args[1]
-config = yaml.load_file(file.path(subdir, "config.yml"))
+config = yaml.load_file(file.path(root, "config.yml"))
 
 # set credentials for UvA Radar Data Storage
 s3_set_key(username = config$login$username,
