@@ -40,7 +40,7 @@ vertical_integration <- function(timestamp){
                          pvol = retrieve_pvol(vp_key_to_pvol(k)),
                          vp = retrieve_vp(k))
         #strs <- st_as_stars(result$data[[config$quantity]])
-        message(result$data[['VID']])
+        message(length(result$data[[config$quantity]]))
         #fname <- paste0(config$quantity, "_", timestamp, ".tif")
         #write_stars(strs, file.path(path, fname), driver = "GTiff")
       }

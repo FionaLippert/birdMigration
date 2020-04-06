@@ -78,7 +78,10 @@ def get_radar_sequence(dir, ts, tl, tr):
         return None
 
 
+class RasterImage:
 
+    def __init__(self, root, radar, timestamp):
+        
 
 
 class RadarTimeSeries:
