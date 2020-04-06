@@ -80,8 +80,22 @@ def get_radar_sequence(dir, ts, tl, tr):
 
 class RasterImage:
 
-    def __init__(self, root, radar, timestamp):
-        
+    def __init__(self, root, radar, timestamp, radar_quantity='VID'):
+        self.root = root
+        self.radar = radar
+        self.timestamp = timestamp
+        self.radar_quantity = radar_quantity
+        self.data = rio.open(os.path.join(root,
+                radar,
+                datetime(timestamp).year,
+                datetime(timestamp).month,
+                f'{radar_quantity}_{timestamp.strftime("%Y%m%dT%H%M")}.tif'))
+
+        with open(os.path.join(root, 'config.yml')) as f:
+            config = yaml.load(f, Loader=yaml.FullLoader)
+        self.bounds = config['bounds']
+
+        # TODO:  get radar position in lat/long and pixel indices
 
 
 class RadarTimeSeries:

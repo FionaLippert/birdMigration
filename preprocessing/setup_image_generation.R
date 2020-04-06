@@ -13,7 +13,7 @@ s3_set_key(username = config$login$username,
            password = config$login$password)
 
 bbox <- st_bbox(get_radars_df(config$radars)$geometry)
-config[['bbox']] <- bbox
+config[['bounds']] <- bbox
 
 config_file <- file(file.path(args[1], "config.yml"), open="w")
 write_yaml(config, config_file)

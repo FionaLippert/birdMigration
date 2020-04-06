@@ -17,10 +17,10 @@ config = yaml.load_file(file.path(root, "config.yml"))
 s3_set_key(username = config$login$username,
            password = config$login$password)
 
-xmin <- config$bbox[[1]] - config$reach
-ymin <- config$bbox[[2]] - config$reach
-xmax <- config$bbox[[3]] + config$reach
-ymax <- config$bbox[[4]] + config$reach
+xmin <- config$bounds[[1]] - config$reach
+ymin <- config$bounds[[2]] - config$reach
+xmax <- config$bounds[[3]] + config$reach
+ymax <- config$bounds[[4]] + config$reach
 grid <- raster(xmn=xmin, xmx=xmax, ymn=ymin, ymx=ymax, res=config$res)
 #img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
@@ -39,8 +39,8 @@ vertical_integration <- function(timestamp){
         result <- integrate_to_ppi(raster = grid,
                          pvol = retrieve_pvol(vp_key_to_pvol(k)),
                          vp = retrieve_vp(k))
-        #strs <- st_as_stars(result$data[[config$quantity]])
-        message(length(result$data[[config$quantity]]))
+        strs <- st_as_stars(result$data[[config$quantity]])
+        #message(length(result$data[[config$quantity]]))
         #fname <- paste0(config$quantity, "_", timestamp, ".tif")
         #write_stars(strs, file.path(path, fname), driver = "GTiff")
       }
