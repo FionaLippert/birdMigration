@@ -39,8 +39,8 @@ vertical_integration <- function(timestamp){
         result <- integrate_to_ppi(raster = grid,
                          pvol = retrieve_pvol(vp_key_to_pvol(k)),
                          vp = retrieve_vp(k))
-        strs <- st_as_stars(result$data)
-        fname <- paste0(timestamp, ".tif")
+        strs <- st_as_stars(result$data[[config$quantity]])
+        fname <- paste0(config$quantity, "_", timestamp, ".tif")
         write_stars(strs, file.path(path, fname), driver = "GTiff")
       }
     }
