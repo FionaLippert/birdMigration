@@ -35,7 +35,7 @@ vertical_integration <- function(timestamp){
     for(k in keys){
       path <- file.path(root, dirname(k))
       if(!dir.exists(path)){
-        dir.create(path)
+        dir.create(path, recursive=TRUE)
         result <- integrate_to_ppi(raster = grid,
                          pvol = retrieve_pvol(vp_key_to_pvol(k)),
                          vp = retrieve_vp(k))
