@@ -34,7 +34,7 @@ vertical_integration <- function(timestamp){
     # apply vertical integration to all available radars at time t=ts+dt
     for(k in keys){
       path <- file.path(root, dirname(k))
-      if(!dir.exists(path){
+      if(!dir.exists(path)){
         dir.create(path)
         integrate_to_ppi(raster = grid,
                          pvol = retrieve_pvol(vp_key_to_pvol(k)),

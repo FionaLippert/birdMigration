@@ -45,4 +45,4 @@ time_elapsed = datetime.now() - start_time
 
 with open(logfile, 'a+') as f:
     f.write('\n')
-    f.write('Time elapsed (hh:mm:ss.ms) {}'.format(time_elapsed))
+    f.write(f'Time elapsed (hh:mm:ss.ms) {time_elapsed} \n'))
