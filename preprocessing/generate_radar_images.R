@@ -36,16 +36,16 @@ vertical_integration <- function(timestamp){
       path <- file.path(root, strsplit(k, '/')[[1]][[1]], strsplit(k, '/')[[1]][[2]], config$quantity)
       message(path)
       #path <- file.path(root, dirname(k))
-      if(!dir.exists(path)){
-        #dir.create(path, recursive=TRUE)
-        result <- integrate_to_ppi(raster = grid,
+      #if(!dir.exists(path)){
+      #dir.create(path, recursive=TRUE)
+      result <- integrate_to_ppi(raster = grid,
                          pvol = retrieve_pvol(vp_key_to_pvol(k)),
                          vp = retrieve_vp(k))
-        strs <- st_as_stars(result$data)
-        #message(length(result$data[[config$quantity]]))
-        fname <- paste0(config$quantity, "_", timestamp, ".tif")
-        write_stars(strs[config$quantity], file.path(path, fname), driver = "GTiff")
-      }
+      strs <- st_as_stars(result$data)
+      #message(length(result$data[[config$quantity]]))
+      fname <- paste0(config$quantity, "_", timestamp, ".tif")
+      write_stars(strs[config$quantity], file.path(path, fname), driver = "GTiff")
+      
     }
 }
 
