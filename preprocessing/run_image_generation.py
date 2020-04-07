@@ -15,12 +15,12 @@ time_range = np.arange(start = config['ts'],
                        dtype = datetime)
 
 
-subdir = os.path.join(config['data']['tiff'], f'{time_range[0]} - {time_range[-1]}')
+subdir = os.path.join(config['data']['ppi'], f'{time_range[0]} - {time_range[-1]}')
 os.makedirs(subdir, exist_ok = True)
 logfile = os.path.join(subdir, 'log.txt')
 
 for r in config['radars']:
-    os.makedirs(os.path.join(subdir, r, config['quantity']), exist_ok=True)
+    os.makedirs(os.path.join(subdir, r), exist_ok=True)
 
 subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 
