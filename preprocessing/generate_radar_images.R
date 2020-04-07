@@ -45,7 +45,7 @@ vertical_integration <- function(timestamp){
       message(output_path)
 
       h5createFile(output_path)
-      h5createGroup(output_path, "data")
+      #h5createGroup(output_path, "dataset")
       #path <- file.path(root, dirname(k))
       #if(!dir.exists(path)){
       #dir.create(path, recursive=TRUE)
@@ -61,26 +61,38 @@ vertical_integration <- function(timestamp){
 
       for (q in quantities){
         data = as(ppi$data[q], "matrix")
-        attr(data, "quantity") <- q
-        h5write(data, output_path, paste0("data/", q))
+        h5write(data, output_path, paste0(q, "/data"))
+
+        h5createGroup(output_path, paste0(q, "/what"))
+        fid = H5Fopen(h5_file_output_path)
+        h5g = H5Gopen(fid, paste0(q, "/what"))
+        h5writeAttribute(attr = q, h5obj = h5g, name = "quantity")
+        h5writeAttribute(attr = "raster", h5obj = h5g, name = "object")
+        h5writeAttribute(attr = ppi$datetime, h5obj = h5g, name = "datetime")
+        H5Gclose(h5g)
+        H5Fclose(fid)
+
       }
 
-      h5createGroup(output_path, "attributes")
+      h5createGroup(output_path, "where")
+      h5createGroup(output_path, "how")
       fid = H5Fopen(output_path)
-      h5g = H5Gopen(fid, "attributes")
 
+      h5g = H5Gopen(fid, "where")
       h5writeAttribute(attr = lon_min, h5obj = h5g, name = "lon_min")
       h5writeAttribute(attr = lat_min, h5obj = h5g, name = "lat_min")
       h5writeAttribute(attr = lon_max, h5obj = h5g, name = "lon_max")
       h5writeAttribute(attr = lat_max, h5obj = h5g, name = "lat_max")
-      h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "ncols")
-      h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "nrows")
-      h5writeAttribute(attr = res(r), h5obj = h5g, name = "resolution")
-      h5writeAttribute(attr = ppi$datetime, h5obj = h5g, name = "time")
       h5writeAttribute(attr = vp$attributes$where$lat, h5obj = h5g, name = "lat_radar")
       h5writeAttribute(attr = vp$attributes$where$lon, h5obj = h5g, name = "lon_radar")
       H5Gclose(h5g)
+
+      h5g = H5Gopen(fid, "how")
+      #h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "ncols")
+      #h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "nrows")
+      h5writeAttribute(attr = res(r), h5obj = h5g, name = "resolution")
       H5Fclose(fid)
+      
       h5closeAll()
 
       #strs <- st_as_stars(result$data)

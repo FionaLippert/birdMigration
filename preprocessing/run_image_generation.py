@@ -33,22 +33,22 @@ processes = set()
 max_processes = 20
 
 for t in time_range:
-    #print('---------- start new process ------------')
-    #processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
-    #                        stdout=open(logfile, 'a+'),
-    #                        stderr=open(logfile, 'a+')))
-
-    subprocess.call(['Rscript', 'generate_radar_images.R', subdir, str(t)],
+    print('---------- start new process ------------')
+    processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
                             stdout=open(logfile, 'a+'),
-                            stderr=open(logfile, 'a+'))
-    #if len(processes) >= max_processes:
-    #    os.wait()
-    #    processes.difference_update(
-    #        [p for p in processes if p.poll() is not None])
+                            stderr=open(logfile, 'a+')))
+
+    #subprocess.call(['Rscript', 'generate_radar_images.R', subdir, str(t)],
+    #                        stdout=open(logfile, 'a+'),
+    #                        stderr=open(logfile, 'a+'))
+    if len(processes) >= max_processes:
+        os.wait()
+        processes.difference_update(
+            [p for p in processes if p.poll() is not None])
 #Check if all the child processes were closed
-#for p in processes:
-#    if p.poll() is None:
-#        p.wait()
+for p in processes:
+    if p.poll() is None:
+        p.wait()
 
 
 time_elapsed = datetime.now() - start_time

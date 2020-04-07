@@ -10,7 +10,7 @@ login:
 # start time
 ts : 2016-10-01 00:00:00
 # end time
-te : 2016-10-01 02:00:00
+te : 2016-10-02 00:00:00
 # time resolution in minutes
 tr : 15
 # list of radar stations
