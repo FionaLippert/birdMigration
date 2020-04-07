@@ -21,7 +21,7 @@ subdir = os.path.join(config['data']['ppi'], f'{ts_str}-{te_str}')
 #subdir = os.path.join(config['data']['ppi'], f'{time_range[0]} - {time_range[-1]}')
 
 os.makedirs(subdir, exist_ok = True)
-with open(os.path.join(subdir, 'config.yml'), 'w') as f:
+with open(os.path.join(subdir, 'config.yml'), 'w+') as f:
     yaml.dump(config, f)
 logfile = os.path.join(subdir, 'log.txt')
 
