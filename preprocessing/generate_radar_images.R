@@ -25,8 +25,8 @@ lat_min <- config$bounds[[1]] - config$reach
 lon_min <- config$bounds[[2]] - config$reach
 lat_max <- config$bounds[[3]] + config$reach
 lon_max <- config$bounds[[4]] + config$reach
-#grid <- raster(xmn=lat_min, xmx=lat_max, ymn=lon_min, ymx=lon_max, res=config$res)
-#img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
+grid <- raster(xmn=lat_min, xmx=lat_max, ymn=lon_min, ymx=lon_max, res=0.01)
+img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 vertical_integration <- function(timestamp){
 
@@ -36,6 +36,7 @@ vertical_integration <- function(timestamp){
     #message(timestamp)
 
     # apply vertical integration to all available radars at time t=ts+dt
+    ppi_list <- list()
     for(k in keys){
       key_split <- strsplit(k, .Platform$file.sep)[[1]]
       country <- key_split[[1]]
@@ -50,11 +51,12 @@ vertical_integration <- function(timestamp){
 
       pvol = retrieve_pvol(vp_key_to_pvol(k))
       vp = retrieve_vp(k)
-      ppi <- integrate_to_ppi(pvol = pvol, vp = vp,
-                              res = config$res,
+      ppi <- integrate_to_ppi(pvol = pvol, vp = vp, raster = grid,
+                              #res = config$res,
                               #xlim = c(lon_min,lon_max),
                               #ylim = c(lat_min,lat_max),
                               param_ppi = config$quantity)
+      ppi_list[[k]] <- ppi
       r <- raster(ppi$data)
       r_attr = attributes(r)
       #quantities = names(ppi$data)
@@ -105,6 +107,16 @@ vertical_integration <- function(timestamp){
       H5Fclose(fid)
       h5closeAll()
     }
+    composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
+
+    fname <- paste0("composite_", timestamp, ".h5")
+    output_path <- file.path(root, fname)
+    h5createFile(output_path)
+    groupname <- paste0(config$quantity, "_data")
+    h5createGroup(output_path, groupname)
+    data = as(composite$data, "matrix")
+    h5write(data, output_path, paste0(groupname, "/data"))
+    h5closeAll()
 }
 
 vertical_integration(as.POSIXct(args[2], "UTC"))
