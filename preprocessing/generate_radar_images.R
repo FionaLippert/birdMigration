@@ -94,7 +94,7 @@ vertical_integration <- function(timestamp){
       h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "xsize")
       h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "ysize")
 
-      h5g = H5Gopen(fig, "what")
+      h5g = H5Gopen(fid, "what")
       h5writeAttribute(attr = config$quantity, h5obj = h5g, name = "quantity")
       h5writeAttribute(attr = "IMAGE", h5obj = h5g, name = "object")
       h5writeAttribute(attr = paste0(country, "/", rname), h5obj = h5g, name = "source")
