@@ -32,7 +32,7 @@ vertical_integration <- function(datetime){
 
     # compute vertically integrated radar composite
     keys <- get_keys(config$radars, datetime)
-    timestamp <- format(timestamp, format="%Y%m%dT%H%M")
+    timestamp <- format(datetime, format="%Y%m%dT%H%M")
     #message(timestamp)
 
     # apply vertical integration to all available radars at time t=ts+dt
@@ -131,7 +131,7 @@ vertical_integration <- function(datetime){
     h5g = H5Gopen(fid, "what")
     h5writeAttribute(attr = config$quantity, h5obj = h5g, name = "quantity")
     h5writeAttribute(attr = "IMAGE", h5obj = h5g, name = "object")
-    #h5writeAttribute(attr = config$radars, h5obj = h5g, name = "source")
+    h5writeAttribute(attr = config$radars, h5obj = h5g, name = "source")
     h5writeAttribute(attr = datetime, h5obj = h5g, name = "datetime")
     H5Fclose(fid)
 
