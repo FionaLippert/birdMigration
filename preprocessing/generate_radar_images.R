@@ -100,6 +100,7 @@ vertical_integration <- function(datetime){
 
     fname <- paste0("composite_", timestamp, ".h5")
     output_path <- file.path(root, fname)
+    message(output_path)
     h5createFile(output_path)
 
     groupname <- paste0(config$quantity, "_data")
@@ -130,7 +131,7 @@ vertical_integration <- function(datetime){
     h5g = H5Gopen(fid, "what")
     h5writeAttribute(attr = config$quantity, h5obj = h5g, name = "quantity")
     h5writeAttribute(attr = "IMAGE", h5obj = h5g, name = "object")
-    h5writeAttribute(attr = config$radars, h5obj = h5g, name = "source")
+    #h5writeAttribute(attr = config$radars, h5obj = h5g, name = "source")
     h5writeAttribute(attr = datetime, h5obj = h5g, name = "datetime")
     H5Fclose(fid)
 

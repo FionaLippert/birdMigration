@@ -23,6 +23,6 @@ radars :
 # radar quantity
 quantity : VID
 # raster resolution
-res : 500
+res : 0.01
 # max reach of radars (added to bbox dimensions)
 reach : 5
