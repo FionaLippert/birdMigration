@@ -65,6 +65,7 @@ vertical_integration <- function(timestamp){
         h5write(data, output_path, paste0("data/", q))
       }
 
+      h5createGroup(output_path, "attributes")
       fid = H5Fopen(output_path)
       h5g = H5Gopen(fid, "attributes")
 
