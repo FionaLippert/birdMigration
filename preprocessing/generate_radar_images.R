@@ -45,11 +45,9 @@ vertical_integration <- function(timestamp){
       message(output_path)
 
       h5createFile(output_path)
-      #h5createGroup(output_path, "dataset")
-      #path <- file.path(root, dirname(k))
-      #if(!dir.exists(path)){
-      #dir.create(path, recursive=TRUE)
-      message("created h5 file")
+      groupname <- paste0(config$quantity, "_data")
+      h5createGroup(output_path, groupname)
+
       pvol = retrieve_pvol(vp_key_to_pvol(k))
       vp = retrieve_vp(k)
       ppi <- integrate_to_ppi(pvol = pvol, vp = vp,
@@ -58,54 +56,53 @@ vertical_integration <- function(timestamp){
                               ylim = c(lat_min,lat_max))
       r <- raster(ppi$data)
       r_attr = attributes(r)
-      quantities = names(ppi$data)
+      #quantities = names(ppi$data)
 
-      for (q in quantities){
-        data = as(ppi$data[q], "matrix")
-        message(paste("save quantity", q))
-        h5createGroup(output_path, q)
-        message("created group")
-        h5write(data, output_path, paste0(q, "/data"))
-        message("data written to file")
-        h5createGroup(output_path, paste0(q, "/what"))
+      #for (q in quantities){
+      data = as(ppi$data[config$quantity], "matrix")
+      #subgroup <- paste0(groupname, "/", q)
+      #h5createGroup(output_path, subgroup)
+      h5write(data, output_path, paste0(groupname, "/data"))
+      #h5createGroup(output_path, paste0(groupname, "/what"))
 
-        fid = H5Fopen(output_path)
-        h5g = H5Gopen(fid, paste0(q, "/what"))
-        h5writeAttribute(attr = q, h5obj = h5g, name = "quantity")
-        h5writeAttribute(attr = "raster", h5obj = h5g, name = "object")
-        h5writeAttribute(attr = ppi$datetime, h5obj = h5g, name = "datetime")
-        H5Gclose(h5g)
-        H5Fclose(fid)
-
-        message("attributes written to file")
-
-      }
+      #fid = H5Fopen(output_path)
+      #h5g = H5Gopen(fid, paste0(subgroup, "/what"))
+      #h5writeAttribute(attr = q, h5obj = h5g, name = "quantity")
+      #H5Gclose(h5g)
+      #H5Fclose(fid)
+      #}
 
       h5createGroup(output_path, "where")
       h5createGroup(output_path, "how")
+      h5createGroup(output_path, "what")
+
       fid = H5Fopen(output_path)
 
       h5g = H5Gopen(fid, "where")
+      h5writeAttribute(attr = r_attr$crs, h5obj = h5g, name = "projdef")
+      h5writeAttribute(attr = vp$attributes$where$lat, h5obj = h5g, name = "lat")
+      h5writeAttribute(attr = vp$attributes$where$lon, h5obj = h5g, name = "lon")
+      H5Gclose(h5g)
+
+      h5g = H5Gopen(fid, "how")
       h5writeAttribute(attr = lon_min, h5obj = h5g, name = "lon_min")
       h5writeAttribute(attr = lat_min, h5obj = h5g, name = "lat_min")
       h5writeAttribute(attr = lon_max, h5obj = h5g, name = "lon_max")
       h5writeAttribute(attr = lat_max, h5obj = h5g, name = "lat_max")
-      h5writeAttribute(attr = vp$attributes$where$lat, h5obj = h5g, name = "lat_radar")
-      h5writeAttribute(attr = vp$attributes$where$lon, h5obj = h5g, name = "lon_radar")
-      H5Gclose(h5g)
+      h5writeAttribute(attr = res(r), h5obj = h5g, name = "xscale")
+      h5writeAttribute(attr = res(r), h5obj = h5g, name = "yscale")
+      h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "xsize")
+      h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "ysize")
 
-      h5g = H5Gopen(fid, "how")
-      #h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "ncols")
-      #h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "nrows")
-      h5writeAttribute(attr = res(r), h5obj = h5g, name = "resolution")
+      h5g = H5Gopen(fig, "what")
+      h5writeAttribute(attr = config$quantity, h5obj = h5g, name = "quantity")
+      h5writeAttribute(attr = "IMAGE", h5obj = h5g, name = "object")
+      h5writeAttribute(attr = paste0(country, "/", rname), h5obj = h5g, name = "source")
+      #h5writeAttribute(attr = format(ppi$datetime, format="%Y%m%d"), h5obj = h5g, name = "date")
+      #h5writeAttribute(attr = format(ppi$datetime, format="%H%M%S"), h5obj = h5g, name = "time")
+      h5writeAttribute(attr = ppi$datetime, h5obj = h5g, name = "datetime")
       H5Fclose(fid)
-
       h5closeAll()
-
-      #strs <- st_as_stars(result$data)
-      #message(length(result$data[[config$quantity]]))
-      #fname <- paste0(config$quantity, "_", timestamp, ".tif")
-      #write_stars(strs[config$quantity], file.path(path, fname), driver = "GTiff")
     }
 }
 

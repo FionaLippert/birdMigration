@@ -4,6 +4,7 @@ import time
 import yaml
 import numpy as np
 from datetime import datetime, timedelta
+import multiprocessing as mp
 
 with open('config.yml') as f:
       config = yaml.load(f, Loader = yaml.FullLoader)
@@ -25,26 +26,23 @@ logfile = os.path.join(subdir, 'log.txt')
 for r in config['radars']:
     os.makedirs(os.path.join(subdir, r), exist_ok=True)
 
-subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
-
 start_time = datetime.now()
 
+subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
+
 processes = set()
-max_processes = 1
+max_processes = mp.cpu_count()
 
 for t in time_range:
-    print('---------- start new process ------------')
+    #print('---------- start new process ------------')
     processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
                             stdout=open(logfile, 'a+'),
                             stderr=open(logfile, 'a+')))
-
-    #subprocess.call(['Rscript', 'generate_radar_images.R', subdir, str(t)],
-    #                        stdout=open(logfile, 'a+'),
-    #                        stderr=open(logfile, 'a+'))
     if len(processes) >= max_processes:
         os.wait()
         processes.difference_update(
             [p for p in processes if p.poll() is not None])
+
 #Check if all the child processes were closed
 for p in processes:
     if p.poll() is None:
@@ -52,7 +50,6 @@ for p in processes:
 
 
 time_elapsed = datetime.now() - start_time
-
 with open(logfile, 'a+') as f:
     f.write('\n')
     f.write(f'Time elapsed (hh:mm:ss.ms) {time_elapsed} \n')
