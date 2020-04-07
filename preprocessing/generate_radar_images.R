@@ -49,6 +49,7 @@ vertical_integration <- function(timestamp){
       #path <- file.path(root, dirname(k))
       #if(!dir.exists(path)){
       #dir.create(path, recursive=TRUE)
+      message("created h5 file")
       pvol = retrieve_pvol(vp_key_to_pvol(k))
       vp = retrieve_vp(k)
       ppi <- integrate_to_ppi(pvol = pvol, vp = vp,
@@ -61,8 +62,9 @@ vertical_integration <- function(timestamp){
 
       for (q in quantities){
         data = as(ppi$data[q], "matrix")
-
+        h5createGroup(output_path, paste0(q, "/data"))
         h5write(data, output_path, paste0(q, "/data"))
+        message("data written to file")
         h5createGroup(output_path, paste0(q, "/what"))
 
         fid = H5Fopen(output_path)
@@ -72,6 +74,8 @@ vertical_integration <- function(timestamp){
         h5writeAttribute(attr = ppi$datetime, h5obj = h5g, name = "datetime")
         H5Gclose(h5g)
         H5Fclose(fid)
+
+        message("attributes written to file")
 
       }
 
