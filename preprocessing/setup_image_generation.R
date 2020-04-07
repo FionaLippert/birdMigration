@@ -6,7 +6,7 @@ require(uvaRadar)
 require(stars)
 require(yaml)
 
-config_file <- file(file.path(args[1], "config.yml"), open="a")
+config_file <- file(file.path(args[1], "config.yml"), open="rw")
 config = yaml.load_file(config_file) #"config.yml")
 
 # set credentials for UvA Radar Data Storage
@@ -17,3 +17,4 @@ bbox <- st_bbox(get_radars_df(config$radars)$geometry)
 config[['bounds']] <- bbox
 
 write_yaml(config, config_file)
+close(config_file)

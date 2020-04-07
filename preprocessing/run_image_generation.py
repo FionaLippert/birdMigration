@@ -32,6 +32,8 @@ start_time = datetime.now()
 
 subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 
+print("done with setup")
+
 processes = set()
 max_processes = mp.cpu_count()
 
