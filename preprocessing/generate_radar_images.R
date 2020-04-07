@@ -61,10 +61,11 @@ vertical_integration <- function(timestamp){
 
       for (q in quantities){
         data = as(ppi$data[q], "matrix")
-        h5write(data, output_path, paste0(q, "/data"))
 
+        h5write(data, output_path, paste0(q, "/data"))
         h5createGroup(output_path, paste0(q, "/what"))
-        fid = H5Fopen(h5_file_output_path)
+
+        fid = H5Fopen(output_path)
         h5g = H5Gopen(fid, paste0(q, "/what"))
         h5writeAttribute(attr = q, h5obj = h5g, name = "quantity")
         h5writeAttribute(attr = "raster", h5obj = h5g, name = "object")
@@ -92,7 +93,7 @@ vertical_integration <- function(timestamp){
       #h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "nrows")
       h5writeAttribute(attr = res(r), h5obj = h5g, name = "resolution")
       H5Fclose(fid)
-      
+
       h5closeAll()
 
       #strs <- st_as_stars(result$data)
