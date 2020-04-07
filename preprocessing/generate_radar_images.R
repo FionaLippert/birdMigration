@@ -52,8 +52,9 @@ vertical_integration <- function(timestamp){
       vp = retrieve_vp(k)
       ppi <- integrate_to_ppi(pvol = pvol, vp = vp,
                               res = config$res,
-                              xlim = c(lon_min,lon_max),
-                              ylim = c(lat_min,lat_max))
+                              #xlim = c(lon_min,lon_max),
+                              #ylim = c(lat_min,lat_max),
+                              param_ppi = config$quantity)
       r <- raster(ppi$data)
       r_attr = attributes(r)
       #quantities = names(ppi$data)
@@ -85,10 +86,10 @@ vertical_integration <- function(timestamp){
       H5Gclose(h5g)
 
       h5g = H5Gopen(fid, "how")
-      h5writeAttribute(attr = lon_min, h5obj = h5g, name = "lon_min")
-      h5writeAttribute(attr = lat_min, h5obj = h5g, name = "lat_min")
-      h5writeAttribute(attr = lon_max, h5obj = h5g, name = "lon_max")
-      h5writeAttribute(attr = lat_max, h5obj = h5g, name = "lat_max")
+      h5writeAttribute(attr = ppi$geo$bbox[2], h5obj = h5g, name = "lon_min")
+      h5writeAttribute(attr = ppi$geo$bbox[1], h5obj = h5g, name = "lat_min")
+      h5writeAttribute(attr = ppi$geo$bbox[4], h5obj = h5g, name = "lon_max")
+      h5writeAttribute(attr = ppi$geo$bbox[3], h5obj = h5g, name = "lat_max")
       h5writeAttribute(attr = res(r), h5obj = h5g, name = "xscale")
       h5writeAttribute(attr = res(r), h5obj = h5g, name = "yscale")
       h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "xsize")
