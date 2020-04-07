@@ -32,13 +32,16 @@ vertical_integration <- function(timestamp){
 
     # compute vertically integrated radar composite
     keys <- get_keys(config$radars, timestamp)
-    #timestamp <- format(timestamp, format="%Y%m%dT%H%M")
+    timestamp <- format(timestamp, format="%Y%m%dT%H%M")
     #message(timestamp)
 
     # apply vertical integration to all available radars at time t=ts+dt
     for(k in keys){
       key_split <- strsplit(k, .Platform$file.sep)[[1]]
-      output_path <- file.path(root, key_split[[1]], key_split[[2]], basename(k))
+      country <- key_split[[1]]
+      rname <- key_split[[2]]
+      fname <- paste0(country, rname, "_", timestamp, ".h5")
+      output_path <- file.path(root, country, rname, fname)
       message(output_path)
 
       h5createFile(output_path)
@@ -48,7 +51,7 @@ vertical_integration <- function(timestamp){
       #dir.create(path, recursive=TRUE)
       pvol = retrieve_pvol(vp_key_to_pvol(k))
       vp = retrieve_vp(k)
-      ppi <- integrate_to_ppi(raster = grid, pvol = pvol, vp = vp,
+      ppi <- integrate_to_ppi(pvol = pvol, vp = vp,
                               res = config$res,
                               xlim = c(lon_min,lon_max),
                               ylim = c(lat_min,lat_max))
