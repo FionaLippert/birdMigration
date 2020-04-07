@@ -37,7 +37,7 @@ for t in time_range:
 
     subprocess.call(['Rscript', 'generate_radar_images.R', subdir, str(t)],
                             stdout=open(logfile, 'a+'),
-                            stderr=open(logfile, 'a+')))
+                            stderr=open(logfile, 'a+'))
     #if len(processes) >= max_processes:
     #    os.wait()
     #    processes.difference_update(
