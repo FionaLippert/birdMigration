@@ -30,7 +30,7 @@ subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 start_time = datetime.now()
 
 processes = set()
-max_processes = 20
+max_processes = 1
 
 for t in time_range:
     print('---------- start new process ------------')

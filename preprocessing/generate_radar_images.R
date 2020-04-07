@@ -62,7 +62,9 @@ vertical_integration <- function(timestamp){
 
       for (q in quantities){
         data = as(ppi$data[q], "matrix")
-        h5createGroup(output_path, paste0(q, "/data"))
+        message(paste("save quantity", q))
+        h5createGroup(output_path, q)
+        message("created group")
         h5write(data, output_path, paste0(q, "/data"))
         message("data written to file")
         h5createGroup(output_path, paste0(q, "/what"))
