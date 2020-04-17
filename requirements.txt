@@ -12,3 +12,9 @@ pillow
 opencv-python
 pyyaml
 pybase64
+h5py
+netCDF4
+xarray
+xmltodict
+gdal
+wradlib

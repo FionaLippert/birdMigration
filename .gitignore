@@ -9,8 +9,10 @@ __pycache__/
 # data
 data_*/
 data/
+testdata/
 *.tif
 *.png
+*.h5
 
 # Distribution / packaging
 .Python
