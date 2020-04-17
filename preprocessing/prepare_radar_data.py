@@ -32,7 +32,7 @@ def prepare_data(input_path, output_path, seq_len):
     for i in range(0, len(files), seq_len):
 
         start  = files[i][0]
-        end    = files[i+seq_len-1][0]
+        end    = files[min(len(files), i+seq_len)-1][0]
 
         subdir = os.path.join(output_path, f'{start}_to_{end}')
         os.makedirs(subdir, exist_ok = True)
