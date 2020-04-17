@@ -22,10 +22,12 @@ args = parser.parse_args()
 
 def prepare_data(input_path, output_path, seq_len):
 
-    print(glob(os.path.join(input_path, '*', '*.h5')))
-    files = sorted([(FNAME.parse(os.path.basename(d)).named('datetime'), d) \
+    #print(glob(os.path.join(input_path, '*', '*.h5')))
+    files = sorted([(FNAME.parse(os.path.basename(d)).named['datetime'], d) \
                         for d in glob(os.path.join(input_path, '*', '*.h5'))], \
                         key = lambda x: x[0])
+
+    print(f'Found {len(files)} files to pe processed')
 
     for i in range(0, len(files), seq_len):
 
