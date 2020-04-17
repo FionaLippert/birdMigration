@@ -17,7 +17,7 @@ time_range = np.arange(start = config['ts'],
 
 ts_str = time_range[0].strftime("%Y%m%dT%H%M")
 te_str = time_range[-1].strftime("%Y%m%dT%H%M")
-subdir = os.path.join(config['data']['ppi'], f'{ts_str}-{te_str}')
+subdir = os.path.join(config['data']['ppi'], f'{ts_str}_to_{te_str}')
 #subdir = os.path.join(config['data']['ppi'], f'{time_range[0]} - {time_range[-1]}')
 
 os.makedirs(subdir, exist_ok = True)
