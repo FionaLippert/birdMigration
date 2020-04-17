@@ -43,7 +43,7 @@ def prepare_data(input_path, output_path, seq_len):
 
 
 def h5_to_numpy(input_path, output_path=None):
-    f = wrl.util.get_wradlib_data_file(input_path)
+    f = wrl.util.get_wradlib_data_file(os.path.abspath(input_path))
     content = wrl.io.read_opera_hdf5(f)
     frame = content[H5_DATA_KEY]
 
