@@ -31,15 +31,11 @@ def prepare_data(input_path, output_path, seq_len):
 
     for i in range(0, len(files), seq_len):
 
-        start  = files[i][0]
-        end    = files[min(len(files), i+seq_len)-1][0]
-
-        subdir = os.path.join(output_path, f'{start}_to_{end}')
+        end    = min(len(files), i+seq_len)-1
+        subdir = os.path.join(output_path, f'{files[i][0]}_to_{files[end][0]}')
         os.makedirs(subdir, exist_ok = True)
 
-        for j in range(seq_len):
-            datetime, fpath = files[i+j]
-            h5_to_numpy(fpath, os.path.join(subdir, datetime))
+        [h5_to_numpy(f[1], os.path.join(subdir, f[0])) for f in files[i:end+1]
 
 
 def h5_to_numpy(input_path, output_path=None):
