@@ -32,7 +32,7 @@ class RadarImages(data.Dataset):
         return len(self.data_dirs)
 
     def __getitem__(self, idx):
-        dir    = self.data_dirs[idx]
+        dir    = self.data_dirs[idx][1]
         frames = sorted([(os.path.basename(f), f) \
                             for f in glob(os.path.join(dir, '*.npy'))], \
                             key = lambda x: x[0])
