@@ -35,7 +35,7 @@ def prepare_data(input_path, output_path, seq_len):
         subdir = os.path.join(output_path, f'{files[i][0]}_to_{files[end][0]}')
         os.makedirs(subdir, exist_ok = True)
 
-        [h5_to_numpy(f[1], os.path.join(subdir, f[0])) for f in files[i:end+1]
+        [h5_to_numpy(f[1], os.path.join(subdir, f[0])) for f in files[i:end+1]]
 
 
 def h5_to_numpy(input_path, output_path=None):
