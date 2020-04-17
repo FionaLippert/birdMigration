@@ -1,6 +1,6 @@
 import numpy as np
 import os
-import glob
+from glob import glob
 import parse
 import wradlib as wrl
 import argparse
