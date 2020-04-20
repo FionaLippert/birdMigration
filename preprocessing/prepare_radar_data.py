@@ -33,9 +33,13 @@ def prepare_data(input_path, output_path, seq_len, test_size):
     print(f'Found {len(files)} files to pe processed')
 
     idx_list = range(0, len(files), seq_len)
+    if len(files)%seq_len > 0:
+        # last index has too little data
+        idx_list = idx_list[:-1]
     idx_train, idx_test = train_test_split(idx_list, test_size=test_size)
 
     for i in idx_list:
+
         end    = min(len(files), i+seq_len)-1
         if i in idx_train:
             dataset = 'train'
