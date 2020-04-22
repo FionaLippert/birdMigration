@@ -2,12 +2,16 @@ import numpy as np
 import os
 from glob import glob
 import parse
+import yaml
 import wradlib as wrl
 import argparse
+from datetime import datetime, strptime
 from sklearn.model_selection import train_test_split
 
 
 FNAME = parse.compile('{info}_{datetime}.h5')
+DATETIME_STR = '%Y%m%dT%H%M'
+DELTA_T = timedelta(minutes=15)
 H5_DATA_KEY = 'VID_data/data'
 
 
@@ -32,6 +36,11 @@ def prepare_data(input_path, output_path, seq_len, test_size):
 
     print(f'Found {len(files)} files to pe processed')
 
+    # assert that data is available for all time steps
+    assert np.all([(strptime(files[i+1][0], DATETIME_STR) \
+                    - strptime(files[i][0], DATETIME_STR) \
+                    == DELTA_T) for i in range(len(files)-1)])
+
     idx_list = range(0, len(files), seq_len)
     if len(files)%seq_len > 0:
         # last index has too little data
@@ -49,7 +58,8 @@ def prepare_data(input_path, output_path, seq_len, test_size):
                         f'{files[i][0]}_to_{files[end][0]}')
         os.makedirs(subdir, exist_ok = True)
 
-        [h5_to_numpy(f[1], os.path.join(subdir, f[0])) for f in files[i:end+1]]
+        all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
+                            for f in files[i:end+1]]
 
 
 def h5_to_numpy(input_path, output_path=None):
@@ -57,10 +67,25 @@ def h5_to_numpy(input_path, output_path=None):
     content = wrl.io.read_opera_hdf5(f)
     frame = content[H5_DATA_KEY]
 
+    bounds = np.array([content['how']['lon_min'],
+                       content['how']['lat_min'],
+                       content['how']['lon_max'],
+                       content['how']['lat_max']]).reshape(2,2)
+    radars   = content['what']['source'].astype(str)
+    quantity = content['what']['quantity'].astype(str)[0]
+    proj     = content['where']['projdef'].astype(str)[0]
+
+    meta = {'bounds': bounds,
+            'radars': radars,
+            'quantity': quantity,
+            'proj4str': projection}
+
     if output_path is not None:
         np.save(output_path, frame)
+        with open(os.path.join(output_path, 'meta.yml'), 'w+') as f:
+            yaml.dump(meta, f)
 
-    return frame
+    return frame, bounds
 
 
 if __name__ == '__main__':
