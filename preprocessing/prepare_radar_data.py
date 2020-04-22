@@ -43,7 +43,7 @@ def prepare_data(input_path, output_path, seq_len, test_size):
         for i in range(len(files)-1):
             if (datetime.strptime(files[i+1][0], DATETIME_STR) \
                             - datetime.strptime(files[i][0], DATETIME_STR)) != DELTA_T:
-                print(files[i][0]m files[i+1][0])
+                print(files[i][0], files[i+1][0])
         assert 0
 
     idx_list = range(0, len(files), seq_len)
@@ -54,17 +54,24 @@ def prepare_data(input_path, output_path, seq_len, test_size):
 
     for i in idx_list:
 
-        end    = min(len(files), i+seq_len)-1
-        if i in idx_train:
-            dataset = 'train'
-        else:
-            dataset = 'test'
-        subdir = os.path.join(output_path, dataset, \
-                        f'{files[i][0]}_to_{files[end][0]}')
-        os.makedirs(subdir, exist_ok = True)
+        end = min(len(files), i+seq_len)-1
 
-        all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
-                            for f in files[i:end+1]]
+        check_delta = [(datetime.strptime(files[j+1][0], DATETIME_STR) \
+                        - datetime.strptime(files[j][0], DATETIME_STR) \
+                        == DELTA_T) for j in range(i, end)]
+        if not np.all(check_delta):
+            print(f'discarding sequence {i} due to missing data')
+        else:
+            if i in idx_train:
+                dataset = 'train'
+            else:
+                dataset = 'test'
+            subdir = os.path.join(output_path, dataset, \
+                            f'{files[i][0]}_to_{files[end][0]}')
+            os.makedirs(subdir, exist_ok = True)
+
+            all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
+                                for f in files[i:end+1]]
 
 
 def h5_to_numpy(input_path, output_path=None):
