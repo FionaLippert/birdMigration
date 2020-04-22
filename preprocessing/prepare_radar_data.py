@@ -80,11 +80,11 @@ def h5_to_numpy(input_path, output_path=None):
     meta = {'bounds': bounds,
             'radars': radars,
             'quantity': quantity,
-            'proj4str': projection}
+            'proj4str': proj}
 
     if output_path is not None:
         np.save(output_path, frame)
-        with open(os.path.join(output_path, 'meta.yml'), 'w+') as f:
+        with open(f'{output_path}_meta.yml'), 'w+') as f:
             yaml.dump(meta, f)
 
     return frame, bounds
