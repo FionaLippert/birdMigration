@@ -40,9 +40,10 @@ def prepare_data(input_path, output_path, seq_len, test_size):
     if not np.all([(datetime.strptime(files[i+1][0], DATETIME_STR) \
                     - datetime.strptime(files[i][0], DATETIME_STR) \
                     == DELTA_T) for i in range(len(files)-1)]):
-        for j in [(datetime.strptime(files[i+1][0], DATETIME_STR) \
-                        - datetime.strptime(files[i][0], DATETIME_STR) for i in range(len(files)-1)]:
-            print(j)
+        for i in range(len(files)-1):
+            if (datetime.strptime(files[i+1][0], DATETIME_STR) \
+                            - datetime.strptime(files[i][0], DATETIME_STR)) != DELTA_T:
+                print(files[i][0]m files[i+1][0])
         assert 0
 
     idx_list = range(0, len(files), seq_len)
