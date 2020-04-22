@@ -36,16 +36,6 @@ def prepare_data(input_path, output_path, seq_len, test_size):
 
     print(f'Found {len(files)} files to pe processed')
 
-    # assert that data is available for all time steps
-    if not np.all([(datetime.strptime(files[i+1][0], DATETIME_STR) \
-                    - datetime.strptime(files[i][0], DATETIME_STR) \
-                    == DELTA_T) for i in range(len(files)-1)]):
-        for i in range(len(files)-1):
-            if (datetime.strptime(files[i+1][0], DATETIME_STR) \
-                            - datetime.strptime(files[i][0], DATETIME_STR)) != DELTA_T:
-                print(files[i][0], files[i+1][0])
-        assert 0
-
     idx_list = range(0, len(files), seq_len)
     if len(files)%seq_len > 0:
         # last index has too little data
