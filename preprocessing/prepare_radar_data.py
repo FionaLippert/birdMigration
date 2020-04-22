@@ -5,7 +5,7 @@ import parse
 import yaml
 import wradlib as wrl
 import argparse
-from datetime import datetime, strptime
+from datetime import datetime
 from sklearn.model_selection import train_test_split
 
 
@@ -37,8 +37,8 @@ def prepare_data(input_path, output_path, seq_len, test_size):
     print(f'Found {len(files)} files to pe processed')
 
     # assert that data is available for all time steps
-    assert np.all([(strptime(files[i+1][0], DATETIME_STR) \
-                    - strptime(files[i][0], DATETIME_STR) \
+    assert np.all([(datetime.strptime(files[i+1][0], DATETIME_STR) \
+                    - datetime.strptime(files[i][0], DATETIME_STR) \
                     == DELTA_T) for i in range(len(files)-1)])
 
     idx_list = range(0, len(files), seq_len)
