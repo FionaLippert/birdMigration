@@ -27,11 +27,11 @@ parser.add_argument('--test_size', default=0.2, type=float,
 args = parser.parse_args()
 
 
-def prepare_data(input_path, output_path, seq_len, test_size):
+def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
 
     #print(glob(os.path.join(input_path, '*', '*.h5')))
     files = sorted([(FNAME.parse(os.path.basename(d)).named['datetime'], d) \
-                        for d in glob(os.path.join(input_path, '*', '*.h5'))], \
+                        for d in glob(os.path.join(input_path, f'{n_subdirs*"*/"}*.h5'))], \
                         key = lambda x: x[0])
 
     print(f'Found {len(files)} files to pe processed')
@@ -49,9 +49,7 @@ def prepare_data(input_path, output_path, seq_len, test_size):
         check_delta = [(datetime.strptime(files[j+1][0], DATETIME_STR) \
                         - datetime.strptime(files[j][0], DATETIME_STR) \
                         == DELTA_T) for j in range(i, end)]
-        if not np.all(check_delta):
-            print(f'discarding sequence {i} due to missing data')
-        else:
+        if np.all(check_delta):
             if i in idx_train:
                 dataset = 'train'
             else:
@@ -62,6 +60,8 @@ def prepare_data(input_path, output_path, seq_len, test_size):
 
             all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
                                 for f in files[i:end+1]]
+        else:
+            print(f'discarding sequence {i} due to missing data')
 
 
 def h5_to_numpy(input_path, output_path=None):
@@ -72,19 +72,19 @@ def h5_to_numpy(input_path, output_path=None):
     bounds = np.array([content['how']['lon_min'],
                        content['how']['lat_min'],
                        content['how']['lon_max'],
-                       content['how']['lat_max']]).reshape(2,2)
+                       content['how']['lat_max']]).flatten()
     radars   = content['what']['source'].astype(str)
     quantity = content['what']['quantity'].astype(str)[0]
     proj     = content['where']['projdef'].astype(str)[0]
 
-    meta = {'bounds': bounds,
-            'radars': radars,
-            'quantity': quantity,
-            'proj4str': proj}
+    meta = {'bounds': bounds.tolist(),
+            'radars': radars.tolist(),
+            'quantity': str(quantity),
+            'proj4str': str(proj)}
 
     if output_path is not None:
         np.save(output_path, frame)
-        with open(f'{output_path}_meta.yml'), 'w+') as f:
+        with open(f'{output_path}_meta.yml', 'w+') as f:
             yaml.dump(meta, f)
 
     return frame, bounds
