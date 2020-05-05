@@ -40,7 +40,13 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
     if len(files)%seq_len > 0:
         # last index has too little data
         idx_list = idx_list[:-1]
-    idx_train, idx_test = train_test_split(idx_list, test_size=test_size)
+
+    if test_size == 0:
+        idx_train = idx_list
+    elif test_size == 1:
+        idx_train == []
+    else:
+        idx_train, idx_test = train_test_split(idx_list, test_size=test_size)
 
     for i in idx_list:
 
