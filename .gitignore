@@ -13,6 +13,7 @@ testdata/
 *.tif
 *.png
 *.h5
+*.nc
 
 # Distribution / packaging
 .Python

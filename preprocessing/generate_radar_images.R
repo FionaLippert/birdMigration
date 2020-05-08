@@ -11,6 +11,7 @@ require(MASS)
 require(yaml)
 require(rhdf5)
 require(stringr)
+require(ncdf4)
 
 
 
@@ -21,11 +22,12 @@ config = yaml.load_file(file.path(root, "config.yml"))
 s3_set_key(username = config$login$username,
            password = config$login$password)
 
-lat_min <- config$bounds[[1]] - config$reach
-lon_min <- config$bounds[[2]] - config$reach
-lat_max <- config$bounds[[3]] + config$reach
-lon_max <- config$bounds[[4]] + config$reach
-grid <- raster(xmn=lat_min, xmx=lat_max, ymn=lon_min, ymx=lon_max, res=config$res)
+lon_min <- config$bounds[[1]] - config$reach
+lat_min <- config$bounds[[2]] - config$reach
+lon_max <- config$bounds[[3]] + config$reach
+lat_max <- config$bounds[[4]] + config$reach
+grid <- raster(xmn=lon_min, xmx=lon_max, ymn=lat_min, ymx=lat_max, res=config$res)
+
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
 vertical_integration <- function(datetime){
@@ -98,43 +100,72 @@ vertical_integration <- function(datetime){
     r <- raster(composite$data)
     r_attr = attributes(r)
 
-    fname <- paste0("composite_", timestamp, ".h5")
-    output_path <- file.path(root, fname)
-    message(output_path)
-    h5createFile(output_path)
+    # define dimensions
+    lons <- xyFromCell(grid,1:ncell(grid))[,'x']
+    lats <- xyFromCell(grid,1:ncell(grid))[,'y']
+    lon_dim <- ncdim_def("lon", "degrees_east", as.double(lons))
+    lat_dim <- ncdim_def("lat", "degrees_north", as.double(lats))
+    time_dim <- ncdim_def("time", "", as.character(c(datetime)))
 
-    groupname <- paste0(config$quantity, "_data")
-    h5createGroup(output_path, groupname)
-    data = as(composite$data, "matrix")
-    h5write(data, output_path, paste0(groupname, "/data"))
+    # define variable
+    fillvalue <- 1e32
+    var_def <- ncvar_def(config$quantity, "", list(lon_dim,lat_dim, time_dim), fillvalue, config$quantity)
 
-    h5createGroup(output_path, "where")
-    h5createGroup(output_path, "how")
-    h5createGroup(output_path, "what")
+    # create netcdf file
+    ncfname <- paste0("composite_", timestamp, ".nc")
+    ncout <- nc_create(ncfname, var_def, force_v4=T)
+    ncvar_put(ncout, var_def, as(composite$data, "matrix"))
+    ncatt_put(ncout,"lon","axis","X")
+    ncatt_put(ncout,"lat","axis","Y")
 
-    fid = H5Fopen(output_path)
+    # add global attributes
+    ncatt_put(ncout, 0, "projdef", as.character(r_attr$crs))
+    ncatt_put(ncout, 0, "resolution", res(r))
+    ncatt_put(ncout, 0, "source", config$radars)
+    #ncatt_put(ncout, 0, "datetime", as.character(datetime))
+    ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
 
-    h5g = H5Gopen(fid, "where")
-    h5writeAttribute(attr = as.character(r_attr$crs), h5obj = h5g, name = "projdef")
-    H5Gclose(h5g)
+    # close the file, writing data to disk
+    nc_close(ncout)
 
-    h5g = H5Gopen(fid, "how")
-    h5writeAttribute(attr = lon_min, h5obj = h5g, name = "lon_min")
-    h5writeAttribute(attr = lat_min, h5obj = h5g, name = "lat_min")
-    h5writeAttribute(attr = lon_max, h5obj = h5g, name = "lon_max")
-    h5writeAttribute(attr = lat_max, h5obj = h5g, name = "lat_max")
-    h5writeAttribute(attr = res(r), h5obj = h5g, name = "resolution")
-    h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "xsize")
-    h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "ysize")
 
-    h5g = H5Gopen(fid, "what")
-    h5writeAttribute(attr = config$quantity, h5obj = h5g, name = "quantity")
-    h5writeAttribute(attr = "IMAGE", h5obj = h5g, name = "object")
-    h5writeAttribute(attr = config$radars, h5obj = h5g, name = "source")
-    h5writeAttribute(attr = as.character(datetime), h5obj = h5g, name = "datetime")
-    H5Fclose(fid)
+    # fname <- paste0("composite_", timestamp, ".h5")
+    # output_path <- file.path(root, fname)
+    # message(output_path)
+    # h5createFile(output_path)
+    #
+    # groupname <- paste0(config$quantity, "_data")
+    # h5createGroup(output_path, groupname)
+    # data = as(composite$data, "matrix")
+    # h5write(data, output_path, paste0(groupname, "/data"))
 
-    h5closeAll()
+    # h5createGroup(output_path, "where")
+    # h5createGroup(output_path, "how")
+    # h5createGroup(output_path, "what")
+    #
+    # fid = H5Fopen(output_path)
+    #
+    # h5g = H5Gopen(fid, "where")
+    # h5writeAttribute(attr = as.character(r_attr$crs), h5obj = h5g, name = "projdef")
+    # H5Gclose(h5g)
+    #
+    # h5g = H5Gopen(fid, "how")
+    # h5writeAttribute(attr = lon_min, h5obj = h5g, name = "lon_min")
+    # h5writeAttribute(attr = lat_min, h5obj = h5g, name = "lat_min")
+    # h5writeAttribute(attr = lon_max, h5obj = h5g, name = "lon_max")
+    # h5writeAttribute(attr = lat_max, h5obj = h5g, name = "lat_max")
+    # h5writeAttribute(attr = res(r), h5obj = h5g, name = "resolution")
+    # h5writeAttribute(attr = r_attr$ncols, h5obj = h5g, name = "xsize")
+    # h5writeAttribute(attr = r_attr$nrows, h5obj = h5g, name = "ysize")
+    #
+    # h5g = H5Gopen(fid, "what")
+    # h5writeAttribute(attr = config$quantity, h5obj = h5g, name = "quantity")
+    # h5writeAttribute(attr = "IMAGE", h5obj = h5g, name = "object")
+    # h5writeAttribute(attr = config$radars, h5obj = h5g, name = "source")
+    # h5writeAttribute(attr = as.character(datetime), h5obj = h5g, name = "datetime")
+    # H5Fclose(fid)
+    #
+    # h5closeAll()
 }
 
 vertical_integration(as.POSIXct(args[2], "UTC"))

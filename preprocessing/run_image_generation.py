@@ -25,9 +25,6 @@ with open(os.path.join(subdir, 'config.yml'), 'w+') as f:
     yaml.dump(config, f)
 logfile = os.path.join(subdir, 'log.txt')
 
-#for r in config['radars']:
-#    os.makedirs(os.path.join(subdir, r), exist_ok=True)
-
 start_time = datetime.now()
 
 subprocess.call(['Rscript', 'setup_image_generation.R', subdir])

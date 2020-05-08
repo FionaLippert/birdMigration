@@ -16,7 +16,7 @@ DNAME = parse.compile('{start}_to_{end}')
 
 class RadarImages(data.Dataset):
     def __init__(self, split, data_path, n_frames,
-                 transform=None, n_channels=1, clip=2000, img_size=128):
+                 transform=None, n_channels=1, clip=2000, img_size=64):
 
         super(RadarImages, self).__init__()
 
@@ -41,14 +41,13 @@ class RadarImages(data.Dataset):
                             key = lambda x: x[0])
 
         # load subsequence of seq_len frames
-        if self.split == 'train':
+        if self.split == 'train' and len(frames) > self.n_frames:
             start = np.random.randint(0, len(frames) - self.n_frames)
         else:
             start = 0
         frames = np.stack([self._load_frame(f[1]) for f \
                             in frames[start : start + self.n_frames]])
 
-        # TODO: add 1 channel dimension!
 
         frames = np.nan_to_num(frames) # set nan's to zero
         frames[frames <= 0.01] = 0.01 # to prevent log(0)
@@ -64,7 +63,7 @@ class RadarImages(data.Dataset):
             frames = self.transform(frames)
 
         if self.n_channels == 1:
-            frames = frames[:, np.newaxis]
+            frames = np.expand_dims(frames, axis=-1)
 
         # pytorch expects dimensions [seq_len, n_channels, height, width]
         frames = frames.transpose((0, 3, 1, 2))
