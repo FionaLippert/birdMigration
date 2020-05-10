@@ -1,6 +1,6 @@
 # directories containing preprocessed data
 data :
-  ppi : data/ppi/NL/DHL
+  ppi : data/ppi/NL/DHL_lowRes
   array : data/array
   img : data/img
 # login to radar database
