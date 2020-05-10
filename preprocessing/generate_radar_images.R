@@ -96,8 +96,13 @@ vertical_integration <- function(datetime){
       #H5Fclose(fid)
       #h5closeAll()
     }
-    composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
-    r <- raster(composite$data)
+    if (length(ppi_list) == 1) {
+      r <- raster(ppi_list[[keys[[1]]]]$data)
+    } else {
+      composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
+      r <- raster(composite$data)
+
+    }
     r_attr = attributes(r)
 
     # define dimensions
@@ -105,7 +110,7 @@ vertical_integration <- function(datetime){
     lats <- xyFromCell(grid,1:ncell(grid))[,'y']
     lon_dim <- ncdim_def("lon", "degrees_east", as.double(lons))
     lat_dim <- ncdim_def("lat", "degrees_north", as.double(lats))
-    time_dim <- ncdim_def("time", "", as.character(c(datetime)))
+    time_dim <- ncdim_def("time", "", c(datetime), unlim=FALSE)
 
     # define variable
     fillvalue <- 1e32
