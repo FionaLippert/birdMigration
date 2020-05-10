@@ -1,6 +1,6 @@
 # directories containing preprocessed data
 data :
-  ppi : data/ppi
+  ppi : data/ppi/NL/DHL
   array : data/array
   img : data/img
 # login to radar database
@@ -8,21 +8,23 @@ login:
   username : flippert
   password : eFd5cqJqpv8hJN2D
 # start time
-ts : 2016-10-01 00:00:00
+ts : 2016-08-01 00:00:00
 # end time
-te : 2016-10-08 00:00:00
+te : 2016-08-30 23:45:00
 # time resolution in minutes
 tr : 15
 # list of radar stations
 radars :
-  - NL/DBL
+#  - NL/DBL
   - NL/DHL
-  - NL/HRW
-  - BE/JAB
-  - BE/ZAV
+#  - NL/HRW
+#  - BE/JAB
+#  - BE/ZAV
 # radar quantity
 quantity : VID
 # raster resolution
-res : 0.01
+#res : 0.01
+res : 0.25
 # max reach of radars (added to bbox dimensions)
-reach : 5
+#reach : 5
+reach : 2
