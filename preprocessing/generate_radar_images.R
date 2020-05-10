@@ -107,7 +107,7 @@ vertical_integration <- function(datetime){
       lats <- xyFromCell(grid,1:ncell(grid))[,'y']
       lon_dim <- ncdim_def("lon", "degrees_east", as.double(lons))
       lat_dim <- ncdim_def("lat", "degrees_north", as.double(lats))
-      time_dim <- ncdim_def("time", "", c(datetime), unlim=FALSE)
+      time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00", as.numeric(c(datetime)), unlim=FALSE)
 
       # define variable
       fillvalue <- 1e32
@@ -119,6 +119,7 @@ vertical_integration <- function(datetime){
       ncvar_put(ncout, var_def, as(composite$data, "matrix"))
       ncatt_put(ncout,"lon","axis","X")
       ncatt_put(ncout,"lat","axis","Y")
+      ncatt_put(ncout,"time","axis","T")
 
       # add global attributes
       ncatt_put(ncout, 0, "projdef", as.character(r_attr$crs))
