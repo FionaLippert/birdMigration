@@ -96,42 +96,40 @@ vertical_integration <- function(datetime){
       #H5Fclose(fid)
       #h5closeAll()
     }
-    if (length(ppi_list) == 1) {
-      r <- raster(ppi_list[[keys[[1]]]]$data)
-    } else {
+    if (length(ppi_list) > 0) {
       composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
       r <- raster(composite$data)
 
+      r_attr = attributes(r)
+
+      # define dimensions
+      lons <- xyFromCell(grid,1:ncell(grid))[,'x']
+      lats <- xyFromCell(grid,1:ncell(grid))[,'y']
+      lon_dim <- ncdim_def("lon", "degrees_east", as.double(lons))
+      lat_dim <- ncdim_def("lat", "degrees_north", as.double(lats))
+      time_dim <- ncdim_def("time", "", c(datetime), unlim=FALSE)
+
+      # define variable
+      fillvalue <- 1e32
+      var_def <- ncvar_def(config$quantity, "", list(lon_dim,lat_dim, time_dim), fillvalue, config$quantity)
+
+      # create netcdf file
+      ncfname <- paste0("composite_", timestamp, ".nc")
+      ncout <- nc_create(ncfname, var_def, force_v4=T)
+      ncvar_put(ncout, var_def, as(composite$data, "matrix"))
+      ncatt_put(ncout,"lon","axis","X")
+      ncatt_put(ncout,"lat","axis","Y")
+
+      # add global attributes
+      ncatt_put(ncout, 0, "projdef", as.character(r_attr$crs))
+      ncatt_put(ncout, 0, "resolution", res(r))
+      ncatt_put(ncout, 0, "source", config$radars)
+      #ncatt_put(ncout, 0, "datetime", as.character(datetime))
+      ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
+
+      # close the file, writing data to disk
+      nc_close(ncout)
     }
-    r_attr = attributes(r)
-
-    # define dimensions
-    lons <- xyFromCell(grid,1:ncell(grid))[,'x']
-    lats <- xyFromCell(grid,1:ncell(grid))[,'y']
-    lon_dim <- ncdim_def("lon", "degrees_east", as.double(lons))
-    lat_dim <- ncdim_def("lat", "degrees_north", as.double(lats))
-    time_dim <- ncdim_def("time", "", c(datetime), unlim=FALSE)
-
-    # define variable
-    fillvalue <- 1e32
-    var_def <- ncvar_def(config$quantity, "", list(lon_dim,lat_dim, time_dim), fillvalue, config$quantity)
-
-    # create netcdf file
-    ncfname <- paste0("composite_", timestamp, ".nc")
-    ncout <- nc_create(ncfname, var_def, force_v4=T)
-    ncvar_put(ncout, var_def, as(composite$data, "matrix"))
-    ncatt_put(ncout,"lon","axis","X")
-    ncatt_put(ncout,"lat","axis","Y")
-
-    # add global attributes
-    ncatt_put(ncout, 0, "projdef", as.character(r_attr$crs))
-    ncatt_put(ncout, 0, "resolution", res(r))
-    ncatt_put(ncout, 0, "source", config$radars)
-    #ncatt_put(ncout, 0, "datetime", as.character(datetime))
-    ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
-
-    # close the file, writing data to disk
-    nc_close(ncout)
 
 
     # fname <- paste0("composite_", timestamp, ".h5")
