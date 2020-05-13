@@ -12,6 +12,7 @@ data/
 testdata/
 *.tif
 *.png
+*.jpg
 *.h5
 *.nc
 

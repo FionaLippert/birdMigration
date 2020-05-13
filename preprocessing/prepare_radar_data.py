@@ -69,6 +69,9 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
         else:
             print(f'discarding sequence {i} due to missing data')
 
+def combine_nc(file_list):
+    new_nc = xr.open_mfdataset(file_list, combine='by_coords')
+    # save file
 
 def h5_to_numpy(input_path, output_path=None):
     f = wrl.util.get_wradlib_data_file(os.path.abspath(input_path))
