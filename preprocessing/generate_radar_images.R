@@ -22,11 +22,11 @@ config = yaml.load_file(file.path(root, "config.yml"))
 s3_set_key(username = config$login$username,
            password = config$login$password)
 
-lon_min <- config$bounds[[1]] - config$reach
-lat_min <- config$bounds[[2]] - config$reach
-lon_max <- config$bounds[[3]] + config$reach
-lat_max <- config$bounds[[4]] + config$reach
-grid <- raster(xmn=lon_min, xmx=lon_max, ymn=lat_min, ymx=lat_max, res=config$res)
+#lon_min <- config$bounds[[1]] - config$reach
+#lat_min <- config$bounds[[2]] - config$reach
+#lon_max <- config$bounds[[3]] + config$reach
+#lat_max <- config$bounds[[4]] + config$reach
+grid <- raster(xmn=config$lon_min, xmx=config$lon_max, ymn=config$lat_min, ymx=config$lat_max, res=config$res)
 
 img_size <- c(dim(grid)[[2]], dim(grid)[[1]]) # size of final images [pixels]
 
@@ -99,37 +99,47 @@ vertical_integration <- function(datetime){
     if (length(ppi_list) > 0) {
       composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
       r <- raster(composite$data)
-
-      r_attr = attributes(r)
+      r_attr <- attributes(r)
+      r_res <- res(r)
+      #r[] <- 1:ncell(r)
+      #data_matrix <- as.matrix(r)
+     
+      #print(paste('//////////', ncol(r), nrow(r)))
+      #print(paste('----------', ncol(grid), nrow(grid)))
+      #print(paste('----------', dim(as(composite$data[config$quantity], 'matrix'))))
 
       # define dimensions
-      lons <- xyFromCell(grid,1:ncell(grid))[,'x']
-      lats <- xyFromCell(grid,1:ncell(grid))[,'y']
+      lons <- sort(unique(xyFromCell(grid,1:ncell(grid))[,'x']))
+      lats <- sort(unique(xyFromCell(grid,1:ncell(grid))[,'y']))
       lon_dim <- ncdim_def("lon", "degrees_east", as.double(lons))
       lat_dim <- ncdim_def("lat", "degrees_north", as.double(lats))
       time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00", as.numeric(c(datetime)), unlim=FALSE)
+
 
       # define variable
       fillvalue <- 1e32
       var_def <- ncvar_def(config$quantity, "", list(lon_dim,lat_dim, time_dim), fillvalue, config$quantity)
 
       # create netcdf file
-      ncfname <- paste0("composite_", timestamp, ".nc")
-      ncout <- nc_create(ncfname, var_def, force_v4=T)
-      ncvar_put(ncout, var_def, as(composite$data, "matrix"))
-      ncatt_put(ncout,"lon","axis","X")
-      ncatt_put(ncout,"lat","axis","Y")
+      fname <- paste0("composite_", timestamp, ".nc")
+      ncpath <- file.path(root, fname)
+      ncout <- nc_create(ncpath, var_def, force_v4=F)
+      ncvar_put(ncout, var_def, as.matrix(composite$data))
+      ncatt_put(ncout,"longitude","axis","X")
+      ncatt_put(ncout,"latitude","axis","Y")
       ncatt_put(ncout,"time","axis","T")
 
       # add global attributes
       ncatt_put(ncout, 0, "projdef", as.character(r_attr$crs))
-      ncatt_put(ncout, 0, "resolution", res(r))
+      ncatt_put(ncout, 0, "resolution", r_res)
       ncatt_put(ncout, 0, "source", config$radars)
+      ncatt_put(ncout, 0, "fillvalue", fillvalue)
       #ncatt_put(ncout, 0, "datetime", as.character(datetime))
       ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
 
       # close the file, writing data to disk
       nc_close(ncout)
+      #print('//////////////////// data written to disk ///////////////')
     }
 
 
