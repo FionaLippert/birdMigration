@@ -1,6 +1,6 @@
 # directories containing preprocessed data
 data :
-  ppi : data/ppi/NL/DHL
+  ppi : data/ppi/NL/DHL_res=0.25
   array : data/array
   img : data/img
 # login to radar database
@@ -10,7 +10,7 @@ login:
 # start time
 ts : 2016-08-01 00:00:00
 # end time
-te : 2016-08-30 23:45:00
+te : 2016-11-30 23:45:00
 # time resolution in minutes
 tr : 15
 # list of radar stations
