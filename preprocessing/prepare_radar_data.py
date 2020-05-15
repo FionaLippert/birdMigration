@@ -7,6 +7,7 @@ import wradlib as wrl
 import argparse
 from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
+import xarray as xr
 
 
 FNAME = parse.compile('{info}_{datetime}.nc')
