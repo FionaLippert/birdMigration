@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from sklearn.model_selection import train_test_split
 
 
-FNAME = parse.compile('{info}_{datetime}.h5')
+FNAME = parse.compile('{info}_{datetime}.nc')
 DATETIME_STR = '%Y%m%dT%H%M'
 DELTA_T = timedelta(minutes=15)
 H5_DATA_KEY = 'VID_data/data'
@@ -17,9 +17,9 @@ H5_DATA_KEY = 'VID_data/data'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--in_dir', required=True, type=str,
-                    help='input directory containing data as .h5 files')
+                    help='input directory containing data as .nc files')
 parser.add_argument('--out_dir', default='./output', type=str,
-                    help='output directory for processed .npy files')
+                    help='output directory for processed .nc files')
 parser.add_argument('--seq_len', default=50, type=int,
                     help='length of individual sequences')
 parser.add_argument('--test_size', default=0.2, type=float,
@@ -31,7 +31,7 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
 
     #print(glob(os.path.join(input_path, '*', '*.h5')))
     files = sorted([(FNAME.parse(os.path.basename(d)).named['datetime'], d) \
-                        for d in glob(os.path.join(input_path, f'{n_subdirs*"*/"}*.h5'))], \
+                        for d in glob(os.path.join(input_path, f'{n_subdirs*"*/"}*.nc'))], \
                         key = lambda x: x[0])
 
     print(f'Found {len(files)} files to pe processed')
@@ -48,30 +48,33 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
     else:
         idx_train, idx_test = train_test_split(idx_list, test_size=test_size)
 
-    for i in idx_list:
+    for k, idx in enumerate(idx_list):
 
-        end = min(len(files), i+seq_len)-1
+        end = min(len(files), idx+seq_len)-1
 
         check_delta = [(datetime.strptime(files[j+1][0], DATETIME_STR) \
                         - datetime.strptime(files[j][0], DATETIME_STR) \
-                        == DELTA_T) for j in range(i, end)]
+                        == DELTA_T) for j in range(idx, end)]
         if np.all(check_delta):
-            if i in idx_train:
+            if idx in idx_train:
                 dataset = 'train'
             else:
                 dataset = 'test'
-            subdir = os.path.join(output_path, dataset, \
-                            f'{files[i][0]}_to_{files[end][0]}')
-            os.makedirs(subdir, exist_ok = True)
 
-            all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
-                                for f in files[i:end+1]]
+            output_file = os.path.join(output_path, dataset, \
+                            f'{files[idx][0]}_to_{files[end][0]}.nc')
+            #os.makedirs(subdir, exist_ok = True)
+            input_files = [f[1] for f in files[idx:end+1]]
+            combine_nc(input_files, output_file)
+
+            #all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
+            #                    for f in files[idx:end+1]]
         else:
-            print(f'discarding sequence {i} due to missing data')
+            print(f'discarding sequence {k} due to missing data')
 
-def combine_nc(file_list):
-    new_nc = xr.open_mfdataset(file_list, combine='by_coords')
-    # save file
+def combine_nc(input_files, output_file):
+    new_nc = xr.open_mfdataset(input_files, combine='by_coords')
+    new_nc.to_netcdf('output_file', mode='w', format='NETCDF3_64BIT')
 
 def h5_to_numpy(input_path, output_path=None):
     f = wrl.util.get_wradlib_data_file(os.path.abspath(input_path))
