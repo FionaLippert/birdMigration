@@ -49,6 +49,9 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
     else:
         idx_train, idx_test = train_test_split(idx_list, test_size=test_size)
 
+    os.makedirs(os.path.join(output_path, 'train'), exist_ok = True)
+    os.makedirs(os.path.join(output_path, 'test'), exist_ok = True)
+
     for k, idx in enumerate(idx_list):
 
         end = min(len(files), idx+seq_len)-1
@@ -66,6 +69,8 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
                             f'{files[idx][0]}_to_{files[end][0]}.nc')
             #os.makedirs(subdir, exist_ok = True)
             input_files = [f[1] for f in files[idx:end+1]]
+            #print(input_files)
+            print(output_file)
             combine_nc(input_files, output_file)
 
             #all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
@@ -75,7 +80,8 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
 
 def combine_nc(input_files, output_file):
     new_nc = xr.open_mfdataset(input_files, combine='by_coords')
-    new_nc.to_netcdf('output_file', mode='w', format='NETCDF3_64BIT')
+    print(np.array(new_nc.VID).shape)
+    new_nc.to_netcdf(output_file, mode='w', format='NETCDF3_64BIT')
 
 def h5_to_numpy(input_path, output_path=None):
     f = wrl.util.get_wradlib_data_file(os.path.abspath(input_path))
