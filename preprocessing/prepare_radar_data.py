@@ -45,7 +45,7 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
     if test_size == 0:
         idx_train = idx_list
     elif test_size == 1:
-        idx_train == []
+        idx_train = []
     else:
         idx_train, idx_test = train_test_split(idx_list, test_size=test_size)
 

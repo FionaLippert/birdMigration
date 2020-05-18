@@ -7,8 +7,9 @@ import torch
 from torch.utils import data
 import parse
 import cv2
+import xarray as xr
 
-DNAME = parse.compile('{start}_to_{end}')
+FNAME = parse.compile('{start}_to_{end}.nc')
 
 # use to start new training with weights learned before:
 # model.load_state_dict(torch.load(‘file_with_model’))
@@ -27,22 +28,29 @@ class RadarImages(data.Dataset):
         self.clip            = clip
         self.img_size        = img_size
 
-        self.data_dirs = sorted([(os.path.basename(d), d) \
+        # self.data_dirs = sorted([(os.path.basename(d), d) \
+        #                 for d in glob(os.path.join(data_path, split, '*'))], \
+        #                 key = lambda x: DNAME.parse(x[0]).named['start'])
+
+        self.files = sorted([(os.path.basename(d), d) \
                         for d in glob(os.path.join(data_path, split, '*'))], \
-                        key = lambda x: DNAME.parse(x[0]).named['start'])
+                        key = lambda x: FNAME.parse(x[0]).named['start'])
 
     def __len__(self):
-        return len(self.data_dirs)
+        return len(self.files)
 
     def __getitem__(self, idx):
-        dir    = self.data_dirs[idx][1]
-        frames = sorted([(os.path.basename(f), f) \
-                            for f in glob(os.path.join(dir, '*.npy'))], \
-                            key = lambda x: x[0])
+        file = self.files[idx][1]
+        #frames = sorted([(os.path.basename(f), f) \
+        #                    for f in glob(os.path.join(dir, '*.npy'))], \
+        #                    key = lambda x: x[0])
+
+        ds = xr.open_dataset(file)
+
 
         # load subsequence of seq_len frames
-        if self.split == 'train' and len(frames) > self.n_frames:
-            start = np.random.randint(0, len(frames) - self.n_frames)
+        if self.split == 'train' and ds.time.size > self.n_frames:
+            start = np.random.randint(0, ds.time.size - self.n_frames)
         else:
             start = 0
         frames = np.stack([self._load_frame(f[1]) for f \
@@ -69,6 +77,14 @@ class RadarImages(data.Dataset):
         frames = frames.transpose((0, 3, 1, 2))
 
         return (frames, idx)
+
+    def _load_frames(self, ds, xmin=300, xmax=700, ymin=300, ymax=700):
+        frames = np.array(ds.VID)
+        frames = np.stack([cv2.resize(frames[t, xmin:xmax, ymin:ymax], \
+                            (self.img_size, self.img_size)) for t \
+                            in range(start : start + self.n_frames)])
+
+        return frames
 
     def _load_frame(self, path):
         frame = np.load(path)
