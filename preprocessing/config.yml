@@ -1,14 +1,14 @@
 # directories containing preprocessed data
 data :
-  ppi : data/ppi/NL/HRW_res=0.1
+  ppi : data/ppi/NL/HRW_res=0.1_filtered
 # login to radar database
 login:
   username : flippert
   password : eFd5cqJqpv8hJN2D
 # start time
-ts : 2018-08-01 00:00:00
+ts : 2017-09-01 00:00:00
 # end time
-te : 2018-11-15 23:45:00
+te : 2017-11-15 23:45:00
 # time resolution in minutes
 tr : 15
 # list of radar stations
@@ -18,11 +18,18 @@ radars :
   - NL/HRW
 #  - BE/JAB
 #  - BE/ZAV
+#  - DE/BOO
 # radar quantity
 quantity : VID
 # raster resolution
 #res : 0.01
 res : 0.1
 # max reach of radars (added to bbox dimensions)
-#reach : 5
 reach : 5
+#reach : 3
+# rain filter
+filter :
+  DR_min : -12
+  DBZ_max : 35
+#  DR_min : NaN
+#  DBZ_max : NaN

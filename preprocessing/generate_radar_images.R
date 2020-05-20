@@ -51,12 +51,27 @@ vertical_integration <- function(datetime){
       #groupname <- paste0(config$quantity, "_data")
       #h5createGroup(output_path, groupname)
 
-      pvol = retrieve_pvol(vp_key_to_pvol(k))
+      pvol = retrieve_pvol(vp_key_to_pvol(k), param="all")
       vp = retrieve_vp(k)
+      print(paste('//////////', is.finite(config$filter$DR_min)))
+      if(is.finite(config$filter$DR_min)){
+        pvol <-calculate_parameter(pvol,
+                       ZDR=DBZH-DBZV,
+                       ZDRL=10^(ZDR/10),
+                       DRL=((ZDRL+1-2*sqrt(ZDRL)*RHOHV)/(ZDRL+1+2*sqrt(ZDRL)*RHOHV)),
+                       DPR=10*log10(DRL))
+
+        pvol <- calculate_param(pvol, DBZ = ifelse(DPR > config$filter$DR_min & DBZH < config$filter$DBZ_max, DBZH, NaN))
+
+        #pvol <- calculate_param(pvol, DR = 10 * log10((ZDR + 1 - 2 * ZDR^0.5 * RHOHV) /
+        #                                (ZDR + 1 + 2 * ZDR^0.5 * RHOHV)))
+        #pvol <- calculate_param(pvol, DBZH = ifelse(DR > config$filter$DR_min & DBZH < config$filter$DBZ_max, DBZH, NaN))
+      }
       ppi <- integrate_to_ppi(pvol = pvol, vp = vp, raster = grid,
                               #res = config$res,
                               #xlim = c(lon_min,lon_max),
                               #ylim = c(lat_min,lat_max),
+                              param = "DBZ",
                               param_ppi = config$quantity)
       ppi_list[[k]] <- ppi
       #r <- raster(ppi$data)
@@ -125,9 +140,9 @@ vertical_integration <- function(datetime){
       ncpath <- file.path(root, fname)
       ncout <- nc_create(ncpath, var_def, force_v4=F)
       ncvar_put(ncout, var_def, as.matrix(composite$data))
-      ncatt_put(ncout,"longitude","axis","X")
-      ncatt_put(ncout,"latitude","axis","Y")
-      ncatt_put(ncout,"time","axis","T")
+      #ncatt_put(ncout, "lon", "longitude", "axis", "X")
+      #ncatt_put(ncout, "lat", "latitude", "axis", "Y")
+      #ncatt_put(ncout, "time", "time", "axis", "T")
 
       # add global attributes
       ncatt_put(ncout, 0, "projdef", as.character(r_attr$crs))
@@ -136,6 +151,7 @@ vertical_integration <- function(datetime){
       ncatt_put(ncout, 0, "fillvalue", fillvalue)
       #ncatt_put(ncout, 0, "datetime", as.character(datetime))
       ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
+      print(paste('----------------', date()))
 
       # close the file, writing data to disk
       nc_close(ncout)
