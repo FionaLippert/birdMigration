@@ -80,7 +80,7 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
 
 def combine_nc(input_files, output_file):
     new_nc = xr.open_mfdataset(input_files, combine='by_coords')
-    print(np.array(new_nc.VID).shape)
+    #print(np.array(new_nc.VID).shape)
     new_nc.to_netcdf(output_file, mode='w', format='NETCDF3_64BIT')
 
 def h5_to_numpy(input_path, output_path=None):
