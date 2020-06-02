@@ -16,6 +16,9 @@ testdata/
 *.h5
 *.nc
 
+# pycharm stuff
+.idea/
+
 # Distribution / packaging
 .Python
 build/
