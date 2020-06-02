@@ -21,6 +21,7 @@ subdir = os.path.join(config['data']['ppi'], f'{ts_str}_to_{te_str}')
 #subdir = os.path.join(config['data']['ppi'], f'{time_range[0]} - {time_range[-1]}')
 
 os.makedirs(subdir, exist_ok = True)
+print(subdir)
 with open(os.path.join(subdir, 'config.yml'), 'w+') as f:
     yaml.dump(config, f)
 logfile = os.path.join(subdir, 'log.txt')
@@ -32,7 +33,7 @@ subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
 print("done with setup")
 
 processes = set()
-max_processes = mp.cpu_count()
+max_processes = mp.cpu_count() - 1
 
 for t in time_range:
     #print('---------- start new process ------------')

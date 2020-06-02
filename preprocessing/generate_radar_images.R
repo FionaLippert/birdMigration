@@ -61,7 +61,7 @@ vertical_integration <- function(datetime){
                        DRL=((ZDRL+1-2*sqrt(ZDRL)*RHOHV)/(ZDRL+1+2*sqrt(ZDRL)*RHOHV)),
                        DPR=10*log10(DRL))
 
-        pvol <- calculate_param(pvol, DBZ = ifelse(DPR > config$filter$DR_min & DBZH < config$filter$DBZ_max, DBZH, NaN))
+        pvol <- calculate_param(pvol, DBZH = ifelse(DPR > config$filter$DR_min & DBZH < config$filter$DBZ_max, DBZH, NaN))
 
         #pvol <- calculate_param(pvol, DR = 10 * log10((ZDR + 1 - 2 * ZDR^0.5 * RHOHV) /
         #                                (ZDR + 1 + 2 * ZDR^0.5 * RHOHV)))
@@ -71,9 +71,12 @@ vertical_integration <- function(datetime){
                               #res = config$res,
                               #xlim = c(lon_min,lon_max),
                               #ylim = c(lat_min,lat_max),
-                              param = "DBZ",
+                              param = "DBZH",
                               param_ppi = config$quantity)
-      ppi_list[[k]] <- ppi
+      
+      if(!all(is.na(ppi$data[[config$quantity]]))){
+        ppi_list[[k]] <- ppi
+      }
       #r <- raster(ppi$data)
       #r_attr = attributes(r)
 
@@ -134,6 +137,8 @@ vertical_integration <- function(datetime){
       # define variable
       fillvalue <- 1e32
       var_def <- ncvar_def(config$quantity, "", list(lon_dim,lat_dim, time_dim), fillvalue, config$quantity)
+
+      print(paste('---------', min(composite$data[[config$quantity]]), max(composite$data[[config$quantity]])))
 
       # create netcdf file
       fname <- paste0("composite_", timestamp, ".nc")
