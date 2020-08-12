@@ -17,9 +17,12 @@ require(yaml)
 require(rhdf5)
 require(stringr)
 require(ncdf4)
+require(sp)
+require(maptools)
 
 root <- args[1]
 radar <- args[2]
+print(radar)
 #root <- "~/birdMigration/preprocessing"
 config = yaml.load_file(file.path(root, "config.yml"))
 
@@ -27,7 +30,7 @@ config = yaml.load_file(file.path(root, "config.yml"))
 s3_set_key(username = config$login$username,
            password = config$login$password)
 
-
+print(radar)
 my_vpts <- get_vpts(radars = radar,
                     time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
                                to = as.POSIXct(config$te, tz = "UTC"),

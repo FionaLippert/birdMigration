@@ -11,15 +11,15 @@ ts : 2018-09-01 00:00:00
 # end time
 te : 2018-09-03 00:00:00
 # time resolution in minutes
-tr : 5
-#tr : 15
+#tr : 5
+tr : 15
 # list of radar stations
 radars :
 #  - NL/DBL
   - NL/DHL
   - NL/HRW
   - BE/JAB
-#  - BE/ZAV
+  - BE/ZAV
 #  - DE/BOO
 # radar quantity for 2D vertical integration
 quantity : VID
