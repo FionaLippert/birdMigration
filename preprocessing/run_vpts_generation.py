@@ -1,24 +1,15 @@
 import subprocess
 import os
-import time
 import yaml
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import multiprocessing as mp
 
 with open('config.yml') as f:
       config = yaml.load(f, Loader = yaml.FullLoader)
 
-time_delta = timedelta(minutes = config['tr'])
-time_range = np.arange(start = config['ts'],
-                       stop  = config['te'] + time_delta,
-                       step  = time_delta,
-                       dtype = datetime)
-
-ts_str = time_range[0].strftime("%Y%m%dT%H%M")
-te_str = time_range[-1].strftime("%Y%m%dT%H%M")
-subdir = os.path.join(config['data']['vid'], f'{ts_str}_to_{te_str}')
-#subdir = os.path.join(config['data']['ppi'], f'{time_range[0]} - {time_range[-1]}')
+ts_str = config['ts'].strftime("%Y%m%dT%H%M")
+te_str = config['te'].strftime("%Y%m%dT%H%M")
+subdir = os.path.join(config['data']['vpi'], f'{ts_str}_to_{te_str}')
 
 os.makedirs(subdir, exist_ok = True)
 print(subdir)
@@ -28,16 +19,13 @@ logfile = os.path.join(subdir, 'log.txt')
 
 start_time = datetime.now()
 
-subprocess.call(['Rscript', 'setup_image_generation.R', subdir])
-
-print("done with setup")
 
 processes = set()
 max_processes = mp.cpu_count() - 1
 
-for t in time_range:
+for r in config['radars']:
     #print('---------- start new process ------------')
-    processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
+    processes.add(subprocess.Popen(['Rscript', 'generate_vpts.R', subdir, r],
                             stdout=open(logfile, 'a+'),
                             stderr=open(logfile, 'a+')))
     if len(processes) >= max_processes:
