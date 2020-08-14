@@ -20,6 +20,8 @@ require(ncdf4)
 require(sp)
 require(maptools)
 
+# TODO: why does this not work on the desktop??
+
 root <- args[1]
 radar <- args[2]
 print(radar)
