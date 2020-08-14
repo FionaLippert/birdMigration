@@ -33,6 +33,17 @@ s3_set_key(username = config$login$username,
            password = config$login$password)
 
 print(radar)
+
+my_pvol <- get_pvol(radars = radar,
+                    time=as.POSIXct('2018-10-03 21:00:00', tz = 'UTC'))
+print("pvol one timestep successful")
+
+my_vpts <- get_pvol(radars = radar,
+                    time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
+                               to = as.POSIXct(config$te, tz = "UTC"),
+                               by = paste(config$tr, "mins")
+                    ))
+print("pvol seq successful")
 my_vpts <- get_vpts(radars = radar,
                     time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
                                to = as.POSIXct(config$te, tz = "UTC"),
