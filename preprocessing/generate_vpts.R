@@ -8,11 +8,7 @@ args = commandArgs(trailingOnly=TRUE)
 
 require(bioRad)
 require(uvaRadar)
-#require(lubridate)
-#require(raster)
 require(stars)
-#require(parallel)
-#require(MASS)
 require(yaml)
 require(rhdf5)
 require(stringr)
@@ -20,7 +16,6 @@ require(ncdf4)
 require(sp)
 require(maptools)
 
-# TODO: why does this not work on the desktop??
 
 root <- args[1]
 radar <- args[2]
@@ -34,31 +29,20 @@ s3_set_key(username = config$login$username,
 
 print(radar)
 
-my_pvol <- get_pvol(radars = radar,
-                    time=as.POSIXct('2018-10-03 21:00:00', tz = 'UTC'))
-print("pvol one timestep successful")
-
-my_vpts <- get_pvol(radars = radar,
-                    time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
-                               to = as.POSIXct(config$te, tz = "UTC"),
-                               by = paste(config$tr, "mins")
-                    ))
-print("pvol seq successful")
 my_vpts <- get_vpts(radars = radar,
                     time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
                                to = as.POSIXct(config$te, tz = "UTC"),
-                               by = paste(config$tr, "mins"),
-                               with_db=T
-                    ))
+                               by = paste(config$tr, "mins")),
+                    #with_db=T (not working for some reasaon. something wrong with keyring?)
+                    )
 # make a subselection for night time only
 #index_night <- check_night(my_vpts)
 #my_vpts_night <- my_vpts[index_night]
 
 my_vpts <- regularize_vpts(my_vpts)
-
 my_vpi <- integrate_profile(my_vpts)
 
-plot(my_vpi, night_shade = FALSE, quantity="vid")
+#plot(my_vpi, night_shade = FALSE, quantity="vid")
 
 #define dimensions
 time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00", as.numeric(c(my_vpi$datetime)), unlim=FALSE)
@@ -80,7 +64,10 @@ for (var in attributes(my_vpi)$names){
   }
 }
 
-print(ncpath)
+# extract radar location from vpts object
+lat <- my_vpts$attributes$where$lat
+lon <- my_vpts$attributes$where$lon
+
 ncout <- nc_create(ncpath, var_def_list, force_v4=F)
 for (var in names(var_def_list)){
   if (var != "solarpos") {
@@ -88,16 +75,16 @@ for (var in names(var_def_list)){
     ncvar_put(ncout, var_def_list[[var]], my_vpi[[var]])
   } else {
     # add sun elevation angle as additional variable to dataset
-    lat <- my_vpts$attributes$where$lat
-    lon <- my_vpts$attributes$where$lon
     location <- SpatialPoints(data.frame(lon=lon, lat=lat), proj4string = CRS("+proj=longlat +datum=WGS84"))
     data <- solarpos(location, c(my_vpi$datetime))[,2]
     ncvar_put(ncout, var_def_list[[var]], data)
   }
 }
-
+print(location)
 # add global attributes
 ncatt_put(ncout, 0, "source", radar)
+ncatt_put(ncout, 0, "lat", lat)
+ncatt_put(ncout, 0, "lon", lon)
 ncatt_put(ncout, 0, "fillvalue", fillvalue)
 ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
 

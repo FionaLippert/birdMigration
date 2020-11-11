@@ -1,15 +1,21 @@
 import subprocess
 import os
 import yaml
+import argparse
 from datetime import datetime
 import multiprocessing as mp
+
+parser = argparse.ArgumentParser(description='VPTS processing pipeline')
+parser.add_argument('--test_local', help='use local file paths')
+args = parser.parse_args()
 
 with open('config.yml') as f:
       config = yaml.load(f, Loader = yaml.FullLoader)
 
 ts_str = config['ts'].strftime("%Y%m%dT%H%M")
 te_str = config['te'].strftime("%Y%m%dT%H%M")
-subdir = os.path.join(config['data']['vpi'], f'{ts_str}_to_{te_str}')
+subdir = config['data']['vpi_local'] if args.test_local else config['data']['vpi']
+subdir = os.path.join(subdir, f'{ts_str}_to_{te_str}')
 
 os.makedirs(subdir, exist_ok = True)
 print(subdir)
