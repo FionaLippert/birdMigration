@@ -42,10 +42,16 @@ my_vpts <- get_vpts(radars = radar,
 my_vpts <- regularize_vpts(my_vpts)
 my_vpi <- integrate_profile(my_vpts)
 
+# extract radar location from vpts object
+lat <- my_vpts$attributes$where$lat
+lon <- my_vpts$attributes$where$lon
+
 #plot(my_vpi, night_shade = FALSE, quantity="vid")
 
 #define dimensions
 time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00", as.numeric(c(my_vpi$datetime)), unlim=FALSE)
+lat_dim <- ncdim_def("lat", "degrees north", c(lat), unlim=FALSE)
+lon_dim <- ncdim_def("lon", "degrees south", c(lon), unlim=FALSE)
 
 
 # create netcdf file
@@ -58,15 +64,12 @@ fillvalue <- 1e32
 var_def_list <- list()
 for (var in attributes(my_vpi)$names){
   if (var != "datetime"){
-    var_def_list[[var]] <- ncvar_def(var, "", time_dim, fillvalue, var)
+    var_def_list[[var]] <- ncvar_def(var, "", list(lat_dim, lon_dim, time_dim), fillvalue, var)
   } else {
-    var_def_list[["solarpos"]] <- ncvar_def("solarpos", "", time_dim, fillvalue, "solarpos")
+    var_def_list[["solarpos"]] <- ncvar_def("solarpos", "", list(lat_dim, lon_dim, time_dim), fillvalue, "solarpos")
   }
 }
 
-# extract radar location from vpts object
-lat <- my_vpts$attributes$where$lat
-lon <- my_vpts$attributes$where$lon
 
 ncout <- nc_create(ncpath, var_def_list, force_v4=F)
 for (var in names(var_def_list)){
@@ -83,8 +86,8 @@ for (var in names(var_def_list)){
 print(location)
 # add global attributes
 ncatt_put(ncout, 0, "source", radar)
-ncatt_put(ncout, 0, "lat", lat)
-ncatt_put(ncout, 0, "lon", lon)
+ncatt_put(ncout, 0, "latitude", lat)
+ncatt_put(ncout, 0, "longitude", lon)
 ncatt_put(ncout, 0, "fillvalue", fillvalue)
 ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
 
