@@ -10,6 +10,7 @@ login:
 # start time
 ts : 2016-08-01 00:00:00
 # end time
+#te : 2016-08-30 23:59:59
 te : 2016-11-30 23:59:59
 # time resolution in minutes
 tr : 5
@@ -39,7 +40,7 @@ radars :
   - DE/ROS
   - DE/TUR
   - DE/UMD
-
+night_only : true
 # radar quantity for 2D vertical integration
 #quantity : VID
 # raster resolution for 2D vertical integration

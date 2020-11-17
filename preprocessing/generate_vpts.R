@@ -36,8 +36,11 @@ my_vpts <- get_vpts(radars = radar,
                     #with_db=T (not working for some reasaon. something wrong with keyring?)
                     )
 # make a subselection for night time only
-#index_night <- check_night(my_vpts)
-#my_vpts_night <- my_vpts[index_night]
+if(config$night_only){
+  index_night <- check_night(my_vpts)
+  my_vpts <- my_vpts[index_night]
+}
+
 
 my_vpts <- regularize_vpts(my_vpts)
 my_vpi <- integrate_profile(my_vpts)
