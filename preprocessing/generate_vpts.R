@@ -19,8 +19,7 @@ require(maptools)
 
 root <- args[1]
 radar <- args[2]
-print(radar)
-#root <- "~/birdMigration/preprocessing"
+
 config = yaml.load_file(file.path(root, "config.yml"))
 
 # set credentials for UvA Radar Data Storage
@@ -29,18 +28,24 @@ s3_set_key(username = config$login$username,
 
 print(radar)
 
-my_vpts <- get_vpts(radars = radar,
+my_vpts <- tryCatch(
+              { get_vpts(radars = radar,
                     time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
                                to = as.POSIXct(config$te, tz = "UTC"),
                                by = paste(config$tr, "mins")),
                     #with_db=T (not working for some reasaon. something wrong with keyring?)
                     )
+              },
+              error = function(cond){
+                message(paste("error occured with ", radar))
+                return(NA)
+              })
+
 # make a subselection for night time only
 if(config$night_only){
   index_night <- check_night(my_vpts)
   my_vpts <- my_vpts[index_night]
 }
-
 
 my_vpts <- regularize_vpts(my_vpts)
 my_vpi <- integrate_profile(my_vpts)
@@ -86,7 +91,7 @@ for (var in names(var_def_list)){
     ncvar_put(ncout, var_def_list[[var]], data)
   }
 }
-print(location)
+
 # add global attributes
 ncatt_put(ncout, 0, "source", radar)
 ncatt_put(ncout, 0, "latitude", lat)
