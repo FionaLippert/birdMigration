@@ -5,8 +5,6 @@ import argparse
 from datetime import datetime
 import multiprocessing as mp
 
-os.system("conda activate birdmigration")
-
 parser = argparse.ArgumentParser(description='VPTS processing pipeline')
 parser.add_argument('--test_local', default=False, action='store_true', help='use local file paths')
 args = parser.parse_args()
