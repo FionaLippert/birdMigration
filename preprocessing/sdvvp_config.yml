@@ -1,0 +1,25 @@
+# sdvvp thresholds for all radars
+NL/DBL : 1.4
+NL/HRW : 2
+NL/DHL : 1.7
+BE/JAB : 1.3
+BE/WID : 1.5
+BE/ZAV : 1.7
+DE/ASB : 2
+DE/BOO : 1.4
+DE/DRS : 1.4
+DE/EIS : 1.4
+DE/EMD : 1.6
+DE/ESS : 1.5
+DE/FBG : 1.6
+DE/FLD : 1.4
+DE/HNR : 1.4
+DE/ISN : 1.3
+DE/MEM : 1.3
+DE/NEU : 1.6
+DE/NHB : 1.5
+DE/OFT : 1.5
+DE/PRO : 1.3
+DE/ROS : 1.6
+DE/TUR : 1.4
+DE/UMD : 1.3

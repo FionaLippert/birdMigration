@@ -5,12 +5,16 @@ import argparse
 from datetime import datetime
 import multiprocessing as mp
 
+os.system("conda activate birdmigration")
+
 parser = argparse.ArgumentParser(description='VPTS processing pipeline')
 parser.add_argument('--test_local', default=False, action='store_true', help='use local file paths')
 args = parser.parse_args()
 
 with open('config.yml') as f:
-      config = yaml.load(f, Loader = yaml.FullLoader)
+    config = yaml.load(f, Loader=yaml.FullLoader)
+with open('sdvvp_config.yml') as f:
+    sdvvp_config = yaml.load(f, Loader=yaml.FullLoader)
 
 ts_str = config['ts'].strftime("%Y%m%dT%H%M")
 te_str = config['te'].strftime("%Y%m%dT%H%M")
@@ -21,6 +25,8 @@ os.makedirs(subdir, exist_ok = True)
 print(subdir)
 with open(os.path.join(subdir, 'config.yml'), 'w+') as f:
     yaml.dump(config, f)
+with open(os.path.join(subdir, 'sdvvp_config.yml'), 'w+') as f:
+    yaml.dump(sdvvp_config, f)
 logfile = os.path.join(subdir, 'log.txt')
 
 start_time = datetime.now()

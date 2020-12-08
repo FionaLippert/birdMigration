@@ -3,6 +3,7 @@ import geopandas as gpd
 from geovoronoi import voronoi_regions_from_coords, plotting
 from shapely import geometry
 from geopy.distance import geodesic, lonlat
+import itertools as it
 
 class Spatial:
     def __init__(self, radars, epsg='4326', epsg_local='3035'):
