@@ -69,7 +69,7 @@ class Spatial:
                 edges.append(geometry.LineString((xy[i], xy[j])))
 
         # create network
-        G = nx.from_numpy_matrix(adj)
+        G = nx.from_numpy_matrix(adj) #, create_using=nx.DiGraph())
         nx.set_node_attributes(G, pd.Series(cells['radar']).to_dict(), 'radar')
         nx.set_node_attributes(G, pd.Series(cells['boundary']).to_dict(), 'boundary')
         nx.set_node_attributes(G, 'measured', name='type')
@@ -79,6 +79,9 @@ class Spatial:
             nidx = len(G)
             G.add_node(nidx, type='sink', radar=row.radar)
             G.add_edge(nidx, i)
+
+        # add self-loops to graph
+        G.add_edges_from([(n, n) for n in G.nodes])
 
         self.cells = cells
         self.adj = adj
