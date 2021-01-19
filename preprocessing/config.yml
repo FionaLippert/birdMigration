@@ -1,17 +1,18 @@
 # target directories for preprocessed data
 data :
   vid : /home/flipper/radar_data/vid/HRW_res=0.01_filtered
-  vpi : /home/flipper/radar_data/vpi/sdvvp_thresholds
+  vpi : /home/flipper/radar_data/vpi #/sdvvp_thresholds
   vpi_local : /home/fiona/radar_data/vpi/test
 # login to radar databasen
 login :
   username : flippert
   password : eFd5cqJqpv8hJN2D
 # start time
-ts : 2015-08-01 00:00:00
+ts : 2015-03-01 00:00:00
+#ts : 2015-08-01 00:00:00
 # end time
-#te : 2016-08-30 23:59:59
-te : 2015-11-30 23:59:59
+te : 2015-05-30 23:59:59
+#te : 2015-11-30 23:59:59
 # time resolution in minutes
 tr : 5
 # list of radar stations
@@ -41,8 +42,8 @@ radars :
   - DE/TUR
   - DE/UMD
 night_only : true
-alt_min : 200
-alt_max : 4000
+alt_min : 0 #200
+alt_max : 5000 #4000
 # radar quantity for 2D vertical integration
 #quantity : VID
 # raster resolution for 2D vertical integration

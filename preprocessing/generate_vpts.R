@@ -43,8 +43,8 @@ vpts <- tryCatch(
               })
 
 # adjust sdvvp threshold
-print(paste('apply sdvvp threshold applied to ', radar, sdvvp_config$radar))
-sd_vvp_threshold(vpts) <- sdvvp_config$radar
+#print(paste('apply sdvvp threshold applied to ', radar, sdvvp_config$radar))
+#sd_vvp_threshold(vpts) <- sdvvp_config$radar
 
 
 # make a subselection for night time only
