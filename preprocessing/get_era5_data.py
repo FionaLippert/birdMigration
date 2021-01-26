@@ -2,6 +2,7 @@
 import cdsapi
 import os
 import argparse
+from ../../python/modules import datahandling
 
 """
 NL/HRW: lon 5.1381, lat 51.8369
@@ -9,6 +10,7 @@ NL/DHL: lon 4.79997, lat 52.95334
 BE/JAB: lon 3.0642, lat 51.1917 
 BE/ZAV: lon 4.455, lat 50.9055
 """
+
 
 parser = argparse.ArgumentParser(description='download era5 data for a given location.')
 #parser.add_argument('lat', type=float, help='latitude')
@@ -23,6 +25,10 @@ radar_locs = {
         "BE/JAB": (3.0642, 51.1917),
         "BE/ZAV": (4.455, 50.9055)
 }
+
+path = '/home/fiona/radar_data/vpi/night_only'
+data_path = os.path.join(path, f'{args.year}0801T0000_to_{args.year}1130T2359')
+datahandling.load_radars()
 
 years  = [args.year]
 months = [f'{m:02}' for m in range(8, 12)]
@@ -40,7 +46,7 @@ target_dir = 'weather_data'
 rad = f'{args.radar.split("/")[0]}{args.radar.split("/")[1]}'
 
 c = cdsapi.Client()
-c.retrieve('reanalysis-era5-pressure-levels', {
+pressure_level_data = c.retrieve('reanalysis-era5-pressure-levels', {
         'variable'      : [
                 #'fraction_of_cloud_cover',
                 'specific_humidity',
@@ -69,7 +75,7 @@ c.retrieve('reanalysis-era5-pressure-levels', {
     }, os.path.join(target_dir, f'era5_pressure_levels_{rad}.nc'))
 
 
-c.retrieve('reanalysis-era5-land', {
+surface_level_data = c.retrieve('reanalysis-era5-land', {
         'variable'      : [
                 #'2m_temperature',
                 'surface_sensible_heat_flux',
@@ -86,3 +92,12 @@ c.retrieve('reanalysis-era5-land', {
         'time'          : time,
         'format'        : 'netcdf' # Supported format: grib and netcdf. Default: grib
     }, os.path.join(target_dir, f'era5_land_{rad}.nc'))
+
+
+# Extract time-series data at a specific point
+data_point = ct.geo.extract_point(
+        surface_level_data,
+        lat=lat,
+        lon=lon
+)
+print(data_point)

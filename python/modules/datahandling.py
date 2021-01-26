@@ -48,6 +48,10 @@ def load_data(path, var='vid', start=None, end=None, t_unit='1H', mask_days=True
     t_range = pd.date_range(start, end, freq=t_unit)
     return data, names, t_range
 
+def load_radars(path):
+    files = glob.glob(os.path.join(path, '*.nc'))
+    radars = {get_name(f) : get_coords(f) for f in files}
+    return radars
 
 def arr(xarray_1d):
     return xarray_1d.values.flatten()

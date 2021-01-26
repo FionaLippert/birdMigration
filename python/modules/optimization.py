@@ -6,15 +6,16 @@ import itertools as it
 import autograd.numpy as np  # Thinly-wrapped numpy
 from autograd import grad
 from autograd.misc.flatten import flatten
-from torch.utils import data
+#from torch.utils import data
 import os
 import datahandling
 import spatial
+import era5interface
 
-class VP(data.Dataset):
+class VP():
     def __init__(self, split, start_date, end_date, path='/home/fiona/radar_data/vpi/night_only', use_nights=False):
 
-        super(VP, self).__init__()
+        #super(VP, self).__init__()
 
         self.split = split
         if split == 'test':
@@ -103,9 +104,6 @@ class Optimizer:
         self.adj = nx.to_numpy_matrix(G, nodelist=np.concatenate([self.targets, self.boundary]))
         self.wrapper = ParamWrapper(self.adj, len(self.targets))
 
-        #self.sources = np.concatenate([list(G.neighbors(n)) for n in self.targets])
-        #self.sources = np.concatenate([list(G.neighbors(n)) for n in G])
-
         assert(data.ndim in [2, 3])
 
         if data.ndim == 2:
@@ -118,14 +116,14 @@ class Optimizer:
             self.X = np.concatenate([data[self.targets, 0], data[self.boundary, 0]])
             self.Y = data[self.targets, 1:, :]
             self.N_nights = data.shape[2]
-            self.timesteps = data.shape[1]
+            self.timesteps = data.shape[1] - 1 # first timestep is needed as initial state
 
 
     def minimize(self, use_cons=None, use_jac=True, ftol=0.001, maxiter=200):
 
         bounds = Bounds(0, 1)
         x0 = np.random.rand(self.wrapper.num_params)
-        objective = self.loss if self.timesteps==1 else self.loss_all_nights2
+        objective = self.loss
 
         res = minimize(objective, x0, bounds=bounds,
                        constraints=self.mass_conservation() if use_cons else None,
@@ -140,59 +138,12 @@ class Optimizer:
                 'fun': lambda w: np.ones(self.N) - np.sum(self.wrapper.wrap(w, concat=True), axis=0)}
         return constraints
 
-    def weights_to_matrix(self, w):
-        W = np.zeros((len(self.G), len(self.G)))
-        i = 0
-        for n in self.G:
-            neighbours = list(self.G.neighbors(n))
-            W[n, neighbours] = w[i:i + len(neighbours)]
-            i += len(neighbours)
-        return W
 
-    def matrix_to_weights(self, W):
-        w = []
-        for n in self.G:
-            neighbours = list(self.G.neighbors(n))
-            w.extend(W[n, neighbours])
-        return w
-
-    def loss_night(self, W, idx):
-
-        y = np.zeros((self.N, self.timesteps))
-        y[:,0] = self.X[:,idx]
-        for h in range(self.timesteps-1):
-            y[:, t+1] = np.dot(W, y[:,t])
-
-        diff = (self.Y[::,idx] - y[self.targets,1:])
-        #loss = diff.T.dot(diff).sum()
-        loss = np.square(diff).sum()
-        return loss
-
-    def loss_seq(self, w):
-        W = self.weights_to_matrix(w)
-        loss = 0
-        for idx in range(self.N_nights):
-            loss += self.loss_night(W, idx)
-        return loss
-
-    def loss_all_nights(self, w):
-        W = self.wrapper.wrap(w)
-
-        y = np.zeros((self.N, self.timesteps-1, self.N_nights))
-        y[:,0] = np.dot(W, self.X)
-
-        for t in range(self.timesteps-2):
-            y[:,t+1] = np.dot(W, y[:,t])
-
-        diff = (self.Y - y[self.targets])
-        loss = np.square(diff).mean()
-        return loss
-
-    def loss_all_nights2(self, w):
+    def loss(self, w):
         W_targets, W_boundary = self.wrapper.wrap(w)
         predictions = []
         state = self.X
-        for t in range(self.timesteps - 1):
+        for t in range(self.timesteps):
             y_targets = np.dot(W_targets, state)
             predictions.append(y_targets)
             y_boundary = np.dot(W_boundary, state)
@@ -203,21 +154,13 @@ class Optimizer:
 
         return loss
 
-    #def predict(self, W, input, target_idx):
-    #    output = np.dot()
+    def loss_wind(self, w):
 
 
-    def loss(self, w):
-        W_targets, W_boundary = self.wrapper.wrap(w)
-        y = np.dot(W_targets, self.X)
-        diff, _ = flatten(self.Y - y)
-        loss = np.dot(diff.T, diff) / self.Y.size
-
-        return loss
 
 
 if __name__ == '__main__':
-    dataloader = VP('train', '08-15 18:00:00', '09-15 10:00:00', use_nights=True)
+    dataloader = VP('train', '08-15 18:00:00', '09-15 10:00:00', use_nights=False)
     space = spatial.Spatial(dataloader.radars)
     adj, voronoi, G = space.voronoi()
     G = space.subgraph('type', 'measured') # graph without sink nodes
