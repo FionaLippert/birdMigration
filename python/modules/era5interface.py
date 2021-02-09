@@ -4,6 +4,7 @@ import os
 import argparse
 import datahandling
 import xarray as xr
+import numpy as np
 import rioxarray
 import pandas as pd
 
@@ -84,17 +85,20 @@ class ERA5Loader():
         return radars, file_path
 
 
-def extract_points(radars, data_path):
+def extract_points(data_path, lonlat_list, t_range):
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
     weather = {}
 
-    for name, lonlat in radars.items():
-        # Extract time-series data at given point (interpolate between available grid points)
-        data_point = data.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
-        weather[lonlat] = data_point
+    for var, ds in data.items():
+        var_data = []
+        for lonlat in lonlat_list:
+            # Extract time-series data at given point (interpolate between available grid points)
+            data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
+            var_data.append(data_point.sel(time=t_range).data.flatten())
+        weather[var] = np.stack(var_data)
 
     return weather
 
@@ -104,9 +108,9 @@ if __name__ == '__main__':
 
     loader = ERA5Loader()
     base_dir = '/home/fiona/environmental_data/era5'
-    for year in ['2016']: #'2015', '2016', '2017', '2018']:
-        for season in ['test', 'spring', 'fall']:
+    for year in ['2015']: #'2015', '2016', '2017', '2018']:
+        for season in ['spring', 'fall']:
             radars, file_path = loader.download_season(year,
                                                        season,
-                                                       os.path.join(base_dir, season),
+                                                       os.path.join(base_dir, season, year),
                                                        f'wind_850.nc')

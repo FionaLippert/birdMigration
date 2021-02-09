@@ -53,6 +53,23 @@ def load_radars(path):
     radars = {get_name(f) : get_coords(f) for f in files}
     return radars
 
+def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True):
+    path = os.path.join(root, season, year)
+
+    if season == 'spring':
+        start = f'{year}-03-15 00:00:00'
+        end = f'{year}-05-15 23:59:59'
+
+    elif season == 'fall':
+        start = f'{year}-08-15 00:00:00'
+        end = f'{year}-09-15 23:59:59'
+
+    dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days)
+    data = np.stack([dataset[coords].data.flatten() for coords in radars.keys()])
+
+    return data, radars, t_range
+
+
 def arr(xarray_1d):
     return xarray_1d.values.flatten()
 

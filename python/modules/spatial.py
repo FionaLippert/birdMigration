@@ -69,10 +69,11 @@ class Spatial:
                 edges.append(geometry.LineString((xy[i], xy[j])))
 
         # create network
-        G = nx.from_numpy_matrix(adj) #, create_using=nx.DiGraph())
+        G = nx.from_numpy_matrix(adj, create_using=nx.DiGraph())
         nx.set_node_attributes(G, pd.Series(cells['radar']).to_dict(), 'radar')
         nx.set_node_attributes(G, pd.Series(cells['boundary']).to_dict(), 'boundary')
         nx.set_node_attributes(G, 'measured', name='type')
+        nx.set_node_attributes(G, pd.Series(cells['xy'].to_dict()), 'coords')
 
         # add sink nodes
         for i, row in cells[cells['boundary']].iterrows():
@@ -81,10 +82,9 @@ class Spatial:
             G.add_edge(nidx, i)
 
         # add self-loops to graph
-        G.add_edges_from([(n, n) for n in G.nodes])
+        G.add_weighted_edges_from([(n, n, 0) for n in G.nodes])
 
         self.cells = cells
-        self.adj = adj
         self.G = G
         self.max_dist = np.max(adj)
         self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_local}')
@@ -98,7 +98,7 @@ class Spatial:
             gpd.GeoSeries([sink.difference(boundary)], crs=f'EPSG:{self.epsg_local}').plot(ax=ax, color='lightgray')
             fig.show()
 
-        return adj, cells, G
+        return cells, G
 
     def subgraph(self, attr, value):
         node_gen = (n for n, data in self.G.nodes(data=True) if data.get(attr) == value)
@@ -131,10 +131,21 @@ class Spatial:
         if epsg == self.epsg_local:
             dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
         elif epsg == '4326':
-            dist = geodesic(self.flip(coord1), self.flip(coord2)).meters
+            dist = geodesic(self.flip(coord1), self.flip(coord2)).kilometers
         else:
             dist = None  # raise error?
         return dist
+
+    def angle(self, coord1, coord2):
+
+        y = coord1[0] - coord2[0]
+        x = coord1[1] - coord2[1]
+
+        rad = np.arctan2(y, x)
+        deg = np.rad2deg(rad)
+        deg = (deg + 360) % 360
+
+        return deg
 
     def flip(self, coord):
         return (coord[1], coord[0])
