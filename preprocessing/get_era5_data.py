@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env birdmigration
 import cdsapi
 import os
 import argparse

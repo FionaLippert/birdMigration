@@ -1,0 +1,92 @@
+import numpy as np
+from matplotlib import pyplot as plt
+import os.path as osp
+import os
+import pickle
+import sys
+from functools import partial
+import pyproj
+from shapely.ops import transform
+from shapely.geometry import Point, Polygon
+
+sys.path.insert(1, osp.join(sys.path[0], '../modules'))
+import abm
+import datahandling
+import spatial
+
+data_root = '/home/fiona/birdMigration/data'
+season = 'fall'
+year = '2015'
+
+with open(osp.join(data_root, 'raw', 'abm', season, year, 'simulation_500.pkl'), 'rb') as f:
+    data = pickle.load(f)
+
+
+def bird_counts(data):
+    minx = np.min(data['trajectories'][..., 0])
+    miny = np.min(data['trajectories'][..., 1])
+    maxx = np.max(data['trajectories'][..., 0])
+    maxy = np.max(data['trajectories'][..., 1])
+    gridx = np.arange(np.ceil(minx), np.ceil(maxx) + 1, 1)
+    gridy = np.arange(np.ceil(miny), np.ceil(maxy) + 1, 1)
+    counts = np.zeros((data['trajectories'].shape[0], gridx.size, gridy.size))
+
+    for bird in range(data['trajectories'].shape[1]):
+        xx = np.digitize(data['trajectories'][:, bird, 0], gridx)
+        yy = np.digitize(data['trajectories'][:, bird, 1], gridy)
+        fidx = np.where(data['states'][:, bird] == 1)
+        for t in fidx[0]:
+            counts[t, xx[t], yy[t]] += 1
+
+    return counts
+#
+# def geodesic_point_buffer(lat, lon, km):
+#     # Azimuthal equidistant projection
+#     proj_wgs84 = pyproj.Proj('+proj=longlat +datum=WGS84')
+#     aeqd_proj = '+proj=aeqd +lat_0={lat} +lon_0={lon} +x_0=0 +y_0=0'
+#     project = partial(
+#         pyproj.transform,
+#         pyproj.Proj(aeqd_proj.format(lat=lat, lon=lon)),
+#         proj_wgs84)
+#     buf = Point(0, 0).buffer(km * 1000)  # distance in metres
+#     return transform(project, buf).exterior.coords[:]
+
+
+
+#
+#
+# radars = datahandling.load_radars(osp.join(data_root, 'raw', 'radar', season, year))
+# #print(radars)
+# sp = spatial.Spatial(radars)
+# buffers = sp.pts_local.buffer(25_000).to_crs(epsg=sp.epsg).to_dict()
+#
+# radar_counts = {}
+# for idx, (lon, lat) in enumerate(radars.keys()):
+#     #b1 = Polygon(geodesic_point_buffer(lat, lon, 25))
+#     #b2 = buffers[idx]
+#     c = np.zeros(data['trajectories'].shape[0])
+#
+#     for tidx, t in enumerate(data['time']):
+#         for bird in range(data['trajectories'].shape[1]):
+#             pt = Point(data['trajectories'][tidx, bird])
+#             c[tidx] += buffers[idx].contains(pt)
+#     radar_counts[(lon, lat)] = c
+#
+#     fig, ax = plt.subplots()
+#     ax.plot(data['time'], c)
+#     ax.set_title(radars[(lon, lat)])
+#     fig.savefig(osp.join(fig_dir, f'counts_{idx}.png'))
+#     plt.close(fig)
+
+experiment_dir = '/home/fiona/birdMigration/data/experiments/abm/fall/2015/experiment_2021-02-15 15:55:04.073747'
+with open(osp.join(experiment_dir, 'simulation_results_0.pkl'), 'rb') as f:
+    data = pickle.load(f)
+
+counts = bird_counts(data)
+
+fig, ax = plt.subplots()
+ax.plot(data['time'], counts.reshape((counts.shape[0], -1)).sum(1))
+fig.savefig(osp.join(experiment_dir, 'counts.png'), dpi=200, bbox_inches='tight')
+
+
+

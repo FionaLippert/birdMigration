@@ -1,12 +1,13 @@
-#!/usr/bin/env python
 import cdsapi
 import os
+import os.path as osp
 import argparse
 import datahandling
 import xarray as xr
 import numpy as np
 import rioxarray
 import pandas as pd
+from spatial import Spatial
 
 
 class ERA5Loader():
@@ -37,22 +38,25 @@ class ERA5Loader():
 
         self.client = cdsapi.Client()
 
-    def download_season(self, year, season, target_dir, filename):
+    def download_season(self, year, season, target_file, bounds=None):
         # load radar information
         if season == 'spring':
             months = [f'{m:02}' for m in range(3, 6)]
-            data_dir = os.path.join(self.radar_path, f'{year}{months[0]}01T0000_to_{year}{months[-1]}30T2359')
+            data_dir = osp.join(self.radar_path, f'{year}{months[0]}01T0000_to_{year}{months[-1]}30T2359')
         elif season in ['fall', 'autumn']:
             months = [f'{m:02}' for m in range(8, 12)]
-            data_dir = os.path.join(self.radar_path, f'{year}{months[0]}01T0000_to_{year}{months[-1]}30T2359')
+            data_dir = osp.join(self.radar_path, f'{year}{months[0]}01T0000_to_{year}{months[-1]}30T2359')
         elif season == 'test':
             months = ['08']
-            data_dir = os.path.join(self.radar_path, f'{year}0801T0000_to_{year}1130T2359')
+            data_dir = osp.join(self.radar_path, f'{year}0801T0000_to_{year}1130T2359')
 
-        radars = datahandling.load_radars(data_dir)
-
-        lons, lats = zip(*list(radars.values()))
-        bounds = [max(lats)+1, min(lons)-1, min(lats)-1, max(lons)+1] # North, West, South, East. Default: global
+        if bounds is None:
+            radars = datahandling.load_radars(data_dir)
+            #lons, lats = zip(*list(radars.keys()))
+            #bounds = [max(lats)+1, min(lons)-1, min(lats)-1, max(lons)+1] # North, West, South, East. Default: global
+            spatial = Spatial(radars)
+            minx, miny, maxx, maxy = spatial.cells.to_crs(epsg=spatial.epsg).total_bounds
+            bounds = [maxy, minx, miny, maxx]  # North, West, South, East
 
         if season == 'test':
             days = ['01']
@@ -72,17 +76,16 @@ class ERA5Loader():
         self.pressure_level_config.update(info)
         self.surface_data_config.update(info)
 
-        os.makedirs(target_dir, exist_ok=True)
-        file_path = os.path.join(target_dir, filename)
+        os.makedirs(osp.dirname(target_file), exist_ok=True)
         #self.client.retrieve('reanalysis-era5-land',
         #                     self.surface_data_config,
         #                     file_path)
 
         self.client.retrieve('reanalysis-era5-pressure-levels',
                              self.pressure_level_config,
-                             file_path)
+                             target_file)
 
-        return radars, file_path
+        return target_file
 
 
 def extract_points(data_path, lonlat_list, t_range):
@@ -104,13 +107,10 @@ def extract_points(data_path, lonlat_list, t_range):
 
 
 
-if __name__ == '__main__':
-
-    loader = ERA5Loader()
-    base_dir = '/home/fiona/environmental_data/era5'
-    for year in ['2015']: #'2015', '2016', '2017', '2018']:
-        for season in ['spring', 'fall']:
-            radars, file_path = loader.download_season(year,
-                                                       season,
-                                                       os.path.join(base_dir, season, year),
-                                                       f'wind_850.nc')
+# if __name__ == '__main__':
+#
+#     loader = ERA5Loader()
+#     base_dir = '/home/fiona/environmental_data/era5'
+#     for year in ['2015']: #'2015', '2016', '2017', '2018']:
+#         for season in ['spring', 'fall']:
+#             file_path = loader.download_season(year, season, osp.join(base_dir, season, year), f'wind_850.nc')

@@ -50,7 +50,7 @@ def load_data(path, var='vid', start=None, end=None, t_unit='1H', mask_days=True
 
 def load_radars(path):
     files = glob.glob(os.path.join(path, '*.nc'))
-    radars = {get_name(f) : get_coords(f) for f in files}
+    radars = {get_coords(f): get_name(f) for f in files}
     return radars
 
 def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True):

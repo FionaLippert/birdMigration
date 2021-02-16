@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 from geovoronoi import voronoi_regions_from_coords, plotting
 from shapely import geometry
 from geopy.distance import geodesic, lonlat
 import itertools as it
 import networkx as nx
+import geopandas as gpd
 
 
 class Spatial:
@@ -26,6 +26,8 @@ class Spatial:
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
                                         crs=f'EPSG:{epsg}')
         self.pts_local = self.pts_lonlat.to_crs(epsg=epsg_local)
+
+        self.voronoi()
 
     def voronoi(self, buffer=150_000, plot=False):
         """
@@ -149,3 +151,17 @@ class Spatial:
 
     def flip(self, coord):
         return (coord[1], coord[0])
+
+
+# if __name__ == '__main__':
+#
+#     import datahandling
+#     path = '/home/fiona/birdMigration/data/raw/radar'
+#     _, radars, _ = datahandling.load_season(path, 'fall', '2015')
+#
+#     sp = Spatial(radars)
+#     sp.voronoi()
+#     for index, row in sp.cells.iterrows():
+#         area = row.geometry.area / 1000_000
+#         partial = row.geometry.buffer(-36_000).area / 1000_000
+#         print(row.radar, partial/area)

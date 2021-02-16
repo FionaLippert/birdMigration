@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env birdmigration
 import cdsapi
 c = cdsapi.Client()
 c.retrieve("reanalysis-era5-pressure-levels",

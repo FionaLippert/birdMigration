@@ -339,149 +339,149 @@ class Optimizer:
 def sigmoid(x):
     return 1/(1+np.exp(-x))
 
-
-if __name__ == '__main__':
-    ts = 6
-    dl = DataLoader('train', 'fall', timesteps=ts,
-                            #environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
-                            #wind_path='/home/fiona/environmental_data/era5'
-                    )
-
-    space = spatial.Spatial(dl.radars)
-    voronoi, G = space.voronoi()
-    G = space.subgraph('type', 'measured') # graph without sink nodes
-
-    #opt = Optimizer(G, dl.data, dl.environment)
-    opt = Optimizer(G, dl.data)
-    res = opt.minimize(use_cons=True, use_jac=False, maxiter=200, ftol=1e-10)
-
-    #print(opt.all_target_fluxes(res.x))
-    #
-    W = opt.wrapper.wrap(res.x, concat=True)
-    print(W.sum(axis=0))
-    print(W)
-
-    dl_1ts = DataLoader('train', 'fall', timesteps=1,
-                            #environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
-                            #wind_path='/home/fiona/environmental_data/era5'
-                    )
-    opt_1ts = Optimizer(G, dl_1ts.data)
-    res_1ts = opt_1ts.minimize(use_cons=True, use_jac=False, maxiter=200, ftol=1e-10)
-    W = opt.wrapper.wrap(res_1ts.x, concat=True)
-    print(W.sum(axis=0))
-    print(W)
-
-    dl_env = DataLoader('train', 'fall', timesteps=1,
-                        environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
-                        wind_path='/home/fiona/environmental_data/era5'
-                        )
-    opt_env = Optimizer(G, dl_env.data, dl_env.environment)
-    res_env = opt_env.minimize(use_cons=True, use_jac=False, maxiter=200, ftol=1e-08)
-
-    all_fluxes = opt_env.fluxes(res_env.x, 10, concat=True)
-    print(np.sum(all_fluxes, axis=0))
-    print(all_fluxes)
-    print(opt_env.edge_features[:,:,10])
-    print(res_env.x)
-
-
-    dl_test = DataLoader('test', 'fall', timesteps=ts,
-                         environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
-                         wind_path='/home/fiona/environmental_data/era5'
-                         )
-    n_targets = len(opt.targets)
-    predictions = np.ones((dl_test.t_range.size, n_targets)) * np.nan
-    predictions_1ts = np.ones((dl_test.t_range.size, n_targets)) * np.nan
-    predictions_env = np.ones((dl_test.t_range.size, n_targets)) * np.nan
-    gt = np.zeros((dl_test.t_range.size, n_targets))
-
-    opt_test = Optimizer(G, dl_test.data, dl_test.environment)
-    X = opt_test.X
-    Y = opt_test.Y
-
-    #X = np.concatenate([dl_test.data[opt.targets, 0], dl_test.data[opt.boundary, 0]])   # shape (nodes, nights)
-    #Y = dl_test.data[opt.targets, 1:]  # shape (nodes, time, nights)
-    #print(Y.shape)
-
-    W_targets, W_boundary = opt.wrapper.wrap(res.x)
-    W_targets_1ts, W_boundary_1ts = opt_1ts.wrapper.wrap(res_1ts.x)
-
-    errors, errors_1ts, errors_env = [], [], []
-    for nidx, night in enumerate(dl_test.nights):
-        t0 = night[1]
-        predictions[t0] = X[:n_targets, nidx]
-        predictions_1ts[t0] = X[:n_targets, nidx]
-        predictions_env[t0] = X[:n_targets, nidx]
-        gt[t0] = X[:n_targets, nidx]
-        state = X[:, nidx]
-        state_1ts = X[:, nidx]
-        state_env = X[:, nidx]
-        #print('length of night: ', dl_test.t_range[t0], dl_test.t_range[t0+ts-2])
-        for dt in range(1, ts-1):
-            # ground truth
-            gt[t0 + dt] = Y[:, dt, nidx]
-
-            # trained with X timesteps
-            y_targets = np.dot(W_targets, state)
-            predictions[t0 + dt] = y_targets
-            y_boundary = np.dot(W_boundary, state)
-            state = np.concatenate([y_targets, y_boundary])
-
-            # trained with 1 timestep
-            y_targets = np.dot(W_targets_1ts, state_1ts)
-            predictions_1ts[t0 + dt] = y_targets
-            y_boundary = np.dot(W_boundary_1ts, state_1ts)
-            state_1ts = np.concatenate([y_targets, y_boundary])
-
-            # with environment data
-            flux_targets, flux_boundary = opt_test.fluxes(res_env.x, dt, nidx)
-            y_targets = np.dot(flux_targets, state_env)
-            predictions_env[t0 + dt] = y_targets
-            y_boundary = np.dot(flux_boundary, state_env)
-            state_env = np.concatenate([y_targets, y_boundary])
-
-
-        diff = predictions[t0:t0 + ts] - gt[t0:t0 + ts]
-        diff_1ts = predictions_1ts[t0:t0 + ts] - gt[t0:t0 + ts]
-        diff_env = predictions_env[t0:t0 + ts] - gt[t0:t0 + ts]
-        errors.append(np.mean(np.square(diff), axis=1))
-        errors_1ts.append(np.mean(np.square(diff_1ts), axis=1))
-        errors_env.append(np.mean(np.square(diff_env), axis=1))
-
-    errors = np.stack(errors)
-    errors_1ts = np.stack(errors_1ts)
-    errors_env = np.stack(errors_env)
-
-
-    #dir = '../predictions_no_weather'
-    dir = '../predictions_with_weather'
-    os.makedirs(dir, exist_ok=True)
-
-    radar_names = list(dl_test.radars.values())
-    for i, r in enumerate(opt.targets):
-        fig, ax = plt.subplots(figsize=(15,4))
-        ax.plot(dl_test.t_range, gt[:, i], color='gray', alpha=0.6, label='ground truth')
-        ax.scatter(dl_test.t_range, predictions[:,i], s=30, facecolors='none', edgecolors='red', alpha=0.6,
-                   label=f'trained on {opt.timesteps} timesteps')
-        ax.scatter(dl_test.t_range, predictions_1ts[:, i], s=30, facecolors='none', edgecolors='blue', alpha=0.6,
-                   label='trained on 1 timestep')
-        ax.scatter(dl_test.t_range, predictions_env[:, i], s=30, facecolors='none', edgecolors='green', alpha=0.6,
-                   label='environmental model trained on 1 timestep')
-        ax.set_title(radar_names[r])
-        fig.legend()
-        fig.savefig(os.path.join(dir, f'{radar_names[r].split("/")[1]}.png'), bbox_inches='tight')
-
-
-    fig, ax = plt.subplots()
-    ax.plot(range(ts), np.mean(errors, axis=0), color='red', label=f'trained on {opt.timesteps} timesteps')
-    ax.fill_between(range(ts), np.mean(errors, axis=0) - np.std(errors, axis=0),
-                    np.mean(errors, axis=0) + np.std(errors, axis=0), color='red', alpha=0.2)
-    ax.plot(range(ts), np.mean(errors_1ts, axis=0), color='blue', label='trained on 1 timestep')
-    ax.fill_between(range(ts), np.mean(errors_1ts, axis=0) - np.std(errors_1ts, axis=0),
-                    np.mean(errors_1ts, axis=0) + np.std(errors_1ts, axis=0), color='blue', alpha=0.2)
-    #ax.plot(range(ts), np.mean(errors_env, axis=0), color='green', label='environmental model trained on 1 timestep')
-    #ax.fill_between(range(ts), np.mean(errors_env, axis=0) - np.std(errors_env, axis=0),
-    #                np.mean(errors_env, axis=0) + np.std(errors_env, axis=0), color='green', alpha=0.2)
-    ax.set(xlabel='forecast horizon [hours]', ylabel='MSE')
-    fig.legend()
-    fig.savefig(os.path.join(dir, 'errors.png'), bbox_inches='tight')
+#
+# if __name__ == '__main__':
+#     ts = 6
+#     dl = DataLoader('train', 'fall', timesteps=ts,
+#                             #environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
+#                             #wind_path='/home/fiona/environmental_data/era5'
+#                     )
+#
+#     space = spatial.Spatial(dl.radars)
+#     voronoi, G = space.voronoi()
+#     G = space.subgraph('type', 'measured') # graph without sink nodes
+#
+#     #opt = Optimizer(G, dl.data, dl.environment)
+#     opt = Optimizer(G, dl.data)
+#     res = opt.minimize(use_cons=True, use_jac=False, maxiter=200, ftol=1e-10)
+#
+#     #print(opt.all_target_fluxes(res.x))
+#     #
+#     W = opt.wrapper.wrap(res.x, concat=True)
+#     print(W.sum(axis=0))
+#     print(W)
+#
+#     dl_1ts = DataLoader('train', 'fall', timesteps=1,
+#                             #environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
+#                             #wind_path='/home/fiona/environmental_data/era5'
+#                     )
+#     opt_1ts = Optimizer(G, dl_1ts.data)
+#     res_1ts = opt_1ts.minimize(use_cons=True, use_jac=False, maxiter=200, ftol=1e-10)
+#     W = opt.wrapper.wrap(res_1ts.x, concat=True)
+#     print(W.sum(axis=0))
+#     print(W)
+#
+#     dl_env = DataLoader('train', 'fall', timesteps=1,
+#                         environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
+#                         wind_path='/home/fiona/environmental_data/era5'
+#                         )
+#     opt_env = Optimizer(G, dl_env.data, dl_env.environment)
+#     res_env = opt_env.minimize(use_cons=True, use_jac=False, maxiter=200, ftol=1e-08)
+#
+#     all_fluxes = opt_env.fluxes(res_env.x, 10, concat=True)
+#     print(np.sum(all_fluxes, axis=0))
+#     print(all_fluxes)
+#     print(opt_env.edge_features[:,:,10])
+#     print(res_env.x)
+#
+#
+#     dl_test = DataLoader('test', 'fall', timesteps=ts,
+#                          environment_vars=['wind_u', 'wind_v', 'solarpos', 'x', 'y'],
+#                          wind_path='/home/fiona/environmental_data/era5'
+#                          )
+#     n_targets = len(opt.targets)
+#     predictions = np.ones((dl_test.t_range.size, n_targets)) * np.nan
+#     predictions_1ts = np.ones((dl_test.t_range.size, n_targets)) * np.nan
+#     predictions_env = np.ones((dl_test.t_range.size, n_targets)) * np.nan
+#     gt = np.zeros((dl_test.t_range.size, n_targets))
+#
+#     opt_test = Optimizer(G, dl_test.data, dl_test.environment)
+#     X = opt_test.X
+#     Y = opt_test.Y
+#
+#     #X = np.concatenate([dl_test.data[opt.targets, 0], dl_test.data[opt.boundary, 0]])   # shape (nodes, nights)
+#     #Y = dl_test.data[opt.targets, 1:]  # shape (nodes, time, nights)
+#     #print(Y.shape)
+#
+#     W_targets, W_boundary = opt.wrapper.wrap(res.x)
+#     W_targets_1ts, W_boundary_1ts = opt_1ts.wrapper.wrap(res_1ts.x)
+#
+#     errors, errors_1ts, errors_env = [], [], []
+#     for nidx, night in enumerate(dl_test.nights):
+#         t0 = night[1]
+#         predictions[t0] = X[:n_targets, nidx]
+#         predictions_1ts[t0] = X[:n_targets, nidx]
+#         predictions_env[t0] = X[:n_targets, nidx]
+#         gt[t0] = X[:n_targets, nidx]
+#         state = X[:, nidx]
+#         state_1ts = X[:, nidx]
+#         state_env = X[:, nidx]
+#         #print('length of night: ', dl_test.t_range[t0], dl_test.t_range[t0+ts-2])
+#         for dt in range(1, ts-1):
+#             # ground truth
+#             gt[t0 + dt] = Y[:, dt, nidx]
+#
+#             # trained with X timesteps
+#             y_targets = np.dot(W_targets, state)
+#             predictions[t0 + dt] = y_targets
+#             y_boundary = np.dot(W_boundary, state)
+#             state = np.concatenate([y_targets, y_boundary])
+#
+#             # trained with 1 timestep
+#             y_targets = np.dot(W_targets_1ts, state_1ts)
+#             predictions_1ts[t0 + dt] = y_targets
+#             y_boundary = np.dot(W_boundary_1ts, state_1ts)
+#             state_1ts = np.concatenate([y_targets, y_boundary])
+#
+#             # with environment data
+#             flux_targets, flux_boundary = opt_test.fluxes(res_env.x, dt, nidx)
+#             y_targets = np.dot(flux_targets, state_env)
+#             predictions_env[t0 + dt] = y_targets
+#             y_boundary = np.dot(flux_boundary, state_env)
+#             state_env = np.concatenate([y_targets, y_boundary])
+#
+#
+#         diff = predictions[t0:t0 + ts] - gt[t0:t0 + ts]
+#         diff_1ts = predictions_1ts[t0:t0 + ts] - gt[t0:t0 + ts]
+#         diff_env = predictions_env[t0:t0 + ts] - gt[t0:t0 + ts]
+#         errors.append(np.mean(np.square(diff), axis=1))
+#         errors_1ts.append(np.mean(np.square(diff_1ts), axis=1))
+#         errors_env.append(np.mean(np.square(diff_env), axis=1))
+#
+#     errors = np.stack(errors)
+#     errors_1ts = np.stack(errors_1ts)
+#     errors_env = np.stack(errors_env)
+#
+#
+#     #dir = '../predictions_no_weather'
+#     dir = '../predictions_with_weather'
+#     os.makedirs(dir, exist_ok=True)
+#
+#     radar_names = list(dl_test.radars.values())
+#     for i, r in enumerate(opt.targets):
+#         fig, ax = plt.subplots(figsize=(15,4))
+#         ax.plot(dl_test.t_range, gt[:, i], color='gray', alpha=0.6, label='ground truth')
+#         ax.scatter(dl_test.t_range, predictions[:,i], s=30, facecolors='none', edgecolors='red', alpha=0.6,
+#                    label=f'trained on {opt.timesteps} timesteps')
+#         ax.scatter(dl_test.t_range, predictions_1ts[:, i], s=30, facecolors='none', edgecolors='blue', alpha=0.6,
+#                    label='trained on 1 timestep')
+#         ax.scatter(dl_test.t_range, predictions_env[:, i], s=30, facecolors='none', edgecolors='green', alpha=0.6,
+#                    label='environmental model trained on 1 timestep')
+#         ax.set_title(radar_names[r])
+#         fig.legend()
+#         fig.savefig(os.path.join(dir, f'{radar_names[r].split("/")[1]}.png'), bbox_inches='tight')
+#
+#
+#     fig, ax = plt.subplots()
+#     ax.plot(range(ts), np.mean(errors, axis=0), color='red', label=f'trained on {opt.timesteps} timesteps')
+#     ax.fill_between(range(ts), np.mean(errors, axis=0) - np.std(errors, axis=0),
+#                     np.mean(errors, axis=0) + np.std(errors, axis=0), color='red', alpha=0.2)
+#     ax.plot(range(ts), np.mean(errors_1ts, axis=0), color='blue', label='trained on 1 timestep')
+#     ax.fill_between(range(ts), np.mean(errors_1ts, axis=0) - np.std(errors_1ts, axis=0),
+#                     np.mean(errors_1ts, axis=0) + np.std(errors_1ts, axis=0), color='blue', alpha=0.2)
+#     #ax.plot(range(ts), np.mean(errors_env, axis=0), color='green', label='environmental model trained on 1 timestep')
+#     #ax.fill_between(range(ts), np.mean(errors_env, axis=0) - np.std(errors_env, axis=0),
+#     #                np.mean(errors_env, axis=0) + np.std(errors_env, axis=0), color='green', alpha=0.2)
+#     ax.set(xlabel='forecast horizon [hours]', ylabel='MSE')
+#     fig.legend()
+#     fig.savefig(os.path.join(dir, 'errors.png'), bbox_inches='tight')
