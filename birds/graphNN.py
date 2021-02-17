@@ -379,138 +379,146 @@ def test(model, test_loader, loss_func, device):
 
     return torch.stack(loss_all) #, torch.stack(constraints_all)
 
-#
-#
-# if __name__ == '__main__':
-#
-#     # good results with: node embedding, degree normalization, multiple timesteps, outflow reg only for center nodes
-#     # constraints weight = 0.01
-#     # edge function: linear and sigmoid
-#
-#     root = '/home/fiona/birdMigration/data'
-#     model_dir = '/home/fiona/birdMigration/models'
-#     os.makedirs(model_dir, exist_ok=True)
-#
-#     timesteps=5
-#     embedding = 0
-#     conservation = True
-#     epochs = 100
-#     recurrent = False
-#     norm = False
-#
-#     loss_func = torch.nn.MSELoss()
-#
-#     action = 'test'
-#     model_type = 'linear'
-#     name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'
-#
-#     if action == 'train':
-#         train_data = RadarData(root, 'train', ['2016'], 'fall', timesteps)
-#         train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
-#
-#         #model = BirdFlow(9 + embedding, 1, train_data[0].num_nodes, 1)
-#         model = BirdFlowTime(9 + embedding, 1, train_data[0].num_nodes, timesteps, embedding, model_type, recurrent, norm)
-#         params = model.parameters()
-#
-#         optimizer = torch.optim.Adam(params, lr=0.01)
-#
-#         boundaries = train_data.info['all_boundaries'][0]
-#         for epoch in range(epochs):
-#             loss = train(model, train_loader, loss_func, 'cpu', conservation)
-#             print(f'epoch {epoch + 1}: loss = {loss/len(train_data)}')
-#
-#         torch.save(model, osp.join(model_dir, name))
-#
-#     elif action == 'test':
-#
-#         def load_model(name):
-#             model = torch.load(osp.join(model_dir, name))
-#             model.recurrent = True
-#             return model
-#
-#         output_dir = osp.join(root, 'model_performance', f'recurrent={recurrent}_norm={norm}_embedding={embedding}')
-#         os.makedirs(output_dir, exist_ok=True)
-#
-#         names = ['linear without conservation', 'linear', 'linear+sigmoid', 'mlp']
-#         models = [load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=False_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
-#                 load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
-#                 #load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_aggr=True.pt'),
-#                 load_model(f'GNN_linear+sigmoid_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
-#                 load_model(f'GNN_mlp_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt')
-#         ]
-#
-#         # name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_epochs={epochs}_recurrent={recurrent}.pt'
-#         # model = torch.load(osp.join(model_dir, name))
-#
-#         # if not recurrent:
-#         #     model.recurrent = True
-#
-#         test_data = RadarData(root, 'test', ['2015'], 'fall', timesteps)
-#         test_loader = DataLoader(test_data, batch_size=1)
-#
-#         fig, ax = plt.subplots()
-#         for midx, model in enumerate(models):
-#             loss_all = test(model, test_loader, loss_func, 'cpu')
-#             mean_loss = loss_all.mean(0)
-#             std_loss = loss_all.std(0)
-#             line = ax.plot(range(1, timesteps), mean_loss, label=f'{names[midx]}')
-#             ax.fill_between(range(1, timesteps), mean_loss-std_loss, mean_loss+std_loss, alpha=0.2, color=line[0].get_color())
-#         ax.set_xlabel('timestep')
-#         ax.set_ylabel('MSE')
-#         ax.set_ylim(-0.005, 0.055)
-#         ax.set_xticks(range(1, timesteps))
-#         ax.legend()
-#         fig.savefig(os.path.join(output_dir, f'errors_recurrent={recurrent}.png'), bbox_inches='tight')
-#         plt.close(fig)
-#
-#
-#         dataset = test_data
-#         dataloader = DataLoader(dataset)
-#
-#         time = dataset.info['timepoints']
-#         nights = dataset.info['nights'][0]
-#
-#         for idx, radar in enumerate(dataset.info['radars']):
-#             gt = np.zeros(len(time))
-#             pred = []
-#             for _ in models:
-#                 pred.append(np.ones(len(time)) * np.nan)
-#             #pred = [np.ones(len(time)) * np.nan] * len(models)
-#             #pred = np.ones(len(time)) * np.nan
-#             #pred = np.zeros(len(time))
-#
-#             for nidx, data in enumerate(dataloader):
-#                 gt[nights[nidx][1]] = data.x[idx, 0]
-#                 gt[nights[nidx][2:timesteps+1]] = data.y[idx]
-#                 for midx, model in enumerate(models):
-#                     y = model(data).detach().numpy()[idx]
-#                     pred[midx][nights[nidx][2:timesteps+1]] = y
-#                     pred[midx][nights[nidx][1]] = data.x[idx, 0]
-#             #gt[mask][1:] = [data.y[idx] for data in test_loader]
-#
-#             fig, ax = plt.subplots(figsize=(20,4))
-#             ax.plot(time, gt, label='ground truth', c='gray', alpha=0.5)
-#             for midx, model_type in enumerate(names):
-#                 line = ax.plot(time, pred[midx], ls='--', alpha=0.3)
-#                 ax.scatter(time, pred[midx], s=30, facecolors='none', edgecolor=line[0].get_color(), label=f'prediction ({model_type})')
-#
-#                 outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(models[midx].flows, dim=-1)).view(
-#                     data.num_nodes,
-#                     data.num_nodes,
-#                     -1)
-#                 print(idx, radar, model_type)
-#                 for jdx, radar_j in enumerate(dataset.info['radars']):
-#                     print(radar, radar_j, outfluxes[idx][jdx])
-#
-#             #ax.scatter(np.array(time)[mask][1:], [data.y[idx].detach().numpy() for data in dataloader], color='gray', alpha=0.6, label='ground truth')
-#             #ax.scatter(np.array(time)[mask][1:], [model(data).view(-1).detach().numpy()[idx] for data in dataloader],
-#             #           s=30, facecolors='none', edgecolors='red', alpha=0.6,
-#             #           label=f'trained on 1 timestep')
-#             ax.set_title(radar)
-#             ax.set_ylim(-0.05, 1.05)
-#             ax.set_ylabel('normalized bird density')
-#             fig.legend(loc='upper right', bbox_to_anchor=(0.77, 0.85))
-#             fig.savefig(os.path.join(output_dir, f'{radar.split("/")[1]}.png'), bbox_inches='tight')
-#             plt.close(fig)
+
+
+if __name__ == '__main__':
+
+    # good results with: node embedding, degree normalization, multiple timesteps, outflow reg only for center nodes
+    # constraints weight = 0.01
+    # edge function: linear and sigmoid
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='parallel ABM simulation')
+    parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
+    args = parser.parse_args()
+
+    #root = '/home/fiona/birdMigration/data'
+    root = osp.join(args.root, 'data')
+    #model_dir = '/home/fiona/birdMigration/models'
+    model_dir = osp.join(args.root, 'models')
+    os.makedirs(model_dir, exist_ok=True)
+
+    timesteps=5
+    embedding = 0
+    conservation = True
+    epochs = 100
+    recurrent = False
+    norm = False
+
+    loss_func = torch.nn.MSELoss()
+
+    action = 'train'
+    model_type = 'linear'
+    name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'
+
+    if action == 'train':
+        train_data = RadarData(root, 'train', ['2016'], 'fall', timesteps)
+        train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
+
+        #model = BirdFlow(9 + embedding, 1, train_data[0].num_nodes, 1)
+        model = BirdFlowTime(9 + embedding, 1, train_data[0].num_nodes, timesteps, embedding, model_type, recurrent, norm)
+        params = model.parameters()
+
+        optimizer = torch.optim.Adam(params, lr=0.01)
+
+        boundaries = train_data.info['all_boundaries'][0]
+        for epoch in range(epochs):
+            loss = train(model, train_loader, loss_func, 'cpu', conservation)
+            print(f'epoch {epoch + 1}: loss = {loss/len(train_data)}')
+
+        torch.save(model, osp.join(model_dir, name))
+
+    elif action == 'test':
+
+        def load_model(name):
+            model = torch.load(osp.join(model_dir, name))
+            model.recurrent = True
+            return model
+
+        output_dir = osp.join(root, 'model_performance', f'recurrent={recurrent}_norm={norm}_embedding={embedding}')
+        os.makedirs(output_dir, exist_ok=True)
+
+        names = ['linear without conservation', 'linear', 'linear+sigmoid', 'mlp']
+        models = [load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=False_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
+                load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
+                #load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_aggr=True.pt'),
+                load_model(f'GNN_linear+sigmoid_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
+                load_model(f'GNN_mlp_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt')
+        ]
+
+        # name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_epochs={epochs}_recurrent={recurrent}.pt'
+        # model = torch.load(osp.join(model_dir, name))
+
+        # if not recurrent:
+        #     model.recurrent = True
+
+        test_data = RadarData(root, 'test', ['2015'], 'fall', timesteps)
+        test_loader = DataLoader(test_data, batch_size=1)
+
+        fig, ax = plt.subplots()
+        for midx, model in enumerate(models):
+            loss_all = test(model, test_loader, loss_func, 'cpu')
+            mean_loss = loss_all.mean(0)
+            std_loss = loss_all.std(0)
+            line = ax.plot(range(1, timesteps), mean_loss, label=f'{names[midx]}')
+            ax.fill_between(range(1, timesteps), mean_loss-std_loss, mean_loss+std_loss, alpha=0.2, color=line[0].get_color())
+        ax.set_xlabel('timestep')
+        ax.set_ylabel('MSE')
+        ax.set_ylim(-0.005, 0.055)
+        ax.set_xticks(range(1, timesteps))
+        ax.legend()
+        fig.savefig(os.path.join(output_dir, f'errors_recurrent={recurrent}.png'), bbox_inches='tight')
+        plt.close(fig)
+
+
+        dataset = test_data
+        dataloader = DataLoader(dataset)
+
+        time = dataset.info['timepoints']
+        nights = dataset.info['nights'][0]
+
+        for idx, radar in enumerate(dataset.info['radars']):
+            gt = np.zeros(len(time))
+            pred = []
+            for _ in models:
+                pred.append(np.ones(len(time)) * np.nan)
+            #pred = [np.ones(len(time)) * np.nan] * len(models)
+            #pred = np.ones(len(time)) * np.nan
+            #pred = np.zeros(len(time))
+
+            for nidx, data in enumerate(dataloader):
+                gt[nights[nidx][1]] = data.x[idx, 0]
+                gt[nights[nidx][2:timesteps+1]] = data.y[idx]
+                for midx, model in enumerate(models):
+                    y = model(data).detach().numpy()[idx]
+                    pred[midx][nights[nidx][2:timesteps+1]] = y
+                    pred[midx][nights[nidx][1]] = data.x[idx, 0]
+            #gt[mask][1:] = [data.y[idx] for data in test_loader]
+
+            fig, ax = plt.subplots(figsize=(20,4))
+            ax.plot(time, gt, label='ground truth', c='gray', alpha=0.5)
+            for midx, model_type in enumerate(names):
+                line = ax.plot(time, pred[midx], ls='--', alpha=0.3)
+                ax.scatter(time, pred[midx], s=30, facecolors='none', edgecolor=line[0].get_color(), label=f'prediction ({model_type})')
+
+                outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(models[midx].flows, dim=-1)).view(
+                    data.num_nodes,
+                    data.num_nodes,
+                    -1)
+                print(idx, radar, model_type)
+                for jdx, radar_j in enumerate(dataset.info['radars']):
+                    print(radar, radar_j, outfluxes[idx][jdx])
+
+            #ax.scatter(np.array(time)[mask][1:], [data.y[idx].detach().numpy() for data in dataloader], color='gray', alpha=0.6, label='ground truth')
+            #ax.scatter(np.array(time)[mask][1:], [model(data).view(-1).detach().numpy()[idx] for data in dataloader],
+            #           s=30, facecolors='none', edgecolors='red', alpha=0.6,
+            #           label=f'trained on 1 timestep')
+            ax.set_title(radar)
+            ax.set_ylim(-0.05, 1.05)
+            ax.set_ylabel('normalized bird density')
+            fig.legend(loc='upper right', bbox_to_anchor=(0.77, 0.85))
+            fig.savefig(os.path.join(output_dir, f'{radar.split("/")[1]}.png'), bbox_inches='tight')
+            plt.close(fig)
 
 
