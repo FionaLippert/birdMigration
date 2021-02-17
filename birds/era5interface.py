@@ -5,6 +5,7 @@ import argparse
 import xarray as xr
 import numpy as np
 import pandas as pd
+import rioxarray
 
 # from . import datahandling
 # from .spatial import Spatial
