@@ -9,8 +9,8 @@ import rioxarray
 
 # from . import datahandling
 # from .spatial import Spatial
-import datahandling
-from spatial import Spatial
+from . import datahandling
+from .spatial import Spatial
 
 
 class ERA5Loader():
