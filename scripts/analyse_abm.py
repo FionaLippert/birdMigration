@@ -2,17 +2,19 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os.path as osp
 import os
-import pickle
+import pickle5 as pickle
 import sys
 from functools import partial
 import pyproj
 from shapely.ops import transform
 from shapely.geometry import Point, Polygon
 
-sys.path.insert(1, osp.join(sys.path[0], '../modules'))
-import abm
-import datahandling
-import spatial
+# sys.path.insert(1, osp.join(sys.path[0], '../modules'))
+# import abm
+# import datahandling
+# import spatial
+
+from birds import datahandling, spatial
 
 data_root = '/home/fiona/birdMigration/data'
 season = 'fall'
@@ -88,5 +90,28 @@ fig, ax = plt.subplots()
 ax.plot(data['time'], counts.reshape((counts.shape[0], -1)).sum(1))
 fig.savefig(osp.join(experiment_dir, 'counts.png'), dpi=200, bbox_inches='tight')
 
+print(f'min lon = {data["trajectories"][:,:,0].min()}')
+print(f'max lon = {data["trajectories"][:,:,0].max()}')
+print(f'min lat = {data["trajectories"][:,:,1].min()}')
+print(f'max lat = {data["trajectories"][:,:,1].max()}')
 
+# num_radars = data['counts'].shape[1]
+# for r in range(num_radars):
+#     fig, ax = plt.subplots()
+#     ax.plot(data['time'], data['counts'][:, r])
+#     fig.savefig(osp.join(experiment_dir, f'counts_radar{r}.png'), dpi=200, bbox_inches='tight')
+#     plt.close(fig)
 
+from shapely.ops import cascaded_union
+import geopandas as gpd
+radars = datahandling.load_radars(osp.join(data_root, 'raw', 'radar', season, year))
+sp = spatial.Spatial(radars)
+fig, ax = plt.subplots()
+area = cascaded_union(sp.cells.geometry)
+buff = area.buffer(-10000)
+print(area.area, buff.area)
+
+gpd.GeoSeries(buff).plot(ax=ax, alpha=0.2)
+gpd.GeoSeries(area).plot(ax=ax, alpha=0.2)
+fig.savefig(osp.join(experiment_dir, 'buffer_test.png'), dpi=200)
+plt.close(fig)

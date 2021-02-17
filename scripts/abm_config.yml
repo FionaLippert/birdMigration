@@ -1,0 +1,19 @@
+# settings for ABM simulation
+year: '2015'
+season: fall
+start_date: 08-15 12:00
+end_date: 10-15 12:00
+num_birds: 100000
+
+settings:
+  energy_tol_mean: 1.0
+  energy_tol_std: 0.1
+  compensation: 0.75
+#  start_day_mean: 15
+#  start_day_std: 5
+#  sources:
+#    - [9.58, 54.50] # Schleswig-Holstein
+#    - [11.91, 54.10] # Rostock
+#    - [13.79, 54.83] # Meck-Pom
+#    - [15.13, 52.42] # Poland
+#  source_std: 0.5

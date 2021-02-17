@@ -5,6 +5,7 @@ from geopy.distance import distance
 from shapely import geometry
 from pvlib import solarposition
 import pandas as pd
+import geopandas as gpd
 from matplotlib import pyplot as plt
 import os
 import os.path as osp
@@ -12,19 +13,20 @@ import pickle
 from datetime import datetime
 import xarray as xr
 
-import datahandling
-import spatial
-from era5interface import ERA5Loader
+from . import datahandling
+from . import  spatial
+from .era5interface import ERA5Loader
 
 class Environment:
-    def __init__(self, wind):
+    def __init__(self, wind, freq='1H'):
         self.bounds = geometry.Polygon([(wind.longitude.max(), wind.latitude.max()),
                                         (wind.longitude.max(), wind.latitude.min()),
                                         (wind.longitude.min(), wind.latitude.min()),
                                         (wind.longitude.min(), wind.latitude.max())])
         self.wind = wind
-        self.time = extract_time(wind)  # pandas datetimeindex
-        self.dt = pd.to_timedelta(self.time.freq).total_seconds()  # time step for simulation
+        self.time = extract_time(wind, freq)  # pandas datetimeindex
+        #self.dt = pd.to_timedelta(self.time.freq).total_seconds()  # time step for simulation
+        self.dt = pd.Timedelta(freq).total_seconds()  # time step for simulation
 
     def get_wind(self, tidx, lon, lat, pref_dir):
         # load wind data at (lon, lat) using linear interpolation
@@ -64,9 +66,14 @@ class Bird:
         self.state = 0  # landed (one of [1: 'flying', 0: 'landed', -1: 'exited']
         self.tidx = 0
         self.migrating = False
+        self.ground_speed = 0
+        self.dir = 0
 
 
     def step(self):
+
+        self.ground_speed = 0
+        self.dir = 0
 
         if self.check_bounds():
             if self.check_night():
@@ -91,6 +98,9 @@ class Bird:
                     dist = distance(meters=ground_speed * self.env.dt)
                     dir_north = self.pref_dir + np.rad2deg(drift)
                     self.pos = dist.destination(point=self.pos, bearing=dir_north)
+
+                    self.ground_speed = ground_speed
+                    self.dir = self.pref_dir + drift
 
                     # print(f'distance travelled = {dist}, in direction {dir_north}, '
                     #       f'with ground speed = {self.ground_speed}')
@@ -153,7 +163,8 @@ class Bird:
 
         if not self.migrating:
             #print(self.start_day, self.time[self.tidx].day)
-            self.migrating = self.start_day <= self.env.time[self.tidx].day
+            dt = (self.env.time[self.tidx] - self.env.time[0]).days
+            self.migrating = (self.start_day <= dt)
             #if self.migrating:
             #    print('start migrating')
 
@@ -181,6 +192,8 @@ class DataCollection:
                      'trajectories': np.zeros((self.T, self.num_birds, 2), dtype=np.float),
                      'states': np.zeros((self.T, self.num_birds), dtype=np.int),
                      'counts': np.zeros((self.T, len(self.buffers)), dtype=np.long),
+                     'directions': np.zeros((self.T, len(self.buffers)), dtype=np.long),
+                     'ground_speeds': np.zeros((self.T, self.num_birds), dtype=np.long),
                      #'settings': self.settings,
                      #'last_modified': datetime.now().strftime("%d/%m/%Y %H:%M:%S")
                      }
@@ -190,11 +203,13 @@ class DataCollection:
         for bird in birds:
             self.data['trajectories'][bird.tidx, bird.id] = [bird.pos.longitude, bird.pos.latitude]
             self.data['states'][bird.tidx, bird.id] = bird.state
+            self.data['ground_speeds'][bird.tidx, bird.id] = bird.ground_speed
 
             pt = geometry.Point([bird.pos.longitude, bird.pos.latitude])
             for bidx, b in self.buffers.items():
                 if b.contains(pt):
                     self.data['counts'][bird.tidx, bidx] += 1
+                    self.data['directions'][bird.tidx, bidx] += rad2deg(bird.dir)
                     break
 
     def save(self, file_path):
@@ -222,10 +237,15 @@ class DataCollection:
 
 
 class Simulation:
-    def __init__(self, env, buffers, settings):
+    def __init__(self, env, buffers, settings, **kwargs):
         self.settings = settings
         self.env = env
         self.rng = np.random.default_rng(settings['random_seed'])
+
+        for k in kwargs.keys():
+            if k in ['departure_area']:
+                self.__setattr__(k, kwargs[k])
+
         self.spawn_birds()
         self.data = DataCollection(env.time, len(self.birds), buffers, settings)
 
@@ -233,22 +253,47 @@ class Simulation:
     def spawn_birds(self):
         # initialize birds
         self.birds = []
-        minx, miny, maxx, maxy = self.env.bounds.buffer(-1e-10).bounds
+
         for id in range(self.settings['num_birds']):
-            if self.rng.random() > 0.5:
-                lat = maxy
-                lon = self.rng.uniform(minx, maxx)
+            # sample initial position of bird
+            if hasattr(self, 'departure_area'):
+                lon, lat = self.sample_pos()
+                #print('sampling from departure_area was successful')
+            elif 'sources' in self.settings:
+                #print('sampling from sources')
+                source = self.rng.choice(self.settings['sources'])
+                lon = self.rng.normal(source[0], self.settings['source_std'])
+                lat = self.rng.normal(source[1], self.settings['source_std'])
             else:
-                lat = self.rng.uniform(miny, maxy)
-                lon = maxx
-            start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
+                #print('sampling uniformly')
+                minx, miny, maxx, maxy = self.env.bounds.buffer(-1e-10).bounds
+                if self.rng.random() > 0.5:
+                    lat = maxy
+                    lon = self.rng.uniform(minx, maxx)
+                else:
+                    lat = self.rng.uniform(miny, maxy)
+                    lon = maxx
+
+            # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
+            start_day = self.rng.choice(range(31))
             energy_tol = self.rng.normal(self.settings['energy_tol_mean'], self.settings['energy_tol_std'])
             self.birds.append(Bird(id, lat, lon, self.env, start_day,
                                    compensation=self.settings['compensation'],
                                    energy_tol=energy_tol))
 
+    def sample_pos(self):
+        minx, miny, maxx, maxy = self.departure_area.total_bounds
+        lon = self.rng.uniform(minx, maxx)
+        lat = self.rng.uniform(miny, maxy)
+        pos = geometry.Point(lon, lat)
+        while not self.departure_area.contains(pos).any():
+            lon = np.random.uniform(minx, maxx)
+            lat = np.random.uniform(miny, maxy)
+            pos = geometry.Point(lon, lat)
+        return lon, lat
+
     def run(self, steps):
-        for _ in tqdm(range(steps)):
+        for _ in range(steps):
             self.data.collect(self.birds)
             for bird in self.birds:
                 bird.step()
@@ -268,9 +313,14 @@ def uv2deg(u, v):
     deg = ((180 * np.arctan2(u, v) / np.pi) + 360) % 360
     return deg
 
-def extract_time(xr_dataset):
+def rad2deg(rad):
+    rad = (rad + np.pi) % np.pi
+    deg = np.rad2deg(rad)
+    return deg
+
+def extract_time(xr_dataset, freq):
     time = pd.to_datetime(xr_dataset.time.values)
-    time = pd.date_range(time[0], time[-1], freq="1H")
+    time = pd.date_range(time[0], time[-1], freq=freq)
     time = time.tz_localize(tz='Europe/Berlin', ambiguous=False)
     return time
 

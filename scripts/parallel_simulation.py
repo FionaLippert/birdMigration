@@ -7,11 +7,14 @@ import multiprocessing as mp
 import os
 import os.path as osp
 import sys
+from shapely.geometry import Polygon, Point
+from shapely.ops import cascaded_union
+import geopandas as gpd
 
-sys.path.insert(1, osp.join(sys.path[0], '../modules'))
-import datahandling
-from spatial import Spatial
-from era5interface import ERA5Loader
+#sys.path.insert(1, osp.join(sys.path[0], '../modules'))
+from birds import datahandling
+from birds.spatial import Spatial
+from birds.era5interface import ERA5Loader
 
 
 ###################################### SETUP ##################################################
@@ -25,6 +28,7 @@ root = '/home/fiona/birdMigration/data'
 wind_path = osp.join(root, 'raw', 'wind', config['season'], config['year'], 'wind_850.nc')
 radar_path = osp.join(root, 'raw', 'radar', config['season'], config['year'])
 output_path = osp.join(root, 'experiments', 'abm', config['season'], config['year'], f'experiment_{datetime.now()}')
+departure_area_path = osp.join(root, 'shapes', 'departure_area.shp')
 os.makedirs(output_path, exist_ok=True)
 
 with open(os.path.join(output_path, config_file), 'w+') as f:
@@ -38,12 +42,28 @@ if not osp.exists(wind_path):
     bounds = [maxy, minx, miny, maxx] # North, West, South, East
     ERA5Loader().download_season(config['year'], config['season'], wind_path, bounds)
 
+if not osp.exists(departure_area_path):
+    countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
+    roi = countries[countries['ADMIN'].isin(['Germany', 'Belgium', 'Netherlands'])]
+    outer = cascaded_union(roi.geometry)
+    inner = gpd.GeoSeries(outer, crs='epsg:4326').to_crs('epsg:3035').buffer(-50_000).to_crs('epsg:4326')
+    diff = outer.difference(inner.geometry[0])
+    minx = 4
+    maxx = 15.1
+    miny_west = 53
+    miny_east = 50.5
+    maxy = 55.1
+    poly = Polygon([(minx, maxy), (maxx, maxy), (maxx, miny_east), (minx, miny_west)])
+    area = gpd.GeoSeries(diff.intersection(poly))
+    area.to_file(departure_area_path)
+
+
 ##################################### END SETUP ################################################
 
 
 start_time = datetime.now()
 processes = set()
-num_processes = mp.cpu_count() - 2
+num_processes = mp.cpu_count() - 3
 
 # log file
 logfile = os.path.join(output_path, 'log.txt')
@@ -56,7 +76,8 @@ for r in range(N % num_processes):
 for p in range(num_processes):
     print(f'---------- start simulating {birds_pp[p]} birds ------------')
     processes.add(subprocess.Popen(['python', 'simulate_abm.py',
-                                    radar_path, wind_path, output_path, str(birds_pp[p]), str(p)],
+                                    radar_path, wind_path, output_path, str(birds_pp[p]), str(p),
+                                    departure_area_path],
                                    stdout=open(logfile, 'a+'),
                                    stderr=open(logfile, 'a+')))
 

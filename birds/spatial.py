@@ -46,11 +46,15 @@ class Spatial:
         # compute voronoi cells
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
-        polygons, pts, poly2pt = voronoi_regions_from_coords(xy, boundary)
+        polygons, pts = voronoi_regions_from_coords(np.array(xy), boundary)
+        #print(polygons, pts)
 
         # reindex polygons to match order of radars
-        idx = np.array(poly2pt).flatten().argsort()
-        polygons = np.array(polygons)[idx]
+        #idx = np.array(poly2pt).flatten().argsort()
+        #idx = np.array(list(pts.values())).argsort()
+
+        #polygons = np.array(list(polygons.values()))[idx]
+        polygons = [polygons[pid] for pid, pt in sorted(pts.items(), key=lambda kv: kv[1])]
 
         cells = gpd.GeoDataFrame({'radar': list(self.radars.values()),
                                   'xy': xy,
@@ -115,9 +119,9 @@ class Spatial:
         Returns:
             coords: list of projected coordinates
         """
-        coords = [(p.xy[0][0], p.xy[1][0]) for p in pts]
+        coords = [[p.xy[0][0], p.xy[1][0]] for p in pts]
         if reverse_xy:
-            coords = [(p.xy[1][0], p.xy[0][0]) for p in pts]
+            coords = [[p.xy[1][0], p.xy[0][0]] for p in pts]
             #coords = np.flip(coords, axis=1)
         return coords
 

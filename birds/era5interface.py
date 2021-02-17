@@ -2,12 +2,12 @@ import cdsapi
 import os
 import os.path as osp
 import argparse
-import datahandling
 import xarray as xr
 import numpy as np
-import rioxarray
 import pandas as pd
-from spatial import Spatial
+
+from . import datahandling
+from .spatial import Spatial
 
 
 class ERA5Loader():
