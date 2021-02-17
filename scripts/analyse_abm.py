@@ -20,9 +20,6 @@ data_root = '/home/fiona/birdMigration/data'
 season = 'fall'
 year = '2015'
 
-with open(osp.join(data_root, 'raw', 'abm', season, year, 'simulation_500.pkl'), 'rb') as f:
-    data = pickle.load(f)
-
 
 def bird_counts(data):
     minx = np.min(data['trajectories'][..., 0])
@@ -41,6 +38,10 @@ def bird_counts(data):
             counts[t, xx[t], yy[t]] += 1
 
     return counts
+
+
+
+
 #
 # def geodesic_point_buffer(lat, lon, km):
 #     # Azimuthal equidistant projection
@@ -80,20 +81,20 @@ def bird_counts(data):
 #     fig.savefig(osp.join(fig_dir, f'counts_{idx}.png'))
 #     plt.close(fig)
 
-experiment_dir = '/home/fiona/birdMigration/data/experiments/abm/fall/2015/experiment_2021-02-15 15:55:04.073747'
-with open(osp.join(experiment_dir, 'simulation_results_0.pkl'), 'rb') as f:
-    data = pickle.load(f)
+# experiment_dir = '/home/fiona/birdMigration/data/experiments/abm/fall/2015/experiment_2021-02-15 15:55:04.073747'
+# with open(osp.join(experiment_dir, 'simulation_results_0.pkl'), 'rb') as f:
+#     data = pickle.load(f)
 
-counts = bird_counts(data)
-
-fig, ax = plt.subplots()
-ax.plot(data['time'], counts.reshape((counts.shape[0], -1)).sum(1))
-fig.savefig(osp.join(experiment_dir, 'counts.png'), dpi=200, bbox_inches='tight')
-
-print(f'min lon = {data["trajectories"][:,:,0].min()}')
-print(f'max lon = {data["trajectories"][:,:,0].max()}')
-print(f'min lat = {data["trajectories"][:,:,1].min()}')
-print(f'max lat = {data["trajectories"][:,:,1].max()}')
+# counts = bird_counts(data)
+#
+# fig, ax = plt.subplots()
+# ax.plot(data['time'], counts.reshape((counts.shape[0], -1)).sum(1))
+# fig.savefig(osp.join(experiment_dir, 'counts.png'), dpi=200, bbox_inches='tight')
+#
+# print(f'min lon = {data["trajectories"][:,:,0].min()}')
+# print(f'max lon = {data["trajectories"][:,:,0].max()}')
+# print(f'min lat = {data["trajectories"][:,:,1].min()}')
+# print(f'max lat = {data["trajectories"][:,:,1].max()}')
 
 # num_radars = data['counts'].shape[1]
 # for r in range(num_radars):
@@ -102,16 +103,35 @@ print(f'max lat = {data["trajectories"][:,:,1].max()}')
 #     fig.savefig(osp.join(experiment_dir, f'counts_radar{r}.png'), dpi=200, bbox_inches='tight')
 #     plt.close(fig)
 
-from shapely.ops import cascaded_union
-import geopandas as gpd
-radars = datahandling.load_radars(osp.join(data_root, 'raw', 'radar', season, year))
-sp = spatial.Spatial(radars)
-fig, ax = plt.subplots()
-area = cascaded_union(sp.cells.geometry)
-buff = area.buffer(-10000)
-print(area.area, buff.area)
+# from shapely.ops import cascaded_union
+# import geopandas as gpd
+# radars = datahandling.load_radars(osp.join(data_root, 'raw', 'radar', season, year))
+# sp = spatial.Spatial(radars)
+# fig, ax = plt.subplots()
+# area = cascaded_union(sp.cells.geometry)
+# buff = area.buffer(-10000)
+# print(area.area, buff.area)
+#
+# gpd.GeoSeries(buff).plot(ax=ax, alpha=0.2)
+# gpd.GeoSeries(area).plot(ax=ax, alpha=0.2)
+# fig.savefig(osp.join(experiment_dir, 'buffer_test.png'), dpi=200)
+# plt.close(fig)
 
-gpd.GeoSeries(buff).plot(ax=ax, alpha=0.2)
-gpd.GeoSeries(area).plot(ax=ax, alpha=0.2)
-fig.savefig(osp.join(experiment_dir, 'buffer_test.png'), dpi=200)
-plt.close(fig)
+import glob
+abm_dir = osp.join(data_root, 'raw', 'abm', season, year)
+
+files = glob.glob(os.path.join(abm_dir, '*.pkl'))
+
+data = []
+for file in files:
+    with open(file, 'rb') as f:
+        result = pickle.load(f)
+        data.append(result['counts'])
+
+data = np.stack(data, axis=-1).sum(-1)
+counts = data.sum(1)
+
+# plot total counts over time
+fig, ax = plt.subplots()
+ax.plot(result['time'], counts)
+fig.savefig(osp.join(abm_dir, 'total_counts.png'), dpi=200, bbox_inches='tight')

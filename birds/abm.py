@@ -13,9 +13,9 @@ import pickle
 from datetime import datetime
 import xarray as xr
 
-from . import datahandling
-from . import  spatial
-from .era5interface import ERA5Loader
+from birds import datahandling
+from birds import  spatial
+from birds.era5interface import ERA5Loader
 
 class Environment:
     def __init__(self, wind, freq='1H'):
@@ -205,12 +205,14 @@ class DataCollection:
             self.data['states'][bird.tidx, bird.id] = bird.state
             self.data['ground_speeds'][bird.tidx, bird.id] = bird.ground_speed
 
-            pt = geometry.Point([bird.pos.longitude, bird.pos.latitude])
-            for bidx, b in self.buffers.items():
-                if b.contains(pt):
-                    self.data['counts'][bird.tidx, bidx] += 1
-                    self.data['directions'][bird.tidx, bidx] += rad2deg(bird.dir)
-                    break
+            if bird.state == 1:
+                # flying
+                pt = geometry.Point([bird.pos.longitude, bird.pos.latitude])
+                for bidx, b in self.buffers.items():
+                    if b.contains(pt):
+                        self.data['counts'][bird.tidx, bidx] += 1
+                        self.data['directions'][bird.tidx, bidx] += rad2deg(bird.dir)
+                        break
 
     def save(self, file_path):
         self.data['time'] = self.time

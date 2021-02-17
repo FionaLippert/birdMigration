@@ -4,11 +4,12 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj
 import numpy as np
 import networkx as nx
-import spatial, datahandling, era5interface
+from birds import spatial, datahandling, era5interface
 import os.path as osp
 import os
 import pandas as pd
-import pickle
+import pickle5 as pickle
+import glob
 from matplotlib import pyplot as plt
 import itertools as it
 from datetime import datetime as dt
@@ -17,13 +18,13 @@ from datetime import datetime as dt
 class RadarData(InMemoryDataset):
 
     def __init__(self, root, split, years, season='fall', timesteps=1,
-                 num_nights=1, transform=None, pre_transform=None):
+                 data_source='radar', transform=None, pre_transform=None):
 
         self.split = split
         self.season = season
         self.years = years
         self.timesteps = timesteps
-        self.num_nights = num_nights
+        self.data_source = data_source
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -46,11 +47,11 @@ class RadarData(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return [f'{self.split}_data.pt']
+        return [f'{self.split}_{self.data_source}_data.pt']
 
     @property
     def info_file_name(self):
-        return f'{self.split}_data_info.pkl'
+        return f'{self.split}_{self.data_source}_data_info.pkl'
 
     def download(self):
         pass
@@ -63,13 +64,41 @@ class RadarData(InMemoryDataset):
         time_mask = []
         all_nights = []
         for i, year in enumerate(self.years):
-            data, radars, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, year, 'vid')
+            solarpos, radars, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, year,
+                                                                 'solarpos')
+            if self.data_source == 'radar':
+                data, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, year, 'vid')
 
-            solarpos, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, year, 'solarpos')
+            elif self.data_source == 'abm':
+                abm_dir = osp.join(self.raw_dir, 'abm', self.season, year)
+                print(abm_dir)
+                files = glob.glob(os.path.join(abm_dir, '*.pkl'))
+                print(files)
+                data = []
+                for file in files:
+                    with open(file, 'rb') as f:
+                        result = pickle.load(f)
+                        data.append(result['counts'])
+                        print(result['counts'].shape)
+
+                data = np.stack(data, axis=-1).sum(-1).T
+                print(data.shape)
+
+                # adjust time range of sun data to abm time range
+                print(t_range, result['time'].tz_localize(None))
+                abm_time = result['time'].tz_localize(None) # remove time zone info
+                start = np.where(t_range == abm_time[0])[0][0]
+                end = np.where(t_range == abm_time[-1])[0][0]
+                t_range = t_range[start:end+1]
+                solarpos = solarpos[:, start:end+1]
+
+
             wind = era5interface.extract_points(os.path.join(self.raw_dir, 'wind', self.season, year, 'wind_850.nc'),
                                                 radars.keys(), t_range)
 
-            check = np.isfinite(data).all(axis=0)
+
+
+            check = np.isfinite(solarpos).all(axis=0) # day/night mask
             dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
                                 'tidx': range(len(t_range))}, index=t_range)
 
@@ -80,21 +109,33 @@ class RadarData(InMemoryDataset):
             if self.timesteps > 1:
                 # group into nights
                 groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
-                nights = [[item[0] for item in g] for g in groups if g[0][1] and len(g) > self.timesteps]
+                nights = [[item[0] for item in g] for g in groups if g[0][1]] # and len(g) > self.timesteps]
                 all_nights.append(nights)
 
-                if self.num_nights == 1:
-                    def reshape(data, nights):
-                        return np.stack([data[:, night[1:self.timesteps + 1]] for night in nights], axis=-1)
-                else:
-                    def reshape(data, nights):
-                        return [data[:, np.concatenate([nights[nidx+j][1:-1] for j in range(self.num_nights)])]
-                                for nidx, night in enumerate(nights[:-self.num_nights])]
+                def reshape(data, nights, mask):
+                    return np.stack([timeslice(data, night[0], mask) for night in nights], axis=-1)
+
+                def timeslice(data, start_night, mask):
+                    data_night = data[:, start_night:]
+                    data_night = data_night[:, mask[start_night:]]
+                    if data_night.shape[1] > self.timesteps:
+                        data_night = data_night[:, 1:self.timesteps + 1]
+                        print(data_night.shape)
+                    else:
+                        data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
+                                            constant_values=0)
+                        print(data_night.shape)
+                    return data_night
 
 
-                data = reshape(data, nights)
-                solarpos = reshape(solarpos, nights)
-                wind = {key: reshape(val, nights) for key, val in wind.items()}
+                # def reshape(data, nights):
+                #     return np.stack([data[:, night[1:self.timesteps + 1]] for night in nights], axis=-1)
+
+
+                data = reshape(data, nights, dft.check)
+                solarpos = reshape(solarpos, nights, dft.check)
+                wind = {key: reshape(val, nights, dft.check) for key, val in wind.items()}
+
 
             else:
                 # discard missing data
@@ -138,6 +179,8 @@ class RadarData(InMemoryDataset):
             ycoords = normalize(ycoords)
             wind = {key: normalize(val) for key, val in wind.items()}
 
+            print(birds_per_cell.shape)
+
             # compute distances and angles between radars
             distances = normalize([distance(cells.xy.iloc[j], cells.xy.iloc[i]) for j, i in G.edges], min=0)
             angles = normalize([angle(cells.xy.iloc[j], cells.xy.iloc[i]) for j, i in G.edges], min=0, max=360)
@@ -147,6 +190,7 @@ class RadarData(InMemoryDataset):
 
 
             if self.timesteps > 1:
+                print(f'timesteps = {self.timesteps}')
                 data_list.extend([Data(x=torch.tensor(birds_per_cell[..., :-1, t], dtype=torch.float),
                                   y=torch.tensor(birds_per_cell[..., 1:, t], dtype=torch.float),
                                   #coords=torch.tensor(cells.xy.to_list(), dtype=torch.float),
@@ -200,13 +244,16 @@ class RadarData(InMemoryDataset):
 
 class BirdFlowTime(MessagePassing):
 
-    def __init__(self, in_channels, out_channels, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True):
+    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
         #self.edgeflow = torch.nn.Linear(in_channels, out_channels)
         # self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
         #                 torch.nn.ReLU(),
         #                 torch.nn.Linear(out_channels, out_channels),
         #                 torch.nn.Sigmoid())
+
+        in_channels = 9 + embedding
+        out_channels = 1
         if model == 'linear':
             self.edgeflow = torch.nn.Linear(in_channels, out_channels)
         elif model == 'linear+sigmoid':
@@ -338,7 +385,7 @@ def distance(coord1, coord2):
 def MSE(output, gt):
     return torch.mean((output - gt)**2)
 
-def train(model, train_loader, loss_func, device, conservation=True, aggr=False):
+def train(model, train_loader, optimizer, boundaries, loss_func, device, conservation=True, aggr=False):
     model.train()
     loss_all = 0
     for data in train_loader:
@@ -371,18 +418,18 @@ def train(model, train_loader, loss_func, device, conservation=True, aggr=False)
 
     return loss_all
 
-def test(model, test_loader, loss_func, device):
+def test(model, test_loader, timesteps, loss_func, device):
     model.eval()
     loss_all = []
-    constraints_all = []
     for data in test_loader:
         data = data.to(device)
         output = model(data)#.view(-1)
+
         gt = data.y.to(device)
 
         #outfluxes = to_dense_adj(data.edge_index, edge_attr=model.flow).view(data.num_nodes, data.num_nodes).sum(1)
         #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
-        loss_all.append(torch.tensor([loss_func(output[:,t], gt[:,t]) for t in range(timesteps-1)]))
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps-1)]))
         #constraints_all.append(constraints)
 
     return torch.stack(loss_all) #, torch.stack(constraints_all)
@@ -407,7 +454,7 @@ if __name__ == '__main__':
     model_dir = osp.join(args.root, 'models')
     os.makedirs(model_dir, exist_ok=True)
 
-    timesteps=5
+    timesteps=10
     embedding = 0
     conservation = True
     epochs = 100
@@ -425,14 +472,14 @@ if __name__ == '__main__':
         train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
         #model = BirdFlow(9 + embedding, 1, train_data[0].num_nodes, 1)
-        model = BirdFlowTime(9 + embedding, 1, train_data[0].num_nodes, timesteps, embedding, model_type, recurrent, norm)
+        model = BirdFlowTime(train_data[0].num_nodes, timesteps, embedding, model_type, recurrent, norm)
         params = model.parameters()
 
         optimizer = torch.optim.Adam(params, lr=0.01)
 
         boundaries = train_data.info['all_boundaries'][0]
         for epoch in range(epochs):
-            loss = train(model, train_loader, loss_func, 'cpu', conservation)
+            loss = train(model, train_loader, optimizer, boundaries, loss_func, 'cpu', conservation)
             print(f'epoch {epoch + 1}: loss = {loss/len(train_data)}')
 
         torch.save(model, osp.join(model_dir, name))
