@@ -16,6 +16,12 @@ from birds import datahandling
 from birds.spatial import Spatial
 from birds.era5interface import ERA5Loader
 
+import argparse
+
+parser = argparse.ArgumentParser(description='parallel ABM simulation')
+parser.add_argument('--root', type=str, default='/home/fiona/birdMigration/data', help='entry point to required data')
+args = parser.parse_args()
+
 
 ###################################### SETUP ##################################################
 # load config file
@@ -24,7 +30,8 @@ with open(config_file) as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 
 # file paths
-root = '/home/fiona/birdMigration/data'
+#root = '/home/fiona/birdMigration/data'
+root = args.root
 wind_path = osp.join(root, 'raw', 'wind', config['season'], config['year'], 'wind_850.nc')
 radar_path = osp.join(root, 'raw', 'radar', config['season'], config['year'])
 output_path = osp.join(root, 'experiments', 'abm', config['season'], config['year'], f'experiment_{datetime.now()}')

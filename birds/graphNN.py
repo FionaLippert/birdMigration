@@ -17,12 +17,13 @@ from datetime import datetime as dt
 class RadarData(InMemoryDataset):
 
     def __init__(self, root, split, years, season='fall', timesteps=1,
-                 transform=None, pre_transform=None):
+                 num_nights=1, transform=None, pre_transform=None):
 
         self.split = split
         self.season = season
         self.years = years
         self.timesteps = timesteps
+        self.num_nights = num_nights
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -75,18 +76,25 @@ class RadarData(InMemoryDataset):
             timepoints.extend(t_range)
             all_radars.append(list(radars.values()))
 
+
             if self.timesteps > 1:
                 # group into nights
                 groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
                 nights = [[item[0] for item in g] for g in groups if g[0][1] and len(g) > self.timesteps]
                 all_nights.append(nights)
 
-                def reshape(data, nights, timesteps):
-                    return np.stack([data[:, night[1:timesteps + 1]] for night in nights], axis=-1)
+                if self.num_nights == 1:
+                    def reshape(data, nights):
+                        return np.stack([data[:, night[1:self.timesteps + 1]] for night in nights], axis=-1)
+                else:
+                    def reshape(data, nights):
+                        return [data[:, np.concatenate([nights[nidx+j][1:-1] for j in range(self.num_nights)])]
+                                for nidx, night in enumerate(nights[:-self.num_nights])]
 
-                data = reshape(data, nights, self.timesteps)
-                solarpos = reshape(solarpos, nights, self.timesteps)
-                wind = {key: reshape(val, nights, self.timesteps) for key, val in wind.items()}
+
+                data = reshape(data, nights)
+                solarpos = reshape(solarpos, nights)
+                wind = {key: reshape(val, nights) for key, val in wind.items()}
 
             else:
                 # discard missing data
@@ -389,7 +397,7 @@ if __name__ == '__main__':
 
     import argparse
 
-    parser = argparse.ArgumentParser(description='parallel ABM simulation')
+    parser = argparse.ArgumentParser(description='GraphNN experiments')
     parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
     args = parser.parse_args()
 
