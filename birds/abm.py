@@ -293,7 +293,7 @@ class Simulation:
         return lon, lat
 
     def run(self, steps):
-        for _ in range(steps):
+        for _ in tqdm(range(steps)):
             self.data.collect(self.birds)
             for bird in self.birds:
                 bird.step()
