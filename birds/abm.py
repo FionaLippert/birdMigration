@@ -65,6 +65,7 @@ class Bird:
         self.migrating = False
         self.ground_speed = 0
         self.previous = 'day'
+        self.dir_north = 0
 
 
     def step(self):
@@ -91,8 +92,8 @@ class Bird:
                     # if state changed to flying or has already been flying
                     # save current position and compute next position
                     dist = distance(meters=self.ground_speed * self.env.dt)
-                    dir_north = self.pref_dir + np.rad2deg(self.drift)
-                    self.pos = dist.destination(point=self.pos, bearing=dir_north)
+                    self.dir_north = self.pref_dir + np.rad2deg(self.drift)
+                    self.pos = dist.destination(point=self.pos, bearing=self.dir_north)
 
                 self.previous = 'night'
 
@@ -132,11 +133,12 @@ class Bird:
     def compute_energy(self):
         # energy expenditure per unit distance travelled along the preferred direction
         # relative to optimal energy expenditure (= air_speed)
+        # "transport cost" see McLaren 2012 and Pennycuick 2008
         if self.ground_speed <= 0:
             # bird is blown in opposite direction by wind
-            energy = np.inf
+            self.energy = np.inf
         else:
-            energy = self.air_speed / (self.ground_speed * np.cos(self.drift)) - 1
+            self.energy = self.air_speed / (self.ground_speed * np.cos(self.drift)) - 1
 
     def check_night(self):
         sun = self.env.get_sun(self.tidx, self.pos.longitude, self.pos.latitude)
@@ -187,7 +189,7 @@ class DataCollection:
             self.data['trajectories'][bird.tidx, bird.id] = [bird.pos.longitude, bird.pos.latitude]
             self.data['states'][bird.tidx, bird.id] = bird.state
             self.data['ground_speeds'][bird.tidx, bird.id] = bird.ground_speed
-            self.data['directions'][bird.tidx, bird.id] = rad2deg(bird.pref_dir + bird.drift)
+            self.data['directions'][bird.tidx, bird.id] = bird.dir_north
 
             # if bird.state == 1:
             #     # flying

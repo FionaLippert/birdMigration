@@ -2,8 +2,8 @@
 year: '2015'
 season: fall
 start_date: 08-15 12:00
-end_date: 10-15 12:00
-num_birds: 100000
+end_date: 08-19 12:00
+num_birds: 10
 
 settings:
   energy_tol_mean: 1.0

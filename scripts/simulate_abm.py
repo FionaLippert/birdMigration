@@ -57,4 +57,4 @@ sim.run(steps)
 # save data
 print(f'process {args.pid}: save simulation results to disk')
 sim.save_data(os.path.join(args.output_path, f'simulation_results_{args.pid}.pkl'))
-sim.data.plot_trajectories(os.path.join(args.output_path, f'trajectories_{args.pid}.png'))
+#sim.data.plot_trajectories(os.path.join(args.output_path, f'trajectories_{args.pid}.png'))
