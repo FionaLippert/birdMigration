@@ -13,7 +13,7 @@ from birds.spatial import Spatial
 
 parser = argparse.ArgumentParser(description='parallel ABM simulation')
 parser.add_argument('radar_path', type=str, help='directory containing radar data as .nc files')
-parser.add_argument('wind_path', type=str, help='directory containing wind data as .nc file')
+parser.add_argument('env_path', type=str, help='directory containing weather data as .nc file')
 parser.add_argument('output_path', type=str, help='output directory')
 parser.add_argument('num_birds', type=int, help='number of birds to simulate')
 parser.add_argument('pid', type=int, help='process id and random seed')
@@ -26,14 +26,16 @@ with open('abm_config.yml') as f:
 print(f'process {args.pid}: setup simulation')
 
 # get 25km buffers around radar stations to simulate VP measurements
-radars = datahandling.load_radars(args.radar_path)
-sp = Spatial(radars)
-buffers = sp.pts_local.buffer(25_000).to_crs(epsg=sp.epsg).to_dict()
+# radars = datahandling.load_radars(args.radar_path)
+# sp = Spatial(radars)
+# buffers = sp.pts_local.buffer(25_000).to_crs(epsg=sp.epsg).to_dict()
 
 # setup environment
 start = f'{config["year"]}-{config["start_date"]}'
 end = f'{config["year"]}-{config["end_date"]}'
-wind = xr.open_dataset(args.wind_path).sel(time=slice(start, end))
+
+wind_path = osp.join(args.env_path, 'pressure_level_850.nc')
+wind = xr.open_dataset(wind_path).sel(time=slice(start, end))[['u', 'v']]
 env = abm.Environment(wind)
 
 
@@ -45,9 +47,9 @@ settings['random_seed'] = args.pid
 # run simulation
 if len(args.departure_area_path) > 0:
     area = gpd.read_file(args.departure_area_path)
-    sim = abm.Simulation(env, buffers, settings, departure_area=area)
+    sim = abm.Simulation(env, settings, departure_area=area)
 else:
-    sim = abm.Simulation(env, buffers, settings)
+    sim = abm.Simulation(env, settings)
 steps = len(env.time)
 print(f'process {args.pid}: start simulating for {steps} timesteps')
 sim.run(steps)

@@ -118,8 +118,16 @@ def bird_counts(data):
 # plt.close(fig)
 
 import glob
-abm_dir = osp.join(data_root, 'raw', 'abm', season, year)
+import geopandas as gpd
+import cartopy.crs as ccrs
+import geoplot.crs as gcrs
+import geoplot as gplt
 
+abm_dir = osp.join(data_root, 'raw', 'abm', season, year)
+shape_dir = osp.join(data_root, 'shapes')
+
+countries = gpd.read_file(osp.join(shape_dir, 'ne_10m_admin_0_countries_lakes.shp'))
+departure_area = gpd.read_file(osp.join(shape_dir, 'departure_area.shp'))
 files = glob.glob(os.path.join(abm_dir, '*.pkl'))
 
 data = []
@@ -135,3 +143,25 @@ counts = data.sum(1)
 fig, ax = plt.subplots()
 ax.plot(result['time'], counts)
 fig.savefig(osp.join(abm_dir, 'total_counts.png'), dpi=200, bbox_inches='tight')
+
+fig, ax = plt.subplots(figsize=(12, 8))
+gplt.polyplot(
+  countries,
+  edgecolor="white",
+  facecolor="lightgray",
+    ax=ax,
+  projection=gcrs.AlbersEqualArea(),
+  extent=[0.36, 46.36, 16.07, 55.40]
+)
+gplt.polyplot(
+    departure_area,
+    facecolor="lightgreen",
+    alpha=0.5,
+    ax=ax, zorder=1,
+    extent=[0.36, 46.36, 16.07, 55.40]
+)
+ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                  linewidth=2, color='gray', alpha=0.5, linestyle='--')
+fig.savefig(osp.join(abm_dir, 'example_trajectories.png'), dpi=200, bbox_inches='tight')
+
+

@@ -14,7 +14,7 @@ from datetime import datetime
 import xarray as xr
 
 from birds import datahandling
-from birds import  spatial
+from birds import spatial
 from birds.era5interface import ERA5Loader
 
 class Environment:
@@ -58,105 +58,91 @@ class Bird:
         # initialize simulation
         self.reset(lat, lon)
 
-        #self.trajectory = []
-        #self.states = []
-
     def reset(self, lat, lon):
         self.pos = geopy.Point(latitude=lat, longitude=lon)
         self.state = 0  # landed (one of [1: 'flying', 0: 'landed', -1: 'exited']
         self.tidx = 0
         self.migrating = False
         self.ground_speed = 0
-        self.dir = 0
+        self.previous = 'day'
 
 
     def step(self):
 
-        self.ground_speed = 0
-        self.dir = 0
-
         if self.check_bounds():
             if self.check_night():
-                if self.state == 0:
+                if self.previous == 'day': #self.state == 0:
+                    # first hour of the night
                     self.sample_pref_dir()
 
                 wind_speed, wind_dir = self.env.get_wind(self.tidx, self.pos.longitude,
                                                          self.pos.latitude, self.pref_dir)
-                heading = self.compute_heading(wind_speed, wind_dir)
-                drift = self.compute_drift(wind_speed, wind_dir, heading)
-                ground_speed = self.compute_ground_speed(wind_speed, wind_dir, heading, drift)
+                self.adjust_heading(wind_speed, wind_dir)
+                self.compute_drift(wind_speed, wind_dir)
+                self.compute_ground_speed(wind_speed, wind_dir)
 
-                if self.state == 0:
+                if self.previous == 'day': #self.state == 0:
                     # check if weather conditions are good enough for departure
-                    energy = self.compute_energy(drift, ground_speed)
-                    if self.check_departure(wind_speed, wind_dir, energy):
+                    self.compute_energy()
+                    if self.check_departure(wind_speed, wind_dir):
                         self.state = 1
 
                 if self.state == 1:
                     # if state changed to flying or has already been flying
                     # save current position and compute next position
-                    dist = distance(meters=ground_speed * self.env.dt)
-                    dir_north = self.pref_dir + np.rad2deg(drift)
+                    dist = distance(meters=self.ground_speed * self.env.dt)
+                    dir_north = self.pref_dir + np.rad2deg(self.drift)
                     self.pos = dist.destination(point=self.pos, bearing=dir_north)
 
-                    self.ground_speed = ground_speed
-                    self.dir = self.pref_dir + drift
+                self.previous = 'night'
 
-                    # print(f'distance travelled = {dist}, in direction {dir_north}, '
-                    #       f'with ground speed = {self.ground_speed}')
-
-            elif self.state == 1:
-                # land because end of the night has been reached
-                self.state = 0
+            else:
+                self.previous = 'day'
+                if self.state == 1:
+                    # land because end of the night has been reached
+                    self.state = 0
 
         else:
-            #print(f'Bird {self.id} left simulated region')
+            # left simulated region
             self.state = -1
 
         self.tidx += 1
-        #self.log_state()
-        #self.log_pos()
 
     def check_bounds(self):
         return self.env.bounds.contains(geometry.Point(self.pos.longitude, self.pos.latitude))
 
-
     def sample_pref_dir(self):
         self.pref_dir = np.random.normal(self.endogenous_heading, self.pre_dir_std)
 
-    def compute_heading(self, wind_speed, wind_dir):
+    def adjust_heading(self, wind_speed, wind_dir):
         # compute heading based on given relative wind compensation
         # if desired compensation is not possible, choose heading perpendicular to pref_dir to compensate
         # as much as possible
-        heading = - np.arcsin(np.clip(self.compensation * wind_speed * np.sin(wind_dir) / self.air_speed, -1, 1))
-        return heading
+        self.heading = - np.arcsin(np.clip(self.compensation * wind_speed * np.sin(wind_dir) / self.air_speed, -1, 1))
 
-    def compute_drift(self, wind_speed, wind_dir, heading):
+    def compute_drift(self, wind_speed, wind_dir):
         # drift relative to pref_dir
-        drift = np.arctan((self.air_speed * np.sin(heading) + wind_speed * np.sin(wind_dir)) /
-                          (self.air_speed * np.cos(heading) + wind_speed * np.cos(wind_dir)))
-        return drift
+        self.drift = np.arctan((self.air_speed * np.sin(self.heading) + wind_speed * np.sin(wind_dir)) /
+                               (self.air_speed * np.cos(self.heading) + wind_speed * np.cos(wind_dir)))
 
-    def compute_ground_speed(self, wind_speed, wind_dir, heading, drift):
-        ground_speed = self.air_speed * np.cos(heading - drift) + \
-                       wind_speed * np.cos(wind_dir - drift)
-        return ground_speed
+    def compute_ground_speed(self, wind_speed, wind_dir):
+        self.ground_speed = self.air_speed * np.cos(self.heading - self.drift) + \
+                            wind_speed * np.cos(wind_dir - self.drift)
 
-    def compute_energy(self, drift, ground_speed):
+    def compute_energy(self):
         # energy expenditure per unit distance travelled along the preferred direction
         # relative to optimal energy expenditure (= air_speed)
-        if ground_speed <= 0:
+        if self.ground_speed <= 0:
             # bird is blown in opposite direction by wind
             energy = np.inf
         else:
-            energy = self.air_speed / (ground_speed * np.cos(drift)) - 1
-        return energy
+            energy = self.air_speed / (self.ground_speed * np.cos(self.drift)) - 1
 
     def check_night(self):
         sun = self.env.get_sun(self.tidx, self.pos.longitude, self.pos.latitude)
         return sun < -6
 
-    def check_departure(self, wind_speed, wind_dir, energy):
+    def check_departure(self, wind_speed, wind_dir):
         # decision for departure/landing
         # course can only be maintained if airspeed is faster than the wind component
         # perpendicular to the direction of travel
@@ -165,12 +151,10 @@ class Bird:
             #print(self.start_day, self.time[self.tidx].day)
             dt = (self.env.time[self.tidx] - self.env.time[0]).days
             self.migrating = (self.start_day <= dt)
-            #if self.migrating:
-            #    print('start migrating')
 
         check_speed = self.air_speed >= self.compensation * wind_speed * np.sin(wind_dir) # - self.drift)
         #check_drift = np.abs(self.drift) <= self.drift_tol
-        check_energy = energy <= self.energy_tol
+        check_energy = self.energy <= self.energy_tol
 
         if check_speed and check_energy and self.migrating:
             return True
@@ -178,11 +162,11 @@ class Bird:
             return False
 
 class DataCollection:
-    def __init__(self, time, num_birds, buffers, settings):
+    def __init__(self, time, num_birds, settings):
         self.num_birds = num_birds
         self.time = time
         self.T = len(time)
-        self.buffers = buffers # shapely polygons with (lon, lat) coords
+        #self.buffers = buffers # shapely polygons with (lon, lat) coords
         self.settings = settings
 
         self.clear_data()
@@ -191,11 +175,10 @@ class DataCollection:
         self.data = {
                      'trajectories': np.zeros((self.T, self.num_birds, 2), dtype=np.float),
                      'states': np.zeros((self.T, self.num_birds), dtype=np.int),
-                     'counts': np.zeros((self.T, len(self.buffers)), dtype=np.long),
-                     'directions': np.zeros((self.T, len(self.buffers)), dtype=np.long),
+                     #'counts': np.zeros((self.T, len(self.buffers)), dtype=np.long),
+                     #'directions': np.zeros((self.T, len(self.buffers)), dtype=np.long),
                      'ground_speeds': np.zeros((self.T, self.num_birds), dtype=np.long),
-                     #'settings': self.settings,
-                     #'last_modified': datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                     'directions': np.zeros((self.T, self.num_birds), dtype=np.long)
                      }
 
     def collect(self, birds):
@@ -204,15 +187,16 @@ class DataCollection:
             self.data['trajectories'][bird.tidx, bird.id] = [bird.pos.longitude, bird.pos.latitude]
             self.data['states'][bird.tidx, bird.id] = bird.state
             self.data['ground_speeds'][bird.tidx, bird.id] = bird.ground_speed
+            self.data['directions'][bird.tidx, bird.id] = rad2deg(bird.pref_dir + bird.drift)
 
-            if bird.state == 1:
-                # flying
-                pt = geometry.Point([bird.pos.longitude, bird.pos.latitude])
-                for bidx, b in self.buffers.items():
-                    if b.contains(pt):
-                        self.data['counts'][bird.tidx, bidx] += 1
-                        self.data['directions'][bird.tidx, bidx] += rad2deg(bird.dir)
-                        break
+            # if bird.state == 1:
+            #     # flying
+            #     pt = geometry.Point([bird.pos.longitude, bird.pos.latitude])
+            #     for bidx, b in self.buffers.items():
+            #         if b.contains(pt):
+            #             self.data['counts'][bird.tidx, bidx] += 1
+            #             self.data['directions'][bird.tidx, bidx] += rad2deg(bird.dir)
+            #             break
 
     def save(self, file_path):
         self.data['time'] = self.time
@@ -224,22 +208,9 @@ class DataCollection:
         with open(file_path, 'wb') as f:
             pickle.dump(self.data, f, pickle.HIGHEST_PROTOCOL)
 
-    def plot_trajectories(self, filename):
-        fig, ax = plt.subplots()
-        for bird in range(self.num_birds):
-            xx = self.data['trajectories'][:, bird, 0]
-            yy = self.data['trajectories'][:, bird, 1]
-            lidx = np.where(self.data['states'][:, bird] == 0)
-            traj = ax.plot(xx, yy)
-            color = traj[0].get_color()
-            ax.plot(xx[0], yy[0], 'o', c='red')
-            ax.scatter(xx[lidx], yy[lidx], facecolors='none', edgecolors=color, alpha=0.1)
-        fig.savefig(filename, bbox_inches='tight')
-        plt.close(fig)
-
 
 class Simulation:
-    def __init__(self, env, buffers, settings, **kwargs):
+    def __init__(self, env, settings, **kwargs):
         self.settings = settings
         self.env = env
         self.rng = np.random.default_rng(settings['random_seed'])
@@ -249,7 +220,7 @@ class Simulation:
                 self.__setattr__(k, kwargs[k])
 
         self.spawn_birds()
-        self.data = DataCollection(env.time, len(self.birds), buffers, settings)
+        self.data = DataCollection(env.time, len(self.birds), settings)
 
 
     def spawn_birds(self):
@@ -277,7 +248,7 @@ class Simulation:
                     lon = maxx
 
             # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
-            start_day = self.rng.choice(range(31))
+            start_day = self.rng.choice(range(self.settings['start_day_range']))
             energy_tol = self.rng.normal(self.settings['energy_tol_mean'], self.settings['energy_tol_std'])
             self.birds.append(Bird(id, lat, lon, self.env, start_day,
                                    compensation=self.settings['compensation'],

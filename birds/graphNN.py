@@ -93,8 +93,8 @@ class RadarData(InMemoryDataset):
                 solarpos = solarpos[:, start:end+1]
 
 
-            wind = era5interface.extract_points(os.path.join(self.raw_dir, 'wind', self.season, year, 'wind_850.nc'),
-                                                radars.keys(), t_range)
+            wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, year, 'wind_850.nc'),
+                                                radars.keys(), t_range, vars=['u', 'v'])
 
 
 
@@ -174,16 +174,17 @@ class RadarData(InMemoryDataset):
             # normalize node data
             birds_per_cell = normalize(birds_per_cell, min=0)
             solarpos = normalize(solarpos)
-            xcoords, ycoords = zip(*cells.xy.to_list())
-            xcoords = normalize(xcoords)
-            ycoords = normalize(ycoords)
+            xcoords = normalize(cells.x)
+            ycoords = normalize(cells.y)
             wind = {key: normalize(val) for key, val in wind.items()}
 
             print(birds_per_cell.shape)
 
             # compute distances and angles between radars
-            distances = normalize([distance(cells.xy.iloc[j], cells.xy.iloc[i]) for j, i in G.edges], min=0)
-            angles = normalize([angle(cells.xy.iloc[j], cells.xy.iloc[i]) for j, i in G.edges], min=0, max=360)
+            distances = normalize([distance(cells.x.iloc[j], cells.y.iloc[j],
+                                            cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0)
+            angles = normalize([angle(cells.x.iloc[j], cells.y.iloc[j],
+                                      cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0, max=360)
 
             # write data to disk
             os.makedirs(self.processed_dir, exist_ok=True)
@@ -193,7 +194,6 @@ class RadarData(InMemoryDataset):
                 print(f'timesteps = {self.timesteps}')
                 data_list.extend([Data(x=torch.tensor(birds_per_cell[..., :-1, t], dtype=torch.float),
                                   y=torch.tensor(birds_per_cell[..., 1:, t], dtype=torch.float),
-                                  #coords=torch.tensor(cells.xy.to_list(), dtype=torch.float),
                                   coords=torch.stack([
                                       torch.tensor(xcoords, dtype=torch.float),
                                       torch.tensor(ycoords, dtype=torch.float)
@@ -212,7 +212,6 @@ class RadarData(InMemoryDataset):
             else:
                 data_list.extend([Data(x=torch.tensor(birds_per_cell[..., t], dtype=torch.float),
                                   y=torch.tensor(birds_per_cell[..., t+1], dtype=torch.float),
-                                  #coords=torch.tensor(cells.xy.to_list(), dtype=torch.float),
                                   coords=torch.stack([
                                       torch.tensor(xcoords, dtype=torch.float),
                                       torch.tensor(ycoords, dtype=torch.float)
@@ -241,6 +240,7 @@ class RadarData(InMemoryDataset):
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
 
+#class MLP
 
 class BirdFlowTime(MessagePassing):
 
@@ -260,9 +260,9 @@ class BirdFlowTime(MessagePassing):
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
                                                 torch.nn.Sigmoid())
         else:
-            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, in_channels),
                                                                 torch.nn.ReLU(),
-                                                                torch.nn.Linear(out_channels, out_channels),
+                                                                torch.nn.Linear(in_channels, out_channels),
                                                                 torch.nn.Sigmoid())
         self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
         self.timesteps = timesteps
@@ -370,17 +370,17 @@ class BirdFlow(MessagePassing):
     #    print(aggr_out.shape)
     #    return aggr_out
 
-def angle(coord1, coord2):
-    y = coord1[0] - coord2[0]
-    x = coord1[1] - coord2[1]
+def angle(x1, y1, x2, y2):
+    y = y1 - y2
+    x = x1 - x2
     rad = np.arctan2(y, x)
     deg = np.rad2deg(rad)
     deg = (deg + 360) % 360
     return deg
 
-def distance(coord1, coord2):
+def distance(x1, y1, x2, y2):
     # for coord1 and coord2 given in local crs
-    return np.linalg.norm(np.array(coord1) - np.array(coord2)) / 10**3 # in kilometers
+    return np.linalg.norm(np.array([x1-x2, y1-y2])) / 10**3 # in kilometers
 
 def MSE(output, gt):
     return torch.mean((output - gt)**2)
@@ -421,18 +421,21 @@ def train(model, train_loader, optimizer, boundaries, loss_func, device, conserv
 def test(model, test_loader, timesteps, loss_func, device):
     model.eval()
     loss_all = []
-    for data in test_loader:
+    outfluxes = {}
+    for tidx, data in enumerate(test_loader):
         data = data.to(device)
         output = model(data)#.view(-1)
 
         gt = data.y.to(device)
 
-        #outfluxes = to_dense_adj(data.edge_index, edge_attr=model.flow).view(data.num_nodes, data.num_nodes).sum(1)
+        outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
+                                                                                                   data.num_nodes,
+                                                                                                   -1) #.sum(1)
         #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps-1)]))
         #constraints_all.append(constraints)
 
-    return torch.stack(loss_all) #, torch.stack(constraints_all)
+    return torch.stack(loss_all), outfluxes #, torch.stack(constraints_all)
 
 
 

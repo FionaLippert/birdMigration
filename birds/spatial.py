@@ -8,6 +8,7 @@ import networkx as nx
 import geopandas as gpd
 
 
+
 class Spatial:
     def __init__(self, radars, epsg='4326', epsg_local='3035'):
         """
@@ -29,12 +30,11 @@ class Spatial:
 
         self.voronoi()
 
-    def voronoi(self, buffer=150_000, plot=False):
+    def voronoi(self, buffer=150_000):
         """
         Construct Voronoi diagram based on radar coordinates
         Args:
             buffer (float): max distance around radar stations (in meters)
-            plot (bool): if True, plot Voronoi diagram
         Returns:
             adj (GeoDataFrame): edges between neighbouring radars, weight=distance [m]
             cells (GeoDataFrame): polygons describing the Voronoi cells
@@ -46,6 +46,7 @@ class Spatial:
         # compute voronoi cells
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
+
         polygons, pts = voronoi_regions_from_coords(np.array(xy), boundary)
         #print(polygons, pts)
 
@@ -57,8 +58,10 @@ class Spatial:
         polygons = [polygons[pid] for pid, pt in sorted(pts.items(), key=lambda kv: kv[1])]
 
         cells = gpd.GeoDataFrame({'radar': list(self.radars.values()),
-                                  'xy': xy,
-                                  'lonlat': list(self.radars.keys()),
+                                  'x': [c[0] for c in xy],
+                                  'y': [c[1] for c in xy],
+                                  'lon': [c[0] for c in lonlat],
+                                  'lat': [c[1] for c in lonlat],
                                   },
                                  geometry=polygons,
                                  crs=f'EPSG:{self.epsg_local}')
@@ -79,7 +82,7 @@ class Spatial:
         nx.set_node_attributes(G, pd.Series(cells['radar']).to_dict(), 'radar')
         nx.set_node_attributes(G, pd.Series(cells['boundary']).to_dict(), 'boundary')
         nx.set_node_attributes(G, 'measured', name='type')
-        nx.set_node_attributes(G, pd.Series(cells['xy'].to_dict()), 'coords')
+        #nx.set_node_attributes(G, pd.Series(cells['xy'].to_dict()), 'coords')
 
         # add sink nodes
         for i, row in cells[cells['boundary']].iterrows():
@@ -94,15 +97,6 @@ class Spatial:
         self.G = G
         self.max_dist = np.max(adj)
         self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_local}')
-
-        # plotting
-        if plot:
-            fig, ax = plotting.subplot_for_map(figsize=(7, 7))
-            plotting.plot_voronoi_polys_with_points_in_area(ax,
-                                                            boundary, polygons, xy, poly2pt)
-            self.edges.plot(ax=ax)
-            gpd.GeoSeries([sink.difference(boundary)], crs=f'EPSG:{self.epsg_local}').plot(ax=ax, color='lightgray')
-            fig.show()
 
         return cells, G
 
@@ -157,15 +151,18 @@ class Spatial:
         return (coord[1], coord[0])
 
 
-# if __name__ == '__main__':
-#
-#     import datahandling
-#     path = '/home/fiona/birdMigration/data/raw/radar'
-#     _, radars, _ = datahandling.load_season(path, 'fall', '2015')
-#
-#     sp = Spatial(radars)
-#     sp.voronoi()
-#     for index, row in sp.cells.iterrows():
-#         area = row.geometry.area / 1000_000
-#         partial = row.geometry.buffer(-36_000).area / 1000_000
-#         print(row.radar, partial/area)
+if __name__ == '__main__':
+
+    from birds import datahandling
+    import os.path as osp
+
+    path = '/home/fiona/birdMigration/data/raw/radar/fall/2015'
+    radars = datahandling.load_radars(path)
+
+    sp = Spatial(radars)
+    sp.cells.to_file(osp.join(path, 'voronoi.shp'))
+
+    # for index, row in sp.cells.iterrows():
+    #     area = row.geometry.area / 1000_000
+    #     partial = row.geometry.buffer(-36_000).area / 1000_000
+    #     print(row.radar, partial/area)

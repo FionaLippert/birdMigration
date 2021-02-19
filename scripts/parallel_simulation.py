@@ -32,7 +32,7 @@ with open(config_file) as f:
 # file paths
 #root = '/home/fiona/birdMigration/data'
 root = args.root
-wind_path = osp.join(root, 'raw', 'wind', config['season'], config['year'], 'wind_850.nc')
+env_path = osp.join(root, 'raw', 'env', config['season'], config['year']) #, 'wind_850.nc')
 radar_path = osp.join(root, 'raw', 'radar', config['season'], config['year'])
 output_path = osp.join(root, 'experiments', 'abm', config['season'], config['year'], f'experiment_{datetime.now()}')
 departure_area_path = osp.join(root, 'shapes', 'departure_area.shp')
@@ -42,12 +42,9 @@ with open(os.path.join(output_path, config_file), 'w+') as f:
     yaml.dump(config, f)
 
 # if wind data is not available, download it
-if not osp.exists(wind_path):
-    radars = datahandling.load_radars(radar_path)
-    sp = Spatial(radars)
-    minx, miny, maxx, maxy = sp.cells.to_crs(epsg=sp.epsg).total_bounds
-    bounds = [maxy, minx, miny, maxx] # North, West, South, East
-    ERA5Loader().download_season(config['year'], config['season'], wind_path, bounds)
+if not osp.exists(env_path):
+    dl = ERA5Loader(radar_path)
+    dl.download_season(config['season'], config['year'], env_path, pl=850, surface_data=True)
 
 if not osp.exists(departure_area_path):
     countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
@@ -83,7 +80,7 @@ for r in range(N % num_processes):
 for p in range(num_processes):
     print(f'---------- start simulating {birds_pp[p]} birds ------------')
     processes.add(subprocess.Popen(['python', 'simulate_abm.py',
-                                    radar_path, wind_path, output_path, str(birds_pp[p]), str(p),
+                                    radar_path, env_path, output_path, str(birds_pp[p]), str(p),
                                     departure_area_path],
                                    stdout=open(logfile, 'a+'),
                                    stderr=open(logfile, 'a+')))

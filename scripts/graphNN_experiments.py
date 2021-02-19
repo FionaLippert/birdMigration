@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 import itertools as it
 import os
 import os.path as osp
+import pickle5 as pickle
 import torch
 from torch_geometric.data import DataLoader
 
@@ -24,7 +25,7 @@ model_dir = osp.join(args.root, 'models', args.experiment)
 os.makedirs(model_dir, exist_ok=True)
 
 season = 'fall'
-train_years = ['2015']
+train_years = ['2016']
 test_years = ['2015']
 
 
@@ -74,13 +75,21 @@ def plot_test_errors(timesteps, model_names, short_names, output_path, data_sour
 
     fig, ax = plt.subplots()
     for midx, model in enumerate(models):
+        print(short_names[midx])
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print(name, param.data)
+
         model.timesteps = timesteps
-        loss_all = test(model, test_loader, timesteps, loss_func, 'cpu')
+        loss_all, outfluxes = test(model, test_loader, timesteps, loss_func, 'cpu')
         mean_loss = loss_all.mean(0)
         std_loss = loss_all.std(0)
         line = ax.plot(range(1, timesteps), mean_loss, label=f'{short_names[midx]}')
         ax.fill_between(range(1, timesteps), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
                         color=line[0].get_color())
+        with open(osp.join(osp.dirname(output_path), f'outfluxes_{short_names[midx]}.pickle'), 'wb') as f:
+            pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
+
     ax.set_xlabel('timestep')
     ax.set_ylabel('MSE')
     ax.set_ylim(-0.005, 0.055)
@@ -90,15 +99,18 @@ def plot_test_errors(timesteps, model_names, short_names, output_path, data_sour
     plt.close(fig)
 
 
-def plot_predictions(timesteps, model_names, output_dir, split='test', data_source='radar'):
+def plot_predictions(timesteps, model_names, short_names, output_dir, split='test', tidx=None, data_source='radar'):
 
     dataset = RadarData(root, split, test_years, season, timesteps, data_source=data_source)
     dataloader = DataLoader(dataset, batch_size=1)
 
     models = [load_model(name) for name in model_names]
 
-    time = dataset.info['timepoints']
+    time = np.array(dataset.info['timepoints'])
     nights = dataset.info['nights'][0]
+
+    if tidx is None:
+        tidx = range(time.size)
 
 
     for idx, radar in enumerate(dataset.info['radars']):
@@ -116,10 +128,10 @@ def plot_predictions(timesteps, model_names, output_dir, split='test', data_sour
                 pred[midx][nights[nidx][1]] = data.x[idx, 0]
 
         fig, ax = plt.subplots(figsize=(20, 4))
-        ax.plot(time, gt, label='ground truth', c='gray', alpha=0.5)
-        for midx, model_type in enumerate(model_names):
-            line = ax.plot(time, pred[midx], ls='--', alpha=0.3)
-            ax.scatter(time, pred[midx], s=30, facecolors='none', edgecolor=line[0].get_color(),
+        ax.plot(time[tidx], gt[tidx], label='ground truth', c='gray', alpha=0.5)
+        for midx, model_type in enumerate(short_names):
+            line = ax.plot(time[tidx], pred[midx][tidx], ls='--', alpha=0.3)
+            ax.scatter(time[tidx], pred[midx][tidx], s=30, facecolors='none', edgecolor=line[0].get_color(),
                        label=f'prediction ({model_type})')
 
             # outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(models[midx].flows, dim=-1)).view(
@@ -140,7 +152,7 @@ def plot_predictions(timesteps, model_names, output_dir, split='test', data_sour
 
 
 timesteps = 6
-epochs = 10 #500
+epochs = 500 #10 #500
 norm = False
 
 if args.action =='train':
@@ -159,7 +171,7 @@ if args.action =='train':
 if args.action == 'test':
 
     model_types = ['linear', 'linear+sigmoid', 'mlp']
-    cons = True
+    cons = False
     rec = True
     emb = 0
 
@@ -167,9 +179,12 @@ if args.action == 'test':
     model_names = [make_name(timesteps, type, cons, rec, emb, epochs=epochs) for type in model_types]
     short_names = model_types
 
-    timesteps = 12
+    timesteps = 7
     output_path = osp.join(root, 'model_performance', args.experiment,
                            f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={timesteps}.png')
     os.makedirs(osp.dirname(output_path), exist_ok=True)
 
-    plot_test_errors(timesteps, model_names, short_names, output_path, data_source=args.data_source)
+    #(timesteps, model_names, short_names, output_path, data_source=args.data_source)
+
+    plot_predictions(timesteps, model_names, short_names, osp.dirname(output_path),
+                     split='test', data_source=args.data_source, tidx=range(800, 1200))
