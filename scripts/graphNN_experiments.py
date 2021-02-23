@@ -25,13 +25,15 @@ model_dir = osp.join(args.root, 'models', args.experiment)
 os.makedirs(model_dir, exist_ok=True)
 
 season = 'fall'
-train_years = ['2016']
-test_years = ['2015']
+train_years = ['2015']
+test_year = '2015'
 
 
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  data_source='radar', output_dir=model_dir):
-    train_data = RadarData(root, 'train', train_years, season, timesteps, data_source=data_source)
+    train_data = [RadarData(root, year, season, timesteps, data_source=data_source) for year in train_years]
+    boundaries = train_data[0].info['boundaries']
+    train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
     model = BirdFlowTime(train_data[0].num_nodes, timesteps, embedding, model_type, recurrent, norm)
@@ -40,7 +42,6 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     optimizer = torch.optim.Adam(params, lr=0.01)
     loss_func = torch.nn.MSELoss()
 
-    boundaries = train_data.info['all_boundaries'][0]
     for epoch in range(epochs):
         loss = train(model, train_loader, optimizer, boundaries, loss_func, 'cpu', conservation)
         print(f'epoch {epoch + 1}: loss = {loss / len(train_data)}')
@@ -67,7 +68,7 @@ def plot_test_errors(timesteps, model_names, short_names, output_path, data_sour
 
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
-    test_data = RadarData(root, 'test', test_years, season, timesteps, data_source=data_source)
+    test_data = RadarData(root, test_year, season, timesteps, data_source=data_source)
     test_loader = DataLoader(test_data, batch_size=1)
 
     models = [load_model(name) for name in model_names]
@@ -99,15 +100,15 @@ def plot_test_errors(timesteps, model_names, short_names, output_path, data_sour
     plt.close(fig)
 
 
-def plot_predictions(timesteps, model_names, short_names, output_dir, split='test', tidx=None, data_source='radar'):
+def plot_predictions(timesteps, model_names, short_names, output_dir, tidx=None, data_source='radar'):
 
-    dataset = RadarData(root, split, test_years, season, timesteps, data_source=data_source)
+    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source)
     dataloader = DataLoader(dataset, batch_size=1)
 
     models = [load_model(name) for name in model_names]
 
     time = np.array(dataset.info['timepoints'])
-    nights = dataset.info['nights'][0]
+    nights = dataset.info['nights']
 
     if tidx is None:
         tidx = range(time.size)
@@ -152,7 +153,7 @@ def plot_predictions(timesteps, model_names, short_names, output_dir, split='tes
 
 
 timesteps = 6
-epochs = 500 #10 #500
+epochs = 100 #10 #500
 norm = False
 
 if args.action =='train':
@@ -171,7 +172,7 @@ if args.action =='train':
 if args.action == 'test':
 
     model_types = ['linear', 'linear+sigmoid', 'mlp']
-    cons = False
+    cons = True
     rec = True
     emb = 0
 
@@ -179,12 +180,12 @@ if args.action == 'test':
     model_names = [make_name(timesteps, type, cons, rec, emb, epochs=epochs) for type in model_types]
     short_names = model_types
 
-    timesteps = 7
+    timesteps = 6
     output_path = osp.join(root, 'model_performance', args.experiment,
                            f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={timesteps}.png')
     os.makedirs(osp.dirname(output_path), exist_ok=True)
 
-    #(timesteps, model_names, short_names, output_path, data_source=args.data_source)
+    # plot_test_errors(timesteps, model_names, short_names, output_path, data_source=args.data_source)
 
     plot_predictions(timesteps, model_names, short_names, osp.dirname(output_path),
-                     split='test', data_source=args.data_source, tidx=range(800, 1200))
+                     data_source=args.data_source, tidx=range(500, 700))

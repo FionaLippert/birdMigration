@@ -4,29 +4,35 @@ from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj
 import numpy as np
 import networkx as nx
-from birds import spatial, datahandling, era5interface
 import os.path as osp
 import os
 import pandas as pd
 import pickle5 as pickle
 import glob
+from pvlib import solarposition
 from matplotlib import pyplot as plt
 import itertools as it
 from datetime import datetime as dt
 
+from birds import spatial, datahandling, era5interface, abm
+
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, root, split, years, season='fall', timesteps=1,
-                 data_source='radar', transform=None, pre_transform=None):
+    def __init__(self, root, year, season='fall', timesteps=1,
+                 data_source='radar', start=None, end=None, transform=None, pre_transform=None):
 
-        self.split = split
+        #self.split = split
         self.season = season
-        self.years = years
+        self.year = year
         self.timesteps = timesteps
         self.data_source = data_source
+        self.start = start
+        self.end = end
 
         super(RadarData, self).__init__(root, transform, pre_transform)
+
+        print('super done')
 
         self.data, self.slices = torch.load(self.processed_paths[0])
 
@@ -43,197 +49,192 @@ class RadarData(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        return osp.join(self.root, 'processed', self.season, f'timesteps={self.timesteps}')
+        return osp.join(self.root, 'processed', self.data_source, self.season, self.year)
 
     @property
     def processed_file_names(self):
-        return [f'{self.split}_{self.data_source}_data.pt']
+        return [f'data_timesteps={self.timesteps}.pt']
 
     @property
     def info_file_name(self):
-        return f'{self.split}_{self.data_source}_data_info.pkl'
+        return f'info_timesteps={self.timesteps}.pkl'
 
     def download(self):
         pass
 
     def process(self):
-        data_list = []
-        all_radars = []
-        all_boundaries = []
-        timepoints = []
-        time_mask = []
-        all_nights = []
-        for i, year in enumerate(self.years):
-            solarpos, radars, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, year,
-                                                                 'solarpos')
-            if self.data_source == 'radar':
-                data, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, year, 'vid')
 
-            elif self.data_source == 'abm':
-                abm_dir = osp.join(self.raw_dir, 'abm', self.season, year)
-                print(abm_dir)
-                files = glob.glob(os.path.join(abm_dir, '*.pkl'))
-                print(files)
-                data = []
-                for file in files:
-                    with open(file, 'rb') as f:
-                        result = pickle.load(f)
-                        data.append(result['counts'])
-                        print(result['counts'].shape)
+        solarpos, radars, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, self.year,
+                                                             'solarpos')
 
-                data = np.stack(data, axis=-1).sum(-1).T
-                print(data.shape)
+        print('solarpos loaded')
 
-                # adjust time range of sun data to abm time range
-                print(t_range, result['time'].tz_localize(None))
-                abm_time = result['time'].tz_localize(None) # remove time zone info
-                start = np.where(t_range == abm_time[0])[0][0]
-                end = np.where(t_range == abm_time[-1])[0][0]
-                t_range = t_range[start:end+1]
-                solarpos = solarpos[:, start:end+1]
+        # construct graph
+        space = spatial.Spatial(radars)
+        cells, G = space.voronoi()
+        G = nx.DiGraph(space.subgraph('type', 'measured'))  # graph without sink nodes
+        edges = torch.tensor(list(G.edges()), dtype=torch.long)
+        edge_index = edges.t().contiguous()
 
+        print('edges loaded')
 
-            wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, year, 'wind_850.nc'),
-                                                radars.keys(), t_range, vars=['u', 'v'])
+        if self.data_source == 'radar':
+            data, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, self.year, 'vid')
 
+        elif self.data_source == 'abm':
+            print('load abm data')
+            abm_dir = osp.join(self.raw_dir, 'abm', self.season, self.year)
+            files = glob.glob(os.path.join(abm_dir, '*.pkl'))
+            traj = []
+            states = []
+            for file in files:
+                with open(file, 'rb') as f:
+                    result = pickle.load(f)
+                traj.append(result['trajectories'])
+                states.append(result['states'])
+                abm_time = result['time']
 
+            traj = np.concatenate(traj, axis=1)[1:, ...]  # ignore first timestep because bird response is shifted to the right by one timestep
+            states = np.concatenate(states, axis=1)[1:, ...]
+            abm_time = abm_time[:-1]
+            T = states.shape[0]
 
-            check = np.isfinite(solarpos).all(axis=0) # day/night mask
-            dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
-                                'tidx': range(len(t_range))}, index=t_range)
+            counts, cols = abm.aggregate(traj, states, cells, range(T), state=1)
+            counts = counts.fillna(0)
+            data = counts[cols].to_numpy()
+            print(data.shape)
 
-            timepoints.extend(t_range)
-            all_radars.append(list(radars.values()))
+            # adjust time range of sun data to abm time range
+            abm_time = abm_time.tz_convert('UTC') # make sure time zone is consistent
+            abm_time_naive = abm_time.tz_localize(None) # remove time zone info
 
+            start = np.where(t_range == abm_time_naive[0])[0][0]
+            end = np.where(t_range == abm_time_naive[-2])[0][0]  # ignore last timestep because bird response is shifted to the right by one timestep
 
-            if self.timesteps > 1:
-                # group into nights
-                groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
-                nights = [[item[0] for item in g] for g in groups if g[0][1]] # and len(g) > self.timesteps]
-                all_nights.append(nights)
-
-                def reshape(data, nights, mask):
-                    return np.stack([timeslice(data, night[0], mask) for night in nights], axis=-1)
-
-                def timeslice(data, start_night, mask):
-                    data_night = data[:, start_night:]
-                    data_night = data_night[:, mask[start_night:]]
-                    if data_night.shape[1] > self.timesteps:
-                        data_night = data_night[:, 1:self.timesteps + 1]
-                        print(data_night.shape)
-                    else:
-                        data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
-                                            constant_values=0)
-                        print(data_night.shape)
-                    return data_night
+            t_range = t_range[start:end+1]
+            solarpos = solarpos[:, start:end+1]
+            print(solarpos.shape)
+            # for i, (lon, lat) in enumerate(radars.keys()):
+            #     print('solarposition: ', solarposition.get_solarposition(abm_time[10:20], lat, lon))
+            #     print('solarpos: ', solarpos[i, 10:20])
 
 
-                # def reshape(data, nights):
-                #     return np.stack([data[:, night[1:self.timesteps + 1]] for night in nights], axis=-1)
+        wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'wind_850.nc'),
+                                            radars.keys(), t_range, vars=['u', 'v'])
 
 
-                data = reshape(data, nights, dft.check)
-                solarpos = reshape(solarpos, nights, dft.check)
-                wind = {key: reshape(val, nights, dft.check) for key, val in wind.items()}
+
+        check = np.isfinite(solarpos).all(axis=0) # day/night mask
+        dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
+                            'tidx': range(len(t_range))}, index=t_range)
 
 
+        # group into nights
+        groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
+        nights = [[item[0] for item in g] for g in groups if g[0][1]] # and len(g) > self.timesteps]
+
+        def reshape(data, nights, mask):
+            return np.stack([timeslice(data, night[0], mask) for night in nights], axis=-1)
+
+        def timeslice(data, start_night, mask):
+            data_night = data[:, start_night:]
+            data_night = data_night[:, mask[start_night:]]
+            if data_night.shape[1] > self.timesteps:
+                data_night = data_night[:, 1:self.timesteps + 1]
             else:
-                # discard missing data
-                time_mask.extend(dft.check)
-                data = data[:, dft.check]
-                solarpos = solarpos[:, dft.check]
-                wind = {key : val[:, dft.check] for key, val in wind.items()}
+                data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
+                                    constant_values=0)
+            return data_night
 
 
-            # construct graph
-            space = spatial.Spatial(radars)
-            cells, G = space.voronoi()
-            G = nx.DiGraph(space.subgraph('type', 'measured'))  # graph without sink nodes
-
-            print(cells['boundary'].to_dict())
-            all_boundaries.append(cells['boundary'].to_dict())
-
-            edges = torch.tensor(list(G.edges()), dtype=torch.long)
-            edge_index = edges.t().contiguous()
-
-            def normalize(features, min=None, max=None):
-                if min is None:
-                    min = np.min(features)
-                if max is None:
-                    max = np.max(features)
-                if type(features) is not np.ndarray:
-                    features = np.array(features)
-                return (features - min) / (max - min)
-
-            # compute total number of birds within each cell around radar
-            if self.timesteps > 1:
-                birds_per_cell = data * cells.geometry.area.to_numpy()[:, None, None]
-            else:
-                birds_per_cell = data * cells.geometry.area.to_numpy()[:, None]
-
-            # normalize node data
-            birds_per_cell = normalize(birds_per_cell, min=0)
-            solarpos = normalize(solarpos)
-            xcoords = normalize(cells.x)
-            ycoords = normalize(cells.y)
-            wind = {key: normalize(val) for key, val in wind.items()}
-
-            print(birds_per_cell.shape)
-
-            # compute distances and angles between radars
-            distances = normalize([distance(cells.x.iloc[j], cells.y.iloc[j],
-                                            cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0)
-            angles = normalize([angle(cells.x.iloc[j], cells.y.iloc[j],
-                                      cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0, max=360)
-
-            # write data to disk
-            os.makedirs(self.processed_dir, exist_ok=True)
+        # def reshape(data, nights):
+        #     return np.stack([data[:, night[1:self.timesteps + 1]] for night in nights], axis=-1)
 
 
-            if self.timesteps > 1:
-                print(f'timesteps = {self.timesteps}')
-                data_list.extend([Data(x=torch.tensor(birds_per_cell[..., :-1, t], dtype=torch.float),
-                                  y=torch.tensor(birds_per_cell[..., 1:, t], dtype=torch.float),
-                                  coords=torch.stack([
-                                      torch.tensor(xcoords, dtype=torch.float),
-                                      torch.tensor(ycoords, dtype=torch.float)
-                                  ], dim=1),
-                                  env=torch.stack([
-                                      *[torch.tensor(w[..., t], dtype=torch.float) for w in wind.values()],
-                                      torch.tensor(solarpos[..., t], dtype=torch.float)
-                                  ], dim=1),
-                                  edge_index=edge_index,
-                                  edge_attr=torch.stack([
-                                      torch.tensor(distances, dtype=torch.float),
-                                      torch.tensor(angles, dtype=torch.float)
-                                  ], dim=1))
-                             for t in range(data.shape[-1] - 1)])
+        data = reshape(data, nights, dft.check)
+        solarpos = reshape(solarpos, nights, dft.check)
+        wind = {key: reshape(val, nights, dft.check) for key, val in wind.items()}
 
-            else:
-                data_list.extend([Data(x=torch.tensor(birds_per_cell[..., t], dtype=torch.float),
-                                  y=torch.tensor(birds_per_cell[..., t+1], dtype=torch.float),
-                                  coords=torch.stack([
-                                      torch.tensor(xcoords, dtype=torch.float),
-                                      torch.tensor(ycoords, dtype=torch.float)
-                                  ], dim=1),
-                                  env=torch.stack([
-                                      *[torch.tensor(w[..., t], dtype=torch.float) for w in wind.values()],
-                                      torch.tensor(solarpos[..., t], dtype=torch.float)
-                                  ], dim=1),
-                                  edge_index=edge_index,
-                                  edge_attr=torch.stack([
-                                      torch.tensor(distances, dtype=torch.float),
-                                      torch.tensor(angles, dtype=torch.float)
-                                  ], dim=1))
-                             for t in range(data.shape[-1] - 1)])
+        #
+        # else:
+        #     # discard missing data
+        #     data = data[:, dft.check]
+        #     solarpos = solarpos[:, dft.check]
+        #     wind = {key : val[:, dft.check] for key, val in wind.items()}
 
 
-        assert(all(r == all_radars[0] for r in all_radars))
-        info = {'radars': all_radars[0],
-                 'timepoints': timepoints,
-                 'time_mask': time_mask,
-                 'nights': all_nights,
-                 'all_boundaries': all_boundaries}
+        def normalize(features, min=None, max=None):
+            if min is None:
+                min = np.min(features)
+            if max is None:
+                max = np.max(features)
+            if type(features) is not np.ndarray:
+                features = np.array(features)
+            return (features - min) / (max - min)
+
+        # compute total number of birds within each cell around radar
+        if self.timesteps > 1:
+            birds_per_cell = data * cells.geometry.area.to_numpy()[:, None, None]
+        else:
+            birds_per_cell = data * cells.geometry.area.to_numpy()[:, None]
+
+        # normalize node data
+        birds_per_cell = normalize(birds_per_cell, min=0)
+        solarpos = normalize(solarpos)
+        xcoords = normalize(cells.x)
+        ycoords = normalize(cells.y)
+        wind = {key: normalize(val) for key, val in wind.items()}
+
+        # compute distances and angles between radars
+        distances = normalize([distance(cells.x.iloc[j], cells.y.iloc[j],
+                                        cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0)
+        angles = normalize([angle(cells.x.iloc[j], cells.y.iloc[j],
+                                  cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0, max=360)
+
+        # write data to disk
+        os.makedirs(self.processed_dir, exist_ok=True)
+
+        data_list = [Data(x=torch.tensor(birds_per_cell[:, :-1, t], dtype=torch.float),
+                          y=torch.tensor(birds_per_cell[:, 1:, t], dtype=torch.float),
+                          coords=torch.stack([
+                              torch.tensor(xcoords, dtype=torch.float),
+                              torch.tensor(ycoords, dtype=torch.float)
+                          ], dim=1),
+                          env=torch.stack([
+                              *[torch.tensor(w[..., t], dtype=torch.float) for w in wind.values()],
+                              torch.tensor(solarpos[..., t], dtype=torch.float)
+                          ], dim=1),
+                          edge_index=edge_index,
+                          edge_attr=torch.stack([
+                              torch.tensor(distances, dtype=torch.float),
+                              torch.tensor(angles, dtype=torch.float)
+                          ], dim=1))
+                     for t in range(data.shape[-1] - 1)]
+
+        # else:
+        #     data_list = [Data(x=torch.tensor(birds_per_cell[..., t], dtype=torch.float),
+        #                       y=torch.tensor(birds_per_cell[..., t+1], dtype=torch.float),
+        #                       coords=torch.stack([
+        #                           torch.tensor(xcoords, dtype=torch.float),
+        #                           torch.tensor(ycoords, dtype=torch.float)
+        #                       ], dim=1),
+        #                       env=torch.stack([
+        #                           *[torch.tensor(w[..., t], dtype=torch.float) for w in wind.values()],
+        #                           torch.tensor(solarpos[..., t], dtype=torch.float)
+        #                       ], dim=1),
+        #                       edge_index=edge_index,
+        #                       edge_attr=torch.stack([
+        #                           torch.tensor(distances, dtype=torch.float),
+        #                           torch.tensor(angles, dtype=torch.float)
+        #                       ], dim=1))
+        #                  for t in range(data.shape[-1] - 1)]
+
+
+        info = {'radars': list(radars.values()),
+                 'timepoints': t_range,
+                 'time_mask': dft.check,
+                 'nights': nights,
+                 'boundaries': cells['boundary'].to_dict()}
         with open(osp.join(self.processed_dir, self.info_file_name), 'wb') as f:
             pickle.dump(info, f)
 
@@ -253,17 +254,29 @@ class BirdFlowTime(MessagePassing):
         #                 torch.nn.Sigmoid())
 
         in_channels = 9 + embedding
+        hidden_channels = in_channels
         out_channels = 1
+
+        in_channels_dep = 9
+        hidden_channels_dep = in_channels_dep
+        out_channels_dep = 1
+
         if model == 'linear':
             self.edgeflow = torch.nn.Linear(in_channels, out_channels)
         elif model == 'linear+sigmoid':
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
                                                 torch.nn.Sigmoid())
         else:
-            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, in_channels),
-                                                                torch.nn.ReLU(),
-                                                                torch.nn.Linear(in_channels, out_channels),
-                                                                torch.nn.Sigmoid())
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
+                                                torch.nn.ReLU(),
+                                                torch.nn.Linear(hidden_channels, out_channels),
+                                                torch.nn.Sigmoid())
+
+        self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels_dep),
+                                             torch.nn.ReLU(),
+                                             torch.nn.Linear(hidden_channels_dep, out_channels_dep),
+                                             torch.nn.Tanh())
+
         self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
         self.timesteps = timesteps
         self.recurrent = recurrent
@@ -314,6 +327,16 @@ class BirdFlowTime(MessagePassing):
         self.flows.append(flow)
 
         return flow * x_j
+
+    def update(self, aggr_out):
+       # simply return aggregation (sum) of inflows computed by message()
+       return aggr_out
+
+    # def update(self, aggr_out, coords, env):
+    #    # return aggregation (sum) of inflows computed by message() PLUS departure prediction
+    #    features = torch.cat([coords, env], dim=1)
+    #    departure = self.departure(features)
+    #    return aggr_out + departure
 
 
 class BirdFlow(MessagePassing):
@@ -451,27 +474,26 @@ if __name__ == '__main__':
     parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
     args = parser.parse_args()
 
-    #root = '/home/fiona/birdMigration/data'
     root = osp.join(args.root, 'data')
-    #model_dir = '/home/fiona/birdMigration/models'
     model_dir = osp.join(args.root, 'models')
     os.makedirs(model_dir, exist_ok=True)
 
-    timesteps=10
+    timesteps=5
     embedding = 0
     conservation = True
-    epochs = 100
-    recurrent = False
+    epochs = 2
+    recurrent = True
     norm = False
 
     loss_func = torch.nn.MSELoss()
 
     action = 'train'
     model_type = 'linear'
-    name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'
 
     if action == 'train':
-        train_data = RadarData(root, 'train', ['2016'], 'fall', timesteps)
+        d1 = RadarData(root, 'train', '2015', 'fall', timesteps)
+        d2 = RadarData(root, 'train', '2016', 'fall', timesteps)
+        train_data = torch.utils.data.ConcatDataset([d1, d2])
         train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
         #model = BirdFlow(9 + embedding, 1, train_data[0].num_nodes, 1)
@@ -480,103 +502,10 @@ if __name__ == '__main__':
 
         optimizer = torch.optim.Adam(params, lr=0.01)
 
-        boundaries = train_data.info['all_boundaries'][0]
+        boundaries = d1.info['boundaries']
         for epoch in range(epochs):
             loss = train(model, train_loader, optimizer, boundaries, loss_func, 'cpu', conservation)
             print(f'epoch {epoch + 1}: loss = {loss/len(train_data)}')
 
-        torch.save(model, osp.join(model_dir, name))
-
-    elif action == 'test':
-
-        def load_model(name):
-            model = torch.load(osp.join(model_dir, name))
-            model.recurrent = True
-            return model
-
-        output_dir = osp.join(root, 'model_performance', f'recurrent={recurrent}_norm={norm}_embedding={embedding}')
-        os.makedirs(output_dir, exist_ok=True)
-
-        names = ['linear without conservation', 'linear', 'linear+sigmoid', 'mlp']
-        models = [load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=False_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
-                load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
-                #load_model(f'GNN_linear_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_aggr=True.pt'),
-                load_model(f'GNN_linear+sigmoid_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'),
-                load_model(f'GNN_mlp_ts={timesteps}_embedding={embedding}_conservation=True_epochs={epochs}_recurrent={recurrent}_norm={norm}.pt')
-        ]
-
-        # name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_epochs={epochs}_recurrent={recurrent}.pt'
-        # model = torch.load(osp.join(model_dir, name))
-
-        # if not recurrent:
-        #     model.recurrent = True
-
-        test_data = RadarData(root, 'test', ['2015'], 'fall', timesteps)
-        test_loader = DataLoader(test_data, batch_size=1)
-
-        fig, ax = plt.subplots()
-        for midx, model in enumerate(models):
-            loss_all = test(model, test_loader, loss_func, 'cpu')
-            mean_loss = loss_all.mean(0)
-            std_loss = loss_all.std(0)
-            line = ax.plot(range(1, timesteps), mean_loss, label=f'{names[midx]}')
-            ax.fill_between(range(1, timesteps), mean_loss-std_loss, mean_loss+std_loss, alpha=0.2, color=line[0].get_color())
-        ax.set_xlabel('timestep')
-        ax.set_ylabel('MSE')
-        ax.set_ylim(-0.005, 0.055)
-        ax.set_xticks(range(1, timesteps))
-        ax.legend()
-        fig.savefig(os.path.join(output_dir, f'errors_recurrent={recurrent}.png'), bbox_inches='tight')
-        plt.close(fig)
-
-
-        dataset = test_data
-        dataloader = DataLoader(dataset)
-
-        time = dataset.info['timepoints']
-        nights = dataset.info['nights'][0]
-
-        for idx, radar in enumerate(dataset.info['radars']):
-            gt = np.zeros(len(time))
-            pred = []
-            for _ in models:
-                pred.append(np.ones(len(time)) * np.nan)
-            #pred = [np.ones(len(time)) * np.nan] * len(models)
-            #pred = np.ones(len(time)) * np.nan
-            #pred = np.zeros(len(time))
-
-            for nidx, data in enumerate(dataloader):
-                gt[nights[nidx][1]] = data.x[idx, 0]
-                gt[nights[nidx][2:timesteps+1]] = data.y[idx]
-                for midx, model in enumerate(models):
-                    y = model(data).detach().numpy()[idx]
-                    pred[midx][nights[nidx][2:timesteps+1]] = y
-                    pred[midx][nights[nidx][1]] = data.x[idx, 0]
-            #gt[mask][1:] = [data.y[idx] for data in test_loader]
-
-            fig, ax = plt.subplots(figsize=(20,4))
-            ax.plot(time, gt, label='ground truth', c='gray', alpha=0.5)
-            for midx, model_type in enumerate(names):
-                line = ax.plot(time, pred[midx], ls='--', alpha=0.3)
-                ax.scatter(time, pred[midx], s=30, facecolors='none', edgecolor=line[0].get_color(), label=f'prediction ({model_type})')
-
-                outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(models[midx].flows, dim=-1)).view(
-                    data.num_nodes,
-                    data.num_nodes,
-                    -1)
-                print(idx, radar, model_type)
-                for jdx, radar_j in enumerate(dataset.info['radars']):
-                    print(radar, radar_j, outfluxes[idx][jdx])
-
-            #ax.scatter(np.array(time)[mask][1:], [data.y[idx].detach().numpy() for data in dataloader], color='gray', alpha=0.6, label='ground truth')
-            #ax.scatter(np.array(time)[mask][1:], [model(data).view(-1).detach().numpy()[idx] for data in dataloader],
-            #           s=30, facecolors='none', edgecolors='red', alpha=0.6,
-            #           label=f'trained on 1 timestep')
-            ax.set_title(radar)
-            ax.set_ylim(-0.05, 1.05)
-            ax.set_ylabel('normalized bird density')
-            fig.legend(loc='upper right', bbox_to_anchor=(0.77, 0.85))
-            fig.savefig(os.path.join(output_dir, f'{radar.split("/")[1]}.png'), bbox_inches='tight')
-            plt.close(fig)
 
 

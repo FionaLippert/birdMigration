@@ -24,7 +24,7 @@ class Environment:
                                         (wind.longitude.min(), wind.latitude.min()),
                                         (wind.longitude.min(), wind.latitude.max())])
         self.wind = wind
-        self.time = extract_time(wind, freq)  # pandas datetimeindex
+        self.time = extract_time(wind, freq, 'UTC')  # pandas datetimeindex
         #self.dt = pd.to_timedelta(self.time.freq).total_seconds()  # time step for simulation
         self.dt = pd.Timedelta(freq).total_seconds()  # time step for simulation
 
@@ -70,9 +70,15 @@ class Bird:
 
     def step(self):
 
+        if self.state == 1:
+            # previously flying, so compute new position
+            dist = distance(meters=self.ground_speed * self.env.dt)
+            self.dir_north = self.pref_dir + np.rad2deg(self.drift)
+            self.pos = dist.destination(point=self.pos, bearing=self.dir_north)
+
         if self.check_bounds():
             if self.check_night():
-                if self.previous == 'day': #self.state == 0:
+                if self.previous == 'day':
                     # first hour of the night
                     self.sample_pref_dir()
 
@@ -87,13 +93,6 @@ class Bird:
                     self.compute_energy()
                     if self.check_departure(wind_speed, wind_dir):
                         self.state = 1
-
-                if self.state == 1:
-                    # if state changed to flying or has already been flying
-                    # save current position and compute next position
-                    dist = distance(meters=self.ground_speed * self.env.dt)
-                    self.dir_north = self.pref_dir + np.rad2deg(self.drift)
-                    self.pos = dist.destination(point=self.pos, bearing=self.dir_north)
 
                 self.previous = 'night'
 
@@ -269,9 +268,9 @@ class Simulation:
 
     def run(self, steps):
         for _ in tqdm(range(steps)):
-            self.data.collect(self.birds)
             for bird in self.birds:
                 bird.step()
+            self.data.collect(self.birds)
 
     def reset(self):
         for bird in self.birds:
@@ -293,10 +292,10 @@ def rad2deg(rad):
     deg = np.rad2deg(rad)
     return deg
 
-def extract_time(xr_dataset, freq):
+def extract_time(xr_dataset, freq, tz):
     time = pd.to_datetime(xr_dataset.time.values)
     time = pd.date_range(time[0], time[-1], freq=freq)
-    time = time.tz_localize(tz='Europe/Berlin', ambiguous=False)
+    time = time.tz_localize(tz=tz, ambiguous=False)
     return time
 
 def plot_trajectories(birds, filename):
@@ -324,14 +323,45 @@ def bird_counts(birds, timesteps, minx, miny, maxx, maxy):
         for t in fidx[0]:
             counts[t, xx[t], yy[t]] += 1
 
-    # for tidx in range(timesteps):
-    #     for bird in birds:
-    #         if bird.states[tidx] == 'flying':
-    #             xidx = np.digitize(bird.trajectory[tidx][0], gridx)
-    #             yidx = np.digitize(bird.trajectory[tidx][1], gridy)
-    #             counts[tidx, xidx, yidx] += 1
-
     return counts
+
+
+def make_grid(extent=[0.36, 46.36, 16.07, 55.40], res=0.5, crs='4326'):
+    xmin, ymin, xmax, ymax = extent
+    cols = np.arange(int(np.floor(xmin))-1, int(np.ceil(xmax))+1, res)
+    rows = np.arange(int(np.floor(ymin))-1, int(np.ceil(ymax))+1, res)
+    rows = rows[::-1]
+    polygons = []
+    for x in cols:
+        for y in rows:
+            polygons.append(geometry.Polygon([(x,y), (x+res, y), (x+res, y-res), (x, y-res)]))
+
+    grid = gpd.GeoDataFrame({'geometry': polygons}, crs=f'epsg:{crs}')
+    return grid
+
+def get_points(trajectories, states, state=1):
+    df = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
+    mask = np.where(states == state)
+    if len(mask[0]) > 0:
+        xx = trajectories[mask, 0].flatten()
+        yy = trajectories[mask, 1].flatten()
+        df['geometry'] = gpd.points_from_xy(xx, yy)
+    return df
+
+
+def aggregate(trajectories, states, grid, t_range, state):
+    names = []
+    grid_counts = grid.to_crs('epsg:4326')
+    for t in t_range:
+        merged = gpd.sjoin(get_points(trajectories[t], states[t], state), grid_counts, how='left', op='within')
+        merged[f'n_birds_{t}'] = 1
+        dissolve = merged.dissolve(by="index_right", aggfunc="count")
+        name_t = f'n_birds_{t}'
+        grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
+        names.append(name_t)
+    return grid_counts, names
+
+
 
 
 
@@ -339,9 +369,9 @@ if __name__ == '__main__':
 
     year = '2015'
     season = 'fall'
-    start_date = f'{year}-08-01 12:00'
-    #end_date = f'{year}-10-15 12:00'
-    end_date = f'{year}-09-15 12:00'
+    start_date = f'{year}-08-01 12:00+00:00'
+    #end_date = f'{year}-10-15 12:00+00:00'
+    end_date = f'{year}-09-15 12:00+00:00'
     root = '/home/fiona/birdMigration/data/raw'
     wind_path = osp.join(root, 'wind', season, year, 'wind_850.nc')
     radar_path = osp.join(root, 'radar', season, year)

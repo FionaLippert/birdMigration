@@ -57,6 +57,7 @@ class ERA5Loader():
         else:
             months = ['09']
 
+        # datetime is interpreted as 00:00 UTC
         days = [f'{(d + 1):02}' for d in range(31)]
         #time = [f'{h:02}:{m:02}' for h in range(24) for m in range(0, 59, 15)]
         time = [f'{h:02}:00' for h in range(24)]
@@ -86,10 +87,12 @@ class ERA5Loader():
 
 
 def extract_points(data_path, lonlat_list, t_range, vars):
+    # t_range must be given as UTC
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
+    #t_range = t_range.tz_convert('UTC') # convert datetimeindex to UTC if it was given at a different timezone
     weather = {}
 
     for var, ds in data.items():

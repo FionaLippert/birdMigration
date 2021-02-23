@@ -57,12 +57,12 @@ def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True):
     path = os.path.join(root, season, year)
 
     if season == 'spring':
-        start = f'{year}-03-15 12:00:00'
-        end = f'{year}-05-15 12:00:00'
+        start = f'{year}-03-15 12:00:00' #+00:00'
+        end = f'{year}-05-15 12:00:00' #+00:00'
 
     elif season == 'fall':
-        start = f'{year}-08-15 12:00:00'
-        end = f'{year}-11-15 12:00:00'
+        start = f'{year}-08-15 12:00:00' #+00:00'
+        end = f'{year}-11-15 12:00:00' #+00:00'
 
     dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days)
     data = np.stack([dataset[coords].data.flatten() for coords in radars.keys()])
