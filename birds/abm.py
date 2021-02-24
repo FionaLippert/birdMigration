@@ -9,7 +9,7 @@ import geopandas as gpd
 from matplotlib import pyplot as plt
 import os
 import os.path as osp
-import pickle
+import pickle5 as pickle
 from datetime import datetime
 import xarray as xr
 
@@ -50,7 +50,7 @@ class Bird:
         self.env = env
         self.start_day = start_day
         self.endogenous_heading = endogenous_heading # clockwise from north
-        self.pre_dir_std = pref_dir_std
+        self.pref_dir_std = pref_dir_std
         self.air_speed = air_speed # in m/s
         self.compensation = compensation
         self.energy_tol = energy_tol # if <= 0 no headwinds are tolerated
@@ -66,6 +66,7 @@ class Bird:
         self.ground_speed = 0
         self.previous = 'day'
         self.dir_north = 0
+        self.sample_pref_dir()
 
 
     def step(self):
@@ -78,17 +79,14 @@ class Bird:
 
         if self.check_bounds():
             if self.check_night():
-                if self.previous == 'day':
-                    # first hour of the night
-                    self.sample_pref_dir()
-
+                # current conditions
                 wind_speed, wind_dir = self.env.get_wind(self.tidx, self.pos.longitude,
                                                          self.pos.latitude, self.pref_dir)
                 self.adjust_heading(wind_speed, wind_dir)
                 self.compute_drift(wind_speed, wind_dir)
                 self.compute_ground_speed(wind_speed, wind_dir)
 
-                if self.previous == 'day': #self.state == 0:
+                if self.previous == 'day':
                     # check if weather conditions are good enough for departure
                     self.compute_energy()
                     if self.check_departure(wind_speed, wind_dir):
@@ -101,6 +99,8 @@ class Bird:
                 if self.state == 1:
                     # land because end of the night has been reached
                     self.state = 0
+                    # determine new preferred migration direction for next departure
+                    self.sample_pref_dir()
 
         else:
             # left simulated region
@@ -112,7 +112,7 @@ class Bird:
         return self.env.bounds.contains(geometry.Point(self.pos.longitude, self.pos.latitude))
 
     def sample_pref_dir(self):
-        self.pref_dir = np.random.normal(self.endogenous_heading, self.pre_dir_std)
+        self.pref_dir = np.random.normal(self.endogenous_heading, self.pref_dir_std)
 
     def adjust_heading(self, wind_speed, wind_dir):
         # compute heading based on given relative wind compensation
@@ -182,13 +182,13 @@ class DataCollection:
                      'directions': np.zeros((self.T, self.num_birds), dtype=np.long)
                      }
 
-    def collect(self, birds):
+    def collect(self, tidx, birds):
         assert(len(birds) == self.num_birds)
         for bird in birds:
-            self.data['trajectories'][bird.tidx, bird.id] = [bird.pos.longitude, bird.pos.latitude]
-            self.data['states'][bird.tidx, bird.id] = bird.state
-            self.data['ground_speeds'][bird.tidx, bird.id] = bird.ground_speed
-            self.data['directions'][bird.tidx, bird.id] = bird.dir_north
+            self.data['trajectories'][tidx, bird.id] = [bird.pos.longitude, bird.pos.latitude]
+            self.data['states'][tidx, bird.id] = bird.state
+            self.data['ground_speeds'][tidx, bird.id] = bird.ground_speed
+            self.data['directions'][tidx, bird.id] = bird.dir_north
 
             # if bird.state == 1:
             #     # flying
@@ -267,10 +267,10 @@ class Simulation:
         return lon, lat
 
     def run(self, steps):
-        for _ in tqdm(range(steps)):
+        for tidx in tqdm(range(steps)):
             for bird in self.birds:
                 bird.step()
-            self.data.collect(self.birds)
+            self.data.collect(tidx, self.birds)
 
     def reset(self):
         for bird in self.birds:

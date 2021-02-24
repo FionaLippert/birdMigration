@@ -64,10 +64,9 @@ class RadarData(InMemoryDataset):
 
     def process(self):
 
-        solarpos, radars, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, self.year,
-                                                             'solarpos')
+        print('load graph structure')
 
-        print('solarpos loaded')
+        radars = datahandling.load_radars(osp.join(self.raw_dir, 'radar', self.season, self.year))
 
         # construct graph
         space = spatial.Spatial(radars)
@@ -76,10 +75,14 @@ class RadarData(InMemoryDataset):
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()
 
-        print('edges loaded')
 
         if self.data_source == 'radar':
-            data, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, self.year, 'vid')
+            print('load radar data')
+            data, _, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, self.year, 'vid', mask_days=False)
+            solarpos, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season,
+                                                                 self.year,
+                                                                 'solarpos')
+            print(np.where(data>0))
 
         elif self.data_source == 'abm':
             print('load abm data')
@@ -94,40 +97,53 @@ class RadarData(InMemoryDataset):
                 states.append(result['states'])
                 abm_time = result['time']
 
-            traj = np.concatenate(traj, axis=1)[1:, ...]  # ignore first timestep because bird response is shifted to the right by one timestep
-            states = np.concatenate(states, axis=1)[1:, ...]
-            abm_time = abm_time[:-1]
+            #stop = 1200
+            traj = np.concatenate(traj, axis=1)#[1:stop, ...]  # ignore first timestep because bird response is shifted to the right by one timestep
+            states = np.concatenate(states, axis=1)#[1:stop, ...]
+            #abm_time = abm_time[:stop-1]
             T = states.shape[0]
 
             counts, cols = abm.aggregate(traj, states, cells, range(T), state=1)
             counts = counts.fillna(0)
             data = counts[cols].to_numpy()
+            print(data)
             print(data.shape)
 
             # adjust time range of sun data to abm time range
-            abm_time = abm_time.tz_convert('UTC') # make sure time zone is consistent
-            abm_time_naive = abm_time.tz_localize(None) # remove time zone info
+            #abm_time = abm_time.tz_convert('UTC') # make sure time zone is consistent
+            t_range = abm_time.tz_convert('UTC').tz_localize(None)#[:-1] # remove time zone info
 
-            start = np.where(t_range == abm_time_naive[0])[0][0]
-            end = np.where(t_range == abm_time_naive[-2])[0][0]  # ignore last timestep because bird response is shifted to the right by one timestep
+            #start = np.where(t_range == abm_time_naive[0])[0][0]
+            #end = np.where(t_range == abm_time_naive[-1])[0][0]  # ignore last timestep because bird response is shifted to the right by one timestep
 
-            t_range = t_range[start:end+1]
-            solarpos = solarpos[:, start:end+1]
-            print(solarpos.shape)
+            #t_range = t_range[start:end+1]
+            #solarpos = solarpos[:, start:end+1]
+            #print(solarpos.shape)
             # for i, (lon, lat) in enumerate(radars.keys()):
             #     print('solarposition: ', solarposition.get_solarposition(abm_time[10:20], lat, lon))
             #     print('solarpos: ', solarpos[i, 10:20])
 
 
+        print('load wind data')
+        #
+        # wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'wind_850.nc'),
+        #                                     radars.keys(), t_range, vars=['u', 'v'])
         wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'wind_850.nc'),
                                             radars.keys(), t_range, vars=['u', 'v'])
 
+        print('load sun data')
 
+        solarpos = [solarposition.get_solarposition(t_range.tz_localize('UTC'), lat, lon).elevation for lon, lat in radars.keys()]
+        solarpos = np.stack(solarpos, axis=0)
+        solarpos[solarpos < -6] = np.nan    # mask nights
 
         check = np.isfinite(solarpos).all(axis=0) # day/night mask
+        print(np.where(check))
         dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
                             'tidx': range(len(t_range))}, index=t_range)
 
+
+        print('do further processing')
 
         # group into nights
         groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
@@ -168,6 +184,7 @@ class RadarData(InMemoryDataset):
                 min = np.min(features)
             if max is None:
                 max = np.max(features)
+            print(min, max)
             if type(features) is not np.ndarray:
                 features = np.array(features)
             return (features - min) / (max - min)
@@ -179,10 +196,14 @@ class RadarData(InMemoryDataset):
             birds_per_cell = data * cells.geometry.area.to_numpy()[:, None]
 
         # normalize node data
+        print('normalize radar data')
         birds_per_cell = normalize(birds_per_cell, min=0)
+        print('normalize solarpos')
         solarpos = normalize(solarpos)
+        print('normalize coords')
         xcoords = normalize(cells.x)
         ycoords = normalize(cells.y)
+        print('normalize wind')
         wind = {key: normalize(val) for key, val in wind.items()}
 
         # compute distances and angles between radars
@@ -241,11 +262,58 @@ class RadarData(InMemoryDataset):
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
 
-#class MLP
+
+class LSTM(torch.nn.Module):
+
+    def __init__(self, in_channels, hidden_channels, out_channels):
+        super(MLP, self).__init__()
+
+        self.lstm = torch.nn.LSTM(in_channels, hidden_channels)
+        self.hidden2birds = torch.nn.Linear(hidden_channels, out_channels)
+
+
+    def forward(self, data):
+
+        x = data.x[..., 0].view(-1, 1)
+
+        # for details how to implement LSTM see
+        # https://machinelearningmastery.com/multi-step-time-series-forecasting-long-short-term-memory-networks-python/
+        return x
+
+
+class MLP(torch.nn.Module):
+
+    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, recurrent):
+        super(MLP, self).__init__()
+
+        self.lin1 = torch.nn.Linear(in_channels, hidden_channels)
+        self.lin2 = torch.nn.Linear(hidden_channels, out_channels)
+        self.timesteps = timesteps
+        self.recurrent = recurrent
+
+    def forward(self, data):
+
+        x = data.x[..., 0]
+
+        y_hat = []
+        for t in range(self.timesteps - 1):
+            if not self.recurrent:
+                x = data.x[..., t]
+
+            features = torch.cat([x.flatten(), data.coords.flatten(), data.env[..., t].flatten()], dim=0)
+            x = self.lin1(features)
+            x = x.relu()
+            #x = torch.nn.functional.dropout(x, p=0.5, training=self.training)
+            x = self.lin2(x)
+            x = x.sigmoid()
+            y_hat.append(x)
+
+        return torch.stack(y_hat, dim=1)
+
 
 class BirdFlowTime(MessagePassing):
 
-    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True):
+    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True, use_departure=False):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
         #self.edgeflow = torch.nn.Linear(in_channels, out_channels)
         # self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
@@ -257,7 +325,7 @@ class BirdFlowTime(MessagePassing):
         hidden_channels = in_channels
         out_channels = 1
 
-        in_channels_dep = 9
+        in_channels_dep = 5
         hidden_channels_dep = in_channels_dep
         out_channels_dep = 1
 
@@ -275,12 +343,14 @@ class BirdFlowTime(MessagePassing):
         self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels_dep),
                                              torch.nn.ReLU(),
                                              torch.nn.Linear(hidden_channels_dep, out_channels_dep),
-                                             torch.nn.Tanh())
+                                             torch.nn.Sigmoid())
+                                             #torch.nn.Tanh())
 
         self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
         self.timesteps = timesteps
         self.recurrent = recurrent
         self.norm = norm
+        self.ues_departure = use_departure
 
 
     def forward(self, data):
@@ -326,7 +396,13 @@ class BirdFlowTime(MessagePassing):
 
         self.flows.append(flow)
 
-        return flow * x_j
+        if self.ues_departure:
+            features = torch.cat([coords_j, env_j], dim=1)
+            x_j += self.departure(features)
+
+        abs_flow = flow * x_j
+
+        return abs_flow
 
     def update(self, aggr_out):
        # simply return aggregation (sum) of inflows computed by message()
@@ -339,59 +415,6 @@ class BirdFlowTime(MessagePassing):
     #    return aggr_out + departure
 
 
-class BirdFlow(MessagePassing):
-
-    def __init__(self, in_channels, out_channels, num_nodes, embedding=0):
-        super(BirdFlow, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
-        #self.edgeflow = torch.nn.Linear(in_channels, out_channels)
-        self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
-                        torch.nn.ReLU(),
-                        torch.nn.Linear(out_channels, out_channels))
-        self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
-
-
-
-    def forward(self, data):
-        # x has shape [N, in_channels]
-        # edge_index has shape [2, E]
-
-        x = data.x.view(-1,1)
-        coords = data.coords
-        env = data.env
-        edge_index = data.edge_index
-        edge_attr = data.edge_attr
-        embedding = torch.cat([self.node_embedding.weight]*data.num_graphs) if self.node_embedding is not None else None
-
-        # normalize outflow from each source node using the inverse of its degree
-        src, dst = edge_index
-        deg = degree(src, x.size(0), dtype=x.dtype)
-        deg_inv = deg.pow(-1)
-        y_hat = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=env,
-                               edge_attr=edge_attr, embedding=embedding)
-
-        return y_hat
-
-
-    def message(self, x_j, coords_i, coords_j, env_j, norm_j, edge_attr, embedding_j):
-        # construct messages to node i for each edge (j,i)
-        # can take any argument initially passed to propagate()
-        # x_j are source features with shape [E, out_channels]
-
-        if embedding_j is None:
-            features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
-        else:
-            features = torch.cat([coords_i, coords_j, env_j, edge_attr, embedding_j], dim=1)
-        flow = self.edgeflow(features)
-
-        self.flow = flow
-
-        return norm_j.view(-1,1) * flow * x_j
-
-    #def update(self, aggr_out, x):
-    #    # aggr_out has shape [N, out_channels]
-    #    # simply return aggregation (sum) of inflows computed by message()
-    #    print(aggr_out.shape)
-    #    return aggr_out
 
 def angle(x1, y1, x2, y2):
     y = y1 - y2
@@ -417,18 +440,17 @@ def train(model, train_loader, optimizer, boundaries, loss_func, device, conserv
         output = model(data) #.view(-1)
         gt = data.y.to(device)
 
-        outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
-                                                                                                  data.num_nodes,
-                                                                                                  -1).sum(1)
-        outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
-
         if aggr:
             output = output.view(data.num_nodes, -1, 2).sum(-1)
             gt = gt.view(data.num_nodes, -1, 2).sum(-1)
 
         if conservation:
+            outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
+                                                                                                       data.num_nodes,
+                                                                                                       -1).sum(1)
+            outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
             constraints = torch.mean((outfluxes - torch.ones(outfluxes.shape))**2)
-            loss = loss_func(output, gt) + 0.01 * constraints
+            loss = loss_func(output, gt) + 0.005 * constraints
         else:
             loss = loss_func(output, gt)
         loss.backward()
@@ -436,12 +458,12 @@ def train(model, train_loader, optimizer, boundaries, loss_func, device, conserv
         loss_all += data.num_graphs * loss
         optimizer.step()
 
-    print(f'outfluxes: {outfluxes}')
+    #print(f'outfluxes: {outfluxes}')
     #print(f'embedding: {model.node_embedding.weight.view(-1)}')
 
     return loss_all
 
-def test(model, test_loader, timesteps, loss_func, device):
+def test(model, test_loader, timesteps, loss_func, device, get_outfluxes=True):
     model.eval()
     loss_all = []
     outfluxes = {}
@@ -451,14 +473,18 @@ def test(model, test_loader, timesteps, loss_func, device):
 
         gt = data.y.to(device)
 
-        outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
+        if get_outfluxes:
+            outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
                                                                                                    data.num_nodes,
                                                                                                    -1) #.sum(1)
-        #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
+            #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps-1)]))
         #constraints_all.append(constraints)
 
-    return torch.stack(loss_all), outfluxes #, torch.stack(constraints_all)
+    if get_outfluxes:
+        return torch.stack(loss_all), outfluxes #, torch.stack(constraints_all)
+    else:
+        return torch.stack(loss_all)
 
 
 

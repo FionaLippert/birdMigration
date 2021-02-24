@@ -42,6 +42,7 @@ class Spatial:
 
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
         sink = boundary.buffer(buffer).difference(boundary)
+        self.sink = gpd.GeoSeries(sink, crs=f'EPSG:{self.epsg_local}')
 
         # compute voronoi cells
         xy = self.pts2coords(self.pts_local)
@@ -161,6 +162,7 @@ if __name__ == '__main__':
 
     sp = Spatial(radars)
     sp.cells.to_file(osp.join(path, 'voronoi.shp'))
+    sp.sink.to_file(osp.join(path, 'voronoi_sink.shp'))
 
     # for index, row in sp.cells.iterrows():
     #     area = row.geometry.area / 1000_000

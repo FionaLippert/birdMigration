@@ -108,6 +108,30 @@ def get_points(trajectories, states, state=1):
         df['geometry'] = gpd.points_from_xy(xx, yy)
     return df
 
+def get_bird_flows(trajectories, states, tidx, grid):
+    mask = np.where(states == 1)
+    if len(mask[0]) > 0:
+        # get grid cell of all flying birds at timestep tidx
+        df_t0 = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
+        xx_t0 = trajectories[tidx, mask, 0].flatten()
+        yy_t0 = trajectories[tidx, mask, 1].flatten()
+        df_t0['geometry'] = gpd.points_from_xy(xx_t0, yy_t0)
+        merged_t0 = gpd.sjoin(df_t0, grid, how='left', op='within')
+
+        # get grid cell of all previously flying birds at next timestep tidx+1
+        df_t1 = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
+        xx_t1 = trajectories[tidx+1, mask, 0].flatten()
+        yy_t1 = trajectories[tidx+1, mask, 1].flatten()
+        df_t1['geometry'] = gpd.points_from_xy(xx_t1, yy_t1)
+        merged_t1 = gpd.sjoin(df_t1, grid, how='left', op='within')
+
+        # determine flows
+        merged_t0['dst_radar'] = merged_t1['radar']
+        merged_t0['dst_index'] = merged_t1['index_right']
+        return merged_t0
+
+
+
 
 def aggregate(trajectories, states, grid, t_range, state):
     names = []
@@ -120,3 +144,12 @@ def aggregate(trajectories, states, grid, t_range, state):
         grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
         names.append(name_t)
     return grid_counts, names
+
+def add_sink_to_voronoi(voronoi, sink):
+    gdf_sink = gpd.GeoDataFrame()
+    for c in voronoi.columns:
+        gdf_sink[c] = [np.nan]
+    gdf_sink['radar'] = 'sink'
+    gdf_sink['geometry'] = sink.geometry
+    voronoi_with_sink = voronoi.append(gdf_sink, ignore_index=True)
+    return voronoi_with_sink
