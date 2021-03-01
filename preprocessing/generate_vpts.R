@@ -19,6 +19,7 @@ require(maptools)
 
 root <- args[1]
 radar <- args[2]
+radar_opera_format <- tolower(str_remove(radar, "/"))
 
 config = yaml.load_file(file.path(root, "config.yml"))
 sdvvp_config = yaml.load_file(file.path(root, "sdvvp_config.yml"))
@@ -70,6 +71,7 @@ lon_dim <- ncdim_def("lon", "degrees south", c(lon), unlim=FALSE)
 
 # create netcdf file
 fname <- paste0("vpi_", str_remove(radar, "/"), ".nc")
+#fname <- paste0("vpi_", radar_opera_format, ".nc") #TODO in the future use this!
 ncpath <- file.path(root, fname)
 
 # define variables
@@ -99,7 +101,7 @@ for (var in names(var_def_list)){
 }
 
 # add global attributes
-ncatt_put(ncout, 0, "source", radar)
+ncatt_put(ncout, 0, "source", radar_opera_format)
 ncatt_put(ncout, 0, "latitude", lat)
 ncatt_put(ncout, 0, "longitude", lon)
 ncatt_put(ncout, 0, "fillvalue", fillvalue)

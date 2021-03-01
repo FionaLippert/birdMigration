@@ -4,6 +4,7 @@ import warnings
 import pandas as pd
 import glob, os
 from matplotlib import pyplot as plt
+from pvlib import solarposition
 
 
 def add_coords_to_xr(f):
@@ -18,9 +19,18 @@ def get_coords(f):
     return (ds.longitude, ds.latitude)
 
 
-def get_name(f):
+def get_name(f, opera_format=True):
     ds = xr.open_dataset(f)
-    return ds.source
+    radar = ds.source
+
+    if opera_format:
+        if '/' in radar:
+            radar = (radar[:2]+radar[-3:]).lower()
+    else:
+        if radar.islower():
+            radar = radar[:2] + '/' + radar[-3:]
+
+    return radar
 
 
 def to_latlon(coords):
@@ -61,13 +71,20 @@ def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True):
         end = f'{year}-05-15 12:00:00' #+00:00'
 
     elif season == 'fall':
-        start = f'{year}-08-15 12:00:00' #+00:00'
+        start = f'{year}-08-01 12:00:00' #+00:00'
         end = f'{year}-11-15 12:00:00' #+00:00'
 
     dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days)
-    data = np.stack([dataset[coords].data.flatten() for coords in radars.keys()])
+    data = np.stack([dataset[coords].data.flatten() for coords in radars.keys()], axis=0)
 
     return data, radars, t_range
+
+def get_solarpos(t_range_utc, lonlat_pairs):
+    solarpos = [solarposition.get_solarposition(t_range_utc, lat, lon).elevation for lon, lat in lonlat_pairs]
+    solarpos = np.stack(solarpos, axis=0)
+    return solarpos
+
+#def get_seasonal_trend()
 
 
 def arr(xarray_1d):
