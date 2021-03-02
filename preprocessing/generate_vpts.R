@@ -43,6 +43,12 @@ vpts <- tryCatch(
                 return(NA)
               })
 
+if (!inherits(vpts, "vpts")){
+  # got list of vpts back instead of one vpts (due to change in radar code)
+  vpts[[1]]$radar <- vpts[[2]]$radar
+  vpts <- bind_into_vpts(vpts[[1]], vpts[[2]])
+}
+
 # adjust sdvvp threshold
 #print(paste('apply sdvvp threshold applied to ', radar, sdvvp_config$radar))
 #sd_vvp_threshold(vpts) <- sdvvp_config$radar
