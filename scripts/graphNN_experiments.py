@@ -19,17 +19,13 @@ parser.add_argument('action', type=str, help='train or test')
 parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
 parser.add_argument('--experiment', type=str, default='test', help='directory name for model performance output')
 parser.add_argument('--data_source', type=str, default='radar', help='data source for training/testing')
-parser.add_argument('--device', type=str, default='cpu', help='cpu or gpu')
+parser.add_argument('--cpu', action='store_true', default=False, help='cpu or gpu')
 parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
 parser.add_argument('--lr', type=float, default=0.0005, help='learning rate')
 parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
 args = parser.parse_args()
 
-if args.device == 'gpu' and torch.cuda.is_available():
-  dev = "cuda:0"
-else:
-  dev = "cpu"
-device = torch.device(dev)
+args.cuda = (not args.cpu and torch.cuda.is_available())
 
 root = osp.join(args.root, 'data')
 model_dir = osp.join(args.root, 'models', args.experiment)
@@ -74,11 +70,11 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         training_curve = np.zeros(epochs)
         best_loss = np.inf
         for epoch in range(epochs):
-            loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, device,
+            loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, args.cuda,
                          use_conservation, departure=False)
             print(f'epoch {epoch + 1}: loss = {loss / len(train_data)}')
             if departure:
-                loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, device,
+                loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, args.cuda,
                              use_conservation, departure=departure)
                 print(f'epoch {epoch + 1}: loss with departure = {loss / len(train_data)}')
             training_curve[epoch] = loss
@@ -139,7 +135,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
         if short_names[midx] == 'standard_mlp':
             loss_all[short_names[midx]].append(
-                test_fluxes(model, test_loader, timesteps, loss_func, device,
+                test_fluxes(model, test_loader, timesteps, loss_func, args.cuda,
                      get_outfluxes=False, bird_scale=bird_scale)
             )
         else:
@@ -207,7 +203,10 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         for nidx, data in enumerate(dataloader):
             gt[nights[nidx][0]] = data.x[idx, 0]
             gt[nights[nidx][1:timesteps]] = data.y[idx]
+
+            if args.cuda: data = data.cuda()
             for midx, model in enumerate(models):
+                if args.cuda: model.cuda()
                 y = model(data).detach().numpy()[idx]
                 if departure:
                     pred[midx][nights[nidx][:timesteps]] = y

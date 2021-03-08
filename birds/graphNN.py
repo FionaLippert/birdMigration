@@ -450,17 +450,18 @@ def distance(x1, y1, x2, y2):
 def MSE(output, gt):
     return torch.mean((output - gt)**2)
 
-def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, device, conservation=True, departure=False):
+def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, conservation=True, departure=False):
+    if cuda: model.cuda()
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        if cuda: data = data.cuda()
         optimizer.zero_grad()
         output = model(data) #.view(-1)
 
-        gt = data.y.to(device)
+        gt = data.y
         if departure:
-            gt = torch.cat([data.x[:,0].to(device).view(-1,1), gt], dim=1)
+            gt = torch.cat([data.x[:,0].view(-1,1), gt], dim=1)
         else:
             output = output[:,1:]
 
@@ -480,14 +481,16 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, device, 
 
     return loss_all
 
-def train_departure(model, train_loader, optimizer, loss_func, device):
+def train_departure(model, train_loader, optimizer, loss_func, cuda):
+    if cuda:
+        model.cuda()
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        if cuda: data = data.cuda()
         optimizer.zero_grad()
         output = model(data) #.view(-1)
-        gt = data.x[..., 0].to(device)
+        gt = data.x[..., 0]
         loss = loss_func(output, gt)
         loss.backward()
         loss_all += data.num_graphs * loss
@@ -495,18 +498,20 @@ def train_departure(model, train_loader, optimizer, loss_func, device):
 
     return loss_all
 
-def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=True, bird_scale=2000, departure=False):
+def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=True, bird_scale=2000, departure=False):
+    if cuda:
+        model.cuda()
     model.eval()
     loss_all = []
     outfluxes = {}
     outfluxes_abs = {}
     for tidx, data in enumerate(test_loader):
-        data = data.to(device)
+        if cuda: data = data.cuda()
         output = model(data) * bird_scale #.view(-1)
 
-        gt = data.y.to(device)
+        gt = data.y
         if departure:
-            gt = torch.cat([data.x[:,0].to(device).view(-1,1), gt], dim=1)
+            gt = torch.cat([data.x[:,0].view(-1,1), gt], dim=1)
         gt = gt * bird_scale
 
         if get_outfluxes:
@@ -526,14 +531,16 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
     else:
         return torch.stack(loss_all)
 
-def test_departure(model, test_loader, loss_func, device, bird_scale=2000):
+def test_departure(model, test_loader, loss_func, cuda, bird_scale=2000):
+    if cuda:
+        model.cuda()
     model.eval()
     loss_all = []
     for tidx, data in enumerate(test_loader):
-        data = data.to(device)
+        if cuda: data = data.cuda()
         output = model(data) * bird_scale
 
-        gt = data.x[..., 0].to(device)
+        gt = data.x[..., 0]
         gt = gt * bird_scale
 
         loss_all.append(loss_func(output, gt))
