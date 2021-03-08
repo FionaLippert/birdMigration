@@ -13,11 +13,15 @@ import pickle5 as pickle
 import torch
 from torch_geometric.data import DataLoader
 
+
+
 parser = argparse.ArgumentParser(description='GraphNN experiments')
 parser.add_argument('action', type=str, help='train or test')
 parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
 parser.add_argument('--experiment', type=str, default='test', help='directory name for model performance output')
 parser.add_argument('--data_source', type=str, default='radar', help='data source for training/testing')
+parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
+parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
 args = parser.parse_args()
 
 root = osp.join(args.root, 'data')
@@ -44,11 +48,11 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
 
     for r in range(repeats):
         if model_type == 'standard_mlp':
-            model = MLP(6*22, 2*22, 22, timesteps, recurrent)
+            model = MLP(6*22, 2*22, 22, timesteps, recurrent, seed=r)
             use_conservation = False
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, embedding, model_type, recurrent, norm,
-                                 use_departure=departure)
+                                 use_departure=departure, seed=r)
             use_conservation = conservation
 
         if repeats == 1:
@@ -226,9 +230,9 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 
 
 timesteps = 6
-epochs = 2 #10 #500
+epochs = args.epochs #2 #10 #500
 norm = False
-repeats = 1
+repeats = args.repeats #1
 departure = False #True #True
 
 bird_scale = 2000

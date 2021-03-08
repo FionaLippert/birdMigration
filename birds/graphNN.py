@@ -277,8 +277,10 @@ class LSTM(torch.nn.Module):
 
 class MLP(torch.nn.Module):
 
-    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, recurrent):
+    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, recurrent, seed=12345):
         super(MLP, self).__init__()
+
+        torch.manual_seed(seed)
 
         self.lin1 = torch.nn.Linear(in_channels, hidden_channels)
         self.lin2 = torch.nn.Linear(hidden_channels, out_channels)
@@ -306,8 +308,10 @@ class MLP(torch.nn.Module):
 
 class Departure(torch.nn.Module):
     # model the bird density departing within one radar cell based on cell properties and environmental conditions
-    def __init__(self, in_channels, hidden_channels, out_channels, model='linear'):
+    def __init__(self, in_channels, hidden_channels, out_channels, model='linear', seed=12345):
         super(BirdFlowTime, self).__init__()
+
+        torch.manual_seed(seed)
 
         if model == 'linear':
             self.model = torch.nn.Linear(in_channels, out_channels)
@@ -323,8 +327,11 @@ class Departure(torch.nn.Module):
 
 class BirdFlowTime(MessagePassing):
 
-    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True, use_departure=False):
+    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True,
+                 use_departure=False, seed=12345):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
+
+        torch.manual_seed(seed)
 
         in_channels = 10 + embedding
         hidden_channels = int(in_channels / 2)
