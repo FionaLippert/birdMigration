@@ -21,6 +21,7 @@ parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', hel
 parser.add_argument('--experiment', type=str, default='test', help='directory name for model performance output')
 parser.add_argument('--data_source', type=str, default='radar', help='data source for training/testing')
 parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
+parser.add_argument('--lr', type=float, default=0.0005, help='learning rate')
 parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
 args = parser.parse_args()
 
@@ -61,7 +62,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             name = make_name_repeat(timesteps, model_type, conservation, recurrent, embedding, norm, epochs, repeat=r)
 
         params = model.parameters()
-        optimizer = torch.optim.Adam(params, lr=0.001)
+        optimizer = torch.optim.Adam(params, lr=args.lr)
         loss_func = torch.nn.MSELoss()
 
         training_curve = np.zeros(epochs)
