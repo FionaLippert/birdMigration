@@ -53,7 +53,7 @@ def resample(f, start, end, var, unit, mask_days):
 
 def load_data(path, var='vid', start=None, end=None, t_unit='1H', mask_days=True):
     files = glob.glob(os.path.join(path, '*.nc'))
-    data = {get_coords(f): resample(f, start, end, var, t_unit, mask_days) for f in files}
+    data = {get_name(f): resample(f, start, end, var, t_unit, mask_days) for f in files}
     names = {get_coords(f): get_name(f) for f in files}
     t_range = pd.date_range(start, end, freq=t_unit)
     return data, names, t_range
@@ -63,7 +63,7 @@ def load_radars(path):
     radars = {get_coords(f): get_name(f) for f in files}
     return radars
 
-def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True):
+def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True, radar_names=[]):
     path = os.path.join(root, season, year)
 
     if season == 'spring':
@@ -75,7 +75,10 @@ def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True):
         end = f'{year}-11-15 12:00:00' #+00:00'
 
     dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days)
-    data = np.stack([dataset[coords].data.flatten() for coords in radars.keys()], axis=0)
+
+    if len(radar_names) == 0:
+        radar_names = radars.values()
+    data = np.stack([dataset[radar].data.flatten() for radar in radar_names], axis=0)
 
     return data, radars, t_range
 

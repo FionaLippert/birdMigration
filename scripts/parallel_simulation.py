@@ -33,7 +33,7 @@ with open(config_file) as f:
 #root = '/home/fiona/birdMigration/data'
 root = args.root
 env_path = osp.join(root, 'raw', 'env', config['season'], config['year']) #, 'wind_850.nc')
-radar_path = osp.join(root, 'raw', 'radar', config['season'], config['year'])
+radar_path = osp.join(root, 'raw', 'radar', config['season'], '2015') #config['year'])
 output_path = osp.join(root, 'experiments', 'abm', config['season'], config['year'], f'experiment_{datetime.now()}')
 departure_area_path = osp.join(root, 'shapes', 'departure_area.shp')
 os.makedirs(output_path, exist_ok=True)

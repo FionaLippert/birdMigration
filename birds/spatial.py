@@ -26,6 +26,7 @@ class Spatial:
         # projection to local crs
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
                                         crs=f'EPSG:{epsg}')
+        #print(self.pts_lonlat)
         self.pts_local = self.pts_lonlat.to_crs(epsg=epsg_local)
 
         self.voronoi()
@@ -150,6 +151,15 @@ class Spatial:
 
     def flip(self, coord):
         return (coord[1], coord[0])
+
+    def voronoi_with_sink(self):
+        gdf_sink = gpd.GeoDataFrame()
+        for c in self.cells.columns:
+            gdf_sink[c] = [np.nan]
+        gdf_sink['radar'] = 'sink'
+        gdf_sink['geometry'] = self.sink.geometry
+        voronoi_with_sink = self.cells.append(gdf_sink, ignore_index=True)
+        return voronoi_with_sink
 
 
 if __name__ == '__main__':

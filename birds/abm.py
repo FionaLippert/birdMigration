@@ -12,6 +12,7 @@ import os.path as osp
 import pickle5 as pickle
 from datetime import datetime
 import xarray as xr
+import glob
 
 from birds import datahandling
 from birds import spatial
@@ -360,6 +361,54 @@ def aggregate(trajectories, states, grid, t_range, state):
         grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
         names.append(name_t)
     return grid_counts, names
+
+
+def bird_flows(trajectories, states, tidx, grid):
+    mask = np.where(states[tidx] == 1)
+    df_t0 = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
+    df_t1 = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
+    if len(mask[0]) > 0:
+        # get grid cell of all flying birds at timestep tidx
+        xx_t0 = trajectories[tidx, mask, 0].flatten()
+        yy_t0 = trajectories[tidx, mask, 1].flatten()
+        df_t0['geometry'] = gpd.points_from_xy(xx_t0, yy_t0)
+        #print('number of birds flying = ', len(df_t0))
+
+        # get grid cell of all previously flying birds at next timestep tidx+1
+        xx_t1 = trajectories[tidx+1, mask, 0].flatten()
+        yy_t1 = trajectories[tidx+1, mask, 1].flatten()
+        df_t1['geometry'] = gpd.points_from_xy(xx_t1, yy_t1)
+
+
+    # determine flows
+    merged_t0 = gpd.sjoin(df_t0, grid, how='inner', op='within')
+    merged_t1 = gpd.sjoin(df_t1, grid, how='inner', op='within')
+    merged_t0['dst_radar'] = merged_t1['radar']
+    merged_t0['dst_index'] = merged_t1['index_right']
+    return merged_t0
+
+def load_season(root, season, year, cells):
+
+    abm_dir = osp.join(root, season, year)
+    files = glob.glob(os.path.join(abm_dir, '*.pkl'))
+    traj = []
+    states = []
+    for file in files:
+        with open(file, 'rb') as f:
+            result = pickle.load(f)
+        traj.append(result['trajectories'])
+        states.append(result['states'])
+        t_range = result['time']
+
+    traj = np.concatenate(traj, axis=1)
+    states = np.concatenate(states, axis=1)
+    T = states.shape[0]
+
+    counts, cols = aggregate(traj, states, cells, range(T), state=1)
+    counts = counts.fillna(0)
+    data = counts[cols].to_numpy()
+
+    return data, t_range
 
 
 

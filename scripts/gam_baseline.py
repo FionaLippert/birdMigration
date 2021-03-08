@@ -24,12 +24,12 @@ def predict_GAM(gam, day_of_year, solarpos, solarpos_change):
 
 
 
-
 root = '/home/fiona/birdMigration/data'
 radar_dir = osp.join(root, 'raw', 'radar')
 abm_dir = osp.join(root, 'raw', 'abm')
 season = 'fall'
 data_source = 'abm'
+bird_scale = 2000
 
 all_data = []
 all_days = []
@@ -55,14 +55,15 @@ for coords, name in radars.items():
                 name = 'nlhrw'
             data, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid',
                                                          mask_days=True, radar_names=[name])
+            t_range = t_range.tz_localize('UTC')
         else:
             radar_cell = cells[cells.radar == name]
+            print(radar_cell)
             data, t_range = abm.load_season(abm_dir, season, year, radar_cell)
+            print(data)
 
+        # load solar position and compute relative changes
         t_range_sun = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
-        if t_range_sun.tzinfo is None or t_range_sun.tzinfo.utcoffset(t_range_sun) is None:
-            t_range_sun = t_range_sun.tz_localize('UTC')
-
         solarpos = datahandling.get_solarpos(t_range_sun, [coords]).flatten()
         solarpos_change = solarpos[:-1] - solarpos[1:]
 
@@ -76,7 +77,7 @@ for coords, name in radars.items():
         years.append(np.ones(solarpos_change.size)*y)
         names.append(np.array([name]*solarpos_change.size))
 
-    vid = np.concatenate(vid)
+    vid = np.concatenate(vid) / bird_scale
     days = np.concatenate(days)
     sun = np.concatenate(sun)
     sun_change = np.concatenate(sun_change)
@@ -94,8 +95,8 @@ for coords, name in radars.items():
                        'dayofyear': days,
                        'solarposition': sun,
                        'solarchange': sun_change,
-                       'vid': vid,
-                       'gam_prediction': y_gam}))
+                       'vid': vid * bird_scale,
+                       'gam_prediction': y_gam * bird_scale}))
 
 df = pd.concat(dfs, ignore_index=True)
 df.to_csv(osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv'))

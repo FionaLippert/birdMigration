@@ -15,8 +15,8 @@ from birds.spatial import Spatial
 
 class ERA5Loader():
 
-    def __init__(self, radar_path='/home/fiona/birdMigration/data/raw/radar'):
-        self.radar_path = radar_path
+    def __init__(self, radars):
+        self.radars = radars
 
         self.surface_data_config = {'variable' : ['2m_temperature',
                                                  'surface_sensible_heat_flux',
@@ -44,9 +44,9 @@ class ERA5Loader():
     def download_season(self, season, year, target_dir, bounds=None, pl=850, surface_data=True):
         # load radar information
         if bounds is None:
-            radar_dir = osp.join(self.radar_path, season, year)
-            radars = datahandling.load_radars(radar_dir)
-            spatial = Spatial(radars)
+            #radar_dir = osp.join(self.radar_path, season, year)
+            #radars = datahandling.load_radars(radar_dir)
+            spatial = Spatial(self.radars)
             minx, miny, maxx, maxy = spatial.cells.to_crs(epsg=spatial.epsg).total_bounds
             bounds = [maxy, minx, miny, maxx]  # North, West, South, East
 
@@ -119,10 +119,12 @@ if __name__ == '__main__':
 
 
     root = '/home/fiona/birdMigration/data/raw'
-    radar_path = osp.join(root, 'radar')
-    dl = ERA5Loader(radar_path)
+    radar_path = osp.join(root, 'radar', 'fall', '2015')
+    radars = datahandling.load_radars(radar_path)
+    dl = ERA5Loader(radars)
 
-    for year in ['2015', '2016']: #'2015', '2016', '2017', '2018']:
+    for year in ['2014', '2020']: #['2015', '2016']: #'2015', '2016', '2017', '2018']:
         for season in ['fall']: #['spring', 'fall']:
             output_dir = osp.join(root, 'env', season, year)
+            os.makedirs(output_dir, exist_ok=True)
             dl.download_season(season, year, output_dir)
