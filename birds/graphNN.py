@@ -470,7 +470,9 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
                                                                                                        data.num_nodes,
                                                                                                        -1).sum(1)
             outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
-            constraints = torch.mean((outfluxes - torch.ones(outfluxes.shape))**2)
+            target_fluxes = torch.ones(outfluxes.shape)
+            if cuda: target_fluxes = target_fluxes.to('cuda')
+            constraints = torch.mean((outfluxes - target_fluxes)**2)
             loss = loss_func(output, gt) + 0.01 * constraints
         else:
             loss = loss_func(output, gt)
