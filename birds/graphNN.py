@@ -455,7 +455,7 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
     model.train()
     loss_all = 0
     for data in train_loader:
-        if cuda: data = data.cuda()
+        if cuda: data = data.to('cuda')
         optimizer.zero_grad()
         output = model(data) #.view(-1)
 
