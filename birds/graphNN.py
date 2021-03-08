@@ -485,11 +485,11 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
 
 def train_departure(model, train_loader, optimizer, loss_func, cuda):
     if cuda:
-        model.cuda()
+        model.to('cuda')
     model.train()
     loss_all = 0
     for data in train_loader:
-        if cuda: data = data.cuda()
+        if cuda: data = data.to('cuda')
         optimizer.zero_grad()
         output = model(data) #.view(-1)
         gt = data.x[..., 0]
@@ -508,7 +508,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
     outfluxes = {}
     outfluxes_abs = {}
     for tidx, data in enumerate(test_loader):
-        if cuda: data = data.cuda()
+        if cuda: data = data.to('cuda')
         output = model(data) * bird_scale #.view(-1)
 
         gt = data.y
@@ -539,7 +539,7 @@ def test_departure(model, test_loader, loss_func, cuda, bird_scale=2000):
     model.eval()
     loss_all = []
     for tidx, data in enumerate(test_loader):
-        if cuda: data = data.cuda()
+        if cuda: data = data.to('cuda')
         output = model(data) * bird_scale
 
         gt = data.x[..., 0]
