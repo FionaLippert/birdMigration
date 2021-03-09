@@ -214,6 +214,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 
     dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
     nights = dataset.info['nights']
+    time = np.array(dataset.info['timepoints'])
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
         pickle.dump(nights, f)
 
@@ -221,13 +222,9 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 
     models = [load_model(name) for name in model_names]
 
-    time = np.array(dataset.info['timepoints'])
-    nights = dataset.info['nights']
-
     if tidx is None:
         tidx = range(time.size)
 
-    dfs = []
     for idx, radar in enumerate(dataset.info['radars']):
         gt = np.zeros(len(time))
         pred = []
@@ -249,17 +246,11 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                     pred[midx][nights[nidx][1:timesteps]] = y[1:]
                     pred[midx][nights[nidx][0]] = data.x[idx, 0]
 
-        df = pd.DataFrame({'radar': [radar] * len(tidx),
-                           'datetime': time[tidx],
-                           'vid': gt[tidx]})
-
         fig, ax = plt.subplots(figsize=(20, 4))
         for midx, model_type in enumerate(model_types):
             all_pred = pred[midx*repeats:(midx+1)*repeats, tidx] * bird_scale
             mean_pred = all_pred.mean(0)
             std_pred = all_pred.std(0)
-            df[model_type] = mean_pred
-            df[f'{model_type}_std'] = std_pred
 
             # line = ax.plot(time[tidx], pred[midx][tidx], ls='--', alpha=0.3)
             line = ax.errorbar(time[tidx], mean_pred, std_pred, ls='--', alpha=0.4, capsize=3)
@@ -275,11 +266,54 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         fig.savefig(os.path.join(output_dir, f'{radar}.png'), bbox_inches='tight')
         plt.close(fig)
 
+
+def predictions(timesteps, model_names, model_types, output_dir,
+                     data_source='radar', repeats=1, bird_scale=2000, departure=False):
+
+    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    nights = dataset.info['nights']
+    time = dataset.info['timepoints']
+    with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
+        pickle.dump(nights, f)
+
+    dataloader = DataLoader(dataset, batch_size=1)
+    models = [load_model(name) for name in model_names]
+    dfs = []
+    for idx, radar in enumerate(dataset.info['radars']):
+        gt = np.zeros(len(time))
+        pred = []
+        for _ in models:
+            pred.append(np.zeros(len(time)))
+        pred = np.stack(pred, axis=0)
+
+        for nidx, data in enumerate(dataloader):
+            gt[nights[nidx][0]] = data.x[idx, 0]
+            gt[nights[nidx][1:timesteps]] = data.y[idx]
+
+            if args.cuda: data = data.cuda()
+            for midx, model in enumerate(models):
+                if args.cuda: model.cuda()
+                y = model(data).detach().numpy()[idx]
+                if departure:
+                    pred[midx][nights[nidx][:timesteps]] = y
+                else:
+                    pred[midx][nights[nidx][1:timesteps]] = y[1:]
+                    pred[midx][nights[nidx][0]] = data.x[idx, 0]
+
+        df = pd.DataFrame({'radar': [radar] * time.size,
+                           'datetime': time,
+                           'vid': gt})
+
+        for midx, model_type in enumerate(model_types):
+            all_pred = pred[midx*repeats:(midx+1)*repeats] * bird_scale
+            mean_pred = all_pred.mean(0)
+            std_pred = all_pred.std(0)
+            df[model_type] = mean_pred
+            df[f'{model_type}_std'] = std_pred
+
         dfs.append(df)
     df = pd.concat(dfs)
     df.to_csv(osp.join(output_dir, 'model_predictions.csv'))
-
-
 
 
 
@@ -330,6 +364,9 @@ if args.action == 'test':
 
     plot_test_errors(args.ts_test, model_names, short_names, model_labels, output_path, data_source=args.data_source,
                      bird_scale=bird_scale, departure=departure)
+
+    predictions(args.ts_test, model_names, model_types, osp.dirname(output_path),
+                data_source=args.data_source, repeats=repeats, bird_scale=bird_scale, departure=departure)
 
     if args.plot_predictions:
         plot_predictions(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
