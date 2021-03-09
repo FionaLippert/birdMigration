@@ -152,6 +152,10 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     test_data = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
     test_loader = DataLoader(test_data, batch_size=1)
 
+    radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
+    with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
+        pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
+
     models = [load_model(name) for name in model_names]
     for i, n in enumerate(short_names):
         print(f'model: {n}, num params: {sum(p.numel() for p in models[i].parameters() if p.requires_grad)}')
@@ -180,6 +184,8 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
                 pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
             with open(osp.join(osp.dirname(output_path), f'outfluxes_abs_{short_names[midx]}.pickle'), 'wb') as f:
                 pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
+
+
 
     for type in model_types:
         losses = torch.stack(loss_all[type]).sqrt()

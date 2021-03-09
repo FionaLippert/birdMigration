@@ -126,6 +126,7 @@ for coords, name in radars.items():
 
     if load_baseGAM:
         y_gam = df[df.radar == name].gam_prediction.to_numpy()
+        print('base GAM loaded')
     else:
         gam = fit_baseGAM(vid, days, sun, sun_change)
         with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}.pkl'), 'wb') as f:
