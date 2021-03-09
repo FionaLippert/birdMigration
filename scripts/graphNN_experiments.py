@@ -238,6 +238,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 
             if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
+                model.timesteps = timesteps
                 if args.cuda: model.cuda()
                 y = model(data).cpu().detach().numpy()[idx]
                 if departure:
@@ -292,6 +293,7 @@ def predictions(timesteps, model_names, model_types, output_dir,
 
             if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
+                model.timesteps = timesteps
                 if args.cuda: model.cuda()
                 y = model(data).cpu().detach().numpy()[idx]
                 if departure:
