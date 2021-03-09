@@ -236,7 +236,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
             gt[nights[nidx][0]] = data.x[idx, 0]
             gt[nights[nidx][1:timesteps]] = data.y[idx]
 
-            if args.cuda: data = data.cuda()
+            if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
                 if args.cuda: model.cuda()
                 y = model(data).detach().numpy()[idx]
@@ -290,7 +290,7 @@ def predictions(timesteps, model_names, model_types, output_dir,
             gt[nights[nidx][0]] = data.x[idx, 0]
             gt[nights[nidx][1:timesteps]] = data.y[idx]
 
-            if args.cuda: data = data.cuda()
+            if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
                 if args.cuda: model.cuda()
                 y = model(data).detach().numpy()[idx]
