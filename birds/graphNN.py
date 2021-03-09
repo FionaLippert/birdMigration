@@ -328,14 +328,14 @@ class Departure(torch.nn.Module):
 
 class BirdFlowTime(MessagePassing):
 
-    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', norm=True,
+    def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
                  use_departure=False, seed=12345):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
 
         in_channels = 10 + embedding
-        hidden_channels = 16 #2*in_channels #int(in_channels / 2)
+        hidden_channels = hidden_dim #16 #2*in_channels #int(in_channels / 2)
         out_channels = 1
 
         in_channels_dep = 6

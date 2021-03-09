@@ -29,6 +29,7 @@ parser.add_argument('--lr_gamma', type=float, default=0.5, help='decay rate of l
 parser.add_argument('--teacher_forcing', type=float, default=1.0, help='probability with which ground truth is used to predict next state')
 parser.add_argument('--teacher_forcing_gamma', type=float, default=0.9, help='decay rate of teacher forcing probability')
 parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
+parser.add_argument('--hidden_dim', type=int, default=16, help='number of hidden nodes in mlp')
 parser.add_argument('--ts_train', type=int, default=6, help='length of training sequences')
 parser.add_argument('--ts_test', type=int, default=6, help='length of testing sequences')
 parser.add_argument('--plot_predictions', action='store_true', default=False, help='plot predictions for each radar separately')
@@ -67,7 +68,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             model = MLP(6*22, 2*22, 22, timesteps, recurrent, seed=r)
             use_conservation = False
         else:
-            model = BirdFlowTime(train_data[0].num_nodes, timesteps, embedding, model_type, norm,
+            model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r)
             use_conservation = conservation
 
