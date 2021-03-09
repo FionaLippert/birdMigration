@@ -101,7 +101,7 @@ def plot_predictions(model, test_loader, output_path):
     gt = []
     for tidx, data in enumerate(test_loader):
         if args.cuda: data = data.to('cuda')
-        y_hat = model(data) * bird_scale
+        y_hat = model(data).view(-1) * bird_scale
         y = data.x[..., 0] * bird_scale
 
         loss_all.append(loss_func(y_hat, y))

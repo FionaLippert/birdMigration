@@ -29,6 +29,9 @@ parser.add_argument('--lr_gamma', type=float, default=0.5, help='decay rate of l
 parser.add_argument('--teacher_forcing', type=float, default=1.0, help='probability with which ground truth is used to predict next state')
 parser.add_argument('--teacher_forcing_gamma', type=float, default=0.9, help='decay rate of teacher forcing probability')
 parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
+parser.add_argument('--ts_train', type=int, default=6, help='length of training sequences')
+parser.add_argument('--ts_test', type=int, default=6, help='length of testing sequences')
+parser.add_argument('--plot_predictions', action='store_true', default=False, help='plot predictions for each radar separately')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -103,7 +106,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
 
             if val_loss < best_loss:
                 # save best model so far
-                torch.save(model, osp.join(output_dir, name))
+                torch.save(model.cpu(), osp.join(output_dir, name))
                 best_loss = val_loss
 
             scheduler.step()
@@ -281,7 +284,6 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 
 
 
-timesteps = 6
 epochs = args.epochs #2 #10 #500
 norm = False
 repeats = args.repeats #1
@@ -299,7 +301,7 @@ if args.action =='train':
     all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings)
 
     for type, cons, rec, emb in all_settings:
-        run_training(timesteps, type, cons, rec, emb, epochs=epochs, data_source=args.data_source, repeats=repeats,
+        run_training(args.ts_train, type, cons, rec, emb, epochs=epochs, data_source=args.data_source, repeats=repeats,
                      bird_scale=bird_scale, departure=departure)
 
 if args.action == 'test':
@@ -312,23 +314,23 @@ if args.action == 'test':
 
     if repeats > 1:
         #all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings)
-        model_names = [make_name_repeat(timesteps, type, cons, rec, emb, epochs=epochs, repeat=r)
+        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r)
                        for type, r in it.product(model_types, range(repeats))]
     else:
-        model_names = [make_name(timesteps, type, cons, rec, emb, epochs=epochs)
+        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs)
                        for type in model_types]
     #short_names = model_types
     short_names = [type for type, r in it.product(model_labels, range(repeats))]
 
-    timesteps = 6
     output_path = osp.join(root, 'model_performance', args.experiment,
-                           f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={timesteps}',
+                           f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={args.ts_test}',
                             'test_errors.png')
     os.makedirs(osp.dirname(output_path), exist_ok=True)
 
 
-    plot_test_errors(timesteps, model_names, short_names, model_labels, output_path, data_source=args.data_source,
+    plot_test_errors(args.ts_test, model_names, short_names, model_labels, output_path, data_source=args.data_source,
                      bird_scale=bird_scale, departure=departure)
 
-    # plot_predictions(timesteps, model_names, short_names, model_labels, osp.dirname(output_path),
-    #                  data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24), departure=departure) #, tidx=range(18*24, 32*24))
+    if args.plot_predictions:
+        plot_predictions(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
+                     data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24), departure=departure) #, tidx=range(18*24, 32*24))

@@ -525,11 +525,14 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
         if get_outfluxes:
             outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
                                                                                                    data.num_nodes,
-                                                                                                   -1).detach().numpy()
+                                                                                                   -1)
             outfluxes_abs[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
                 data.num_nodes,
                 data.num_nodes,
-                -1).detach().numpy()  # .sum(1)
+                -1)# .sum(1)
+            if cuda:
+                outfluxes[tidx] = outfluxes[tidx].cpu()
+                outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps-1)]))
         #loss_all.append(loss_func(output, gt))
