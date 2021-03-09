@@ -38,7 +38,7 @@ model_dir = osp.join(args.root, 'models', args.experiment)
 os.makedirs(model_dir, exist_ok=True)
 
 season = 'fall'
-train_years = ['2016', '2017', '2018', '2019']
+train_years = ['2016', '2017', '2018']
 val_year = '2019'
 test_year = '2015'
 
