@@ -367,7 +367,7 @@ if args.action == 'test':
     plot_test_errors(args.ts_test, model_names, short_names, model_labels, output_path, data_source=args.data_source,
                      bird_scale=bird_scale, departure=departure)
 
-    predictions(args.ts_test, model_names, model_types, osp.dirname(output_path),
+    predictions(args.ts_train, model_names, model_types, osp.dirname(output_path),
                 data_source=args.data_source, repeats=repeats, bird_scale=bird_scale, departure=departure)
 
     if args.plot_predictions:
