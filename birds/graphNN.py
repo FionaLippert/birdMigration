@@ -309,7 +309,7 @@ class MLP(torch.nn.Module):
 class Departure(torch.nn.Module):
     # model the bird density departing within one radar cell based on cell properties and environmental conditions
     def __init__(self, in_channels, hidden_channels, out_channels, model='linear', seed=12345):
-        super(BirdFlowTime, self).__init__()
+        super(Departure, self).__init__()
 
         torch.manual_seed(seed)
 
@@ -327,14 +327,14 @@ class Departure(torch.nn.Module):
 
 class BirdFlowTime(MessagePassing):
 
-    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', recurrent=True, norm=True,
+    def __init__(self, num_nodes, timesteps, embedding=0, model='linear', norm=True,
                  use_departure=False, seed=12345):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
 
         in_channels = 10 + embedding
-        hidden_channels = int(in_channels / 2)
+        hidden_channels = 16 #2*in_channels #int(in_channels / 2)
         out_channels = 1
 
         in_channels_dep = 6
@@ -363,12 +363,13 @@ class BirdFlowTime(MessagePassing):
 
         self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
         self.timesteps = timesteps
-        self.recurrent = recurrent
         self.norm = norm
         self.use_departure = use_departure
 
 
-    def forward(self, data):
+    def forward(self, data, teacher_forcing=0.0):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
         x = data.x[..., 0].view(-1, 1)
         coords = data.coords
@@ -390,7 +391,8 @@ class BirdFlowTime(MessagePassing):
         self.flows = []
         self.abs_flows = []
         for t in range(self.timesteps - 1):
-            if not self.recurrent:
+            r = torch.rand(1)
+            if r < teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
             x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=data.env[..., t],
                                    edge_attr=edge_attr, embedding=embedding)
@@ -450,14 +452,15 @@ def distance(x1, y1, x2, y2):
 def MSE(output, gt):
     return torch.mean((output - gt)**2)
 
-def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, conservation=True, departure=False):
+def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, conservation=True, departure=False,
+                 teacher_forcing=1.0):
     if cuda: model.cuda()
     model.train()
     loss_all = 0
     for data in train_loader:
         if cuda: data = data.to('cuda')
         optimizer.zero_grad()
-        output = model(data) #.view(-1)
+        output = model(data, teacher_forcing) #.view(-1)
 
         gt = data.y
         if departure:
@@ -513,7 +516,9 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
 
         gt = data.y
         if departure:
-            gt = torch.cat([data.x[:,0].view(-1,1), gt], dim=1)
+            gt = torch.cat([data.x[:, 0].view(-1, 1), gt], dim=1)
+        else:
+            output = output[:, 1:]
         gt = gt * bird_scale
 
         if get_outfluxes:
@@ -526,6 +531,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
                 -1)  # .sum(1)
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps-1)]))
+        #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 
     if get_outfluxes:

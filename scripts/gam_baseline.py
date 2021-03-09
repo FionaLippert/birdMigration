@@ -47,8 +47,9 @@ for coords, name in radars.items():
     sun_change = []
     years = []
     names = []
+    time = []
 
-    for y in range(2017, 2019):
+    for y in range(2015, 2020):
         year = str(y)
         if data_source == 'radar':
             if y > 2016 and name == 'nldbl':
@@ -58,7 +59,6 @@ for coords, name in radars.items():
             t_range = t_range.tz_localize('UTC')
         else:
             radar_cell = cells[cells.radar == name]
-            print(radar_cell)
             data, t_range = abm.load_season(abm_dir, season, year, radar_cell)
             print(data)
 
@@ -76,6 +76,7 @@ for coords, name in radars.items():
         sun_change.append(solarpos_change)
         years.append(np.ones(solarpos_change.size)*y)
         names.append(np.array([name]*solarpos_change.size))
+        time.append(t_range)
 
     vid = np.concatenate(vid) / bird_scale
     days = np.concatenate(days)
@@ -83,6 +84,7 @@ for coords, name in radars.items():
     sun_change = np.concatenate(sun_change)
     years = np.concatenate(years)
     names = np.concatenate(names)
+    time = np.concatenate(time)
 
     gam = fit_GAM(vid, days, sun, sun_change)
     with open(osp.join(root, 'seasonal_trends', f'gam_model_{data_source}.pkl'), 'wb') as f:
@@ -93,6 +95,7 @@ for coords, name in radars.items():
     dfs.append(pd.DataFrame({'radar': names,
                        'year': years,
                        'dayofyear': days,
+                       'datetime': time,
                        'solarposition': sun,
                        'solarchange': sun_change,
                        'vid': vid * bird_scale,
