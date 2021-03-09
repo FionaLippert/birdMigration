@@ -67,7 +67,7 @@ for coords, name in radars.items():
     time = []
     wind_speed = []
     wind_dir = []
-
+    print(name)
     for y in range(2015, 2020):
         year = str(y)
         if data_source == 'radar':
@@ -79,7 +79,6 @@ for coords, name in radars.items():
         else:
             radar_cell = cells[cells.radar == name]
             data, t_range = abm.load_season(abm_dir, season, year, radar_cell)
-            print(data)
 
         # load solar position and compute relative changes
         t_range_sun = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))

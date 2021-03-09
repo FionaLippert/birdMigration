@@ -174,9 +174,9 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
                                 bird_scale=bird_scale, departure=departure)
             loss_all[short_names[midx]].append(l.mean(0))
             with open(osp.join(osp.dirname(output_path), f'outfluxes_{short_names[midx]}.pickle'), 'wb') as f:
-                pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(outfluxes.detach().numpy(), f, pickle.HIGHEST_PROTOCOL)
             with open(osp.join(osp.dirname(output_path), f'outfluxes_abs_{short_names[midx]}.pickle'), 'wb') as f:
-                pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
+                pickle.dump(outfluxes_abs.detach().numpy(), f, pickle.HIGHEST_PROTOCOL)
 
     for type in model_types:
         losses = torch.stack(loss_all[type]).sqrt()
