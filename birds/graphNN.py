@@ -318,7 +318,8 @@ class Departure(torch.nn.Module):
         else:
             self.model = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
                                                 torch.nn.ReLU(),
-                                                torch.nn.Linear(hidden_channels, out_channels))
+                                                torch.nn.Linear(hidden_channels, out_channels),
+                                                torch.nn.Sigmoid())
 
     def forward(self, data):
         features = torch.cat([data.coords, data.areas.view(-1, 1), data.env[..., 0]], dim=1)
@@ -494,7 +495,7 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
     for data in train_loader:
         if cuda: data = data.to('cuda')
         optimizer.zero_grad()
-        output = model(data) #.view(-1)
+        output = model(data).view(-1)
         gt = data.x[..., 0]
         loss = loss_func(output, gt)
         loss.backward()
@@ -546,7 +547,7 @@ def test_departure(model, test_loader, loss_func, cuda, bird_scale=2000):
     loss_all = []
     for tidx, data in enumerate(test_loader):
         if cuda: data = data.to('cuda')
-        output = model(data) * bird_scale
+        output = model(data).view(-1) * bird_scale
 
         gt = data.x[..., 0]
         gt = gt * bird_scale

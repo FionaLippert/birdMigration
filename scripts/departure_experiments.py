@@ -16,7 +16,9 @@ parser.add_argument('--experiment', type=str, default='test', help='directory na
 parser.add_argument('--data_source', type=str, default='radar', help='data source for training/testing')
 parser.add_argument('--cpu', action='store_true', default=False, help='cpu or gpu')
 parser.add_argument('--epochs', type=int, default=200, help='number of training epochs')
-parser.add_argument('--lr', type=float, default=0.0005, help='learning rate')
+parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+parser.add_argument('--lr_decay', type=float, default=50, help='steps with which learning rate decays')
+parser.add_argument('--lr_gamma', type=float, default=0.5, help='decay rate of learning rate')
 parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
 args = parser.parse_args()
 
@@ -27,7 +29,8 @@ model_dir = osp.join(args.root, 'departure_models', args.experiment)
 os.makedirs(model_dir, exist_ok=True)
 
 season = 'fall'
-train_years = ['2016', '2017', '2018', '2019']
+train_years = ['2016', '2017', '2018']
+val_year = '2019'
 test_year = '2015'
 bird_scale = 2000
 loss_func = torch.nn.MSELoss()
@@ -37,6 +40,10 @@ def run_training(model_type, hidden_channels, output_dir=model_dir):
                             bird_scale=bird_scale, timesteps=2) for year in train_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
+
+    val_data = RadarData(root, val_year, season, data_source=args.data_source,
+                         bird_scale=bird_scale, timesteps=2)
+    val_loader = DataLoader(val_data, batch_size=1)
 
     for r in range(args.repeats):
 
@@ -51,19 +58,25 @@ def run_training(model_type, hidden_channels, output_dir=model_dir):
         optimizer = torch.optim.Adam(params, lr=args.lr)
 
         training_curve = np.zeros(args.epochs)
+        val_curve = np.zeros(args.epochs)
         best_loss = np.inf
         for epoch in range(args.epochs):
             loss = train_departure(model, train_loader, optimizer, loss_func, args.cuda)
             print(f'epoch {epoch + 1}: loss = {loss / len(train_data)}')
+            training_curve[epoch] = loss / len(train_data)
 
-            training_curve[epoch] = loss
-            if loss < best_loss:
+            val_loss = test_departure(model, val_loader, loss_func, args.cuda, bird_scale=1).mean()
+            val_curve[epoch] = val_loss
+            if val_loss < best_loss:
                 # save best model so far
                 torch.save(model, osp.join(output_dir, name))
+                best_loss = val_loss
 
         fig, ax = plt.subplots()
-        ax.plot(range(1, epochs+1), training_curve)
-        ax.set(xlabel='epoch', ylabel='Loss', title=f'best model in epoch {np.argmin(training_curve)+1}')
+        ax.plot(range(1, args.epochs + 1), training_curve, label='training')
+        ax.plot(range(1, args.epochs + 1), val_curve, label='validation')
+        ax.set(xlabel='epoch', ylabel='Loss', title=f'best model in epoch {np.argmin(training_curve)+1} with MSE={best_loss}')
+        plt.legend()
         fig.savefig(osp.join(output_dir, f'training_loss_{name}.png'), bbox_inches='tight')
 
 def make_name_repeat(model_type, epochs, hidden_channels, repeat):
@@ -104,12 +117,11 @@ def plot_predictions(model, test_loader, output_path):
     ax.set(xlabel='ground truth', ylabel='prediction', title=f'RMSE={rmse}')
     fig.savefig(output_path, bbox_inches='tight')
 
-
+model_types = ['linear', 'mlp']
 
 if args.action == 'train':
 
-    model_types = ['linear', 'mlp']
-    hidden_channels = range(2, 8)
+    hidden_channels = [3, 7, 14]
 
     all_settings = it.product(model_types, hidden_channels)
 
@@ -119,11 +131,13 @@ if args.action == 'train':
 
 if args.action == 'test':
 
+    hdim = 7
+
     if args.repeats > 1:
-        model_names = [make_name_repeat(type, args.epochs, repeat=r)
+        model_names = [make_name_repeat(type, args.epochs, hdim, repeat=r)
                        for type, r in it.product(model_types, range(args.repeats))]
     else:
-        model_names = [make_name(type, args.epochs) for type in model_types]
+        model_names = [make_name(type, args.epochs, hdim) for type in model_types]
 
     short_names = [type for type, r in it.product(model_types, range(args.repeats))]
 
@@ -135,5 +149,5 @@ if args.action == 'test':
 
     for idx, name in enumerate(model_names):
         model = load_model(name)
-        output_path = osp.join(output_dir, f'predictions_{short_names[idx]}hiddendim={hdim}.png')
+        output_path = osp.join(output_dir, f'predictions_{short_names[idx]}_hiddendim={hdim}.png')
         plot_predictions(model, test_loader, output_path)

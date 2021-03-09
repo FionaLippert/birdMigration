@@ -101,6 +101,8 @@ def extract_points(data_path, lonlat_list, t_range, vars):
             for lonlat in lonlat_list:
                 # Extract time-series data at given point (interpolate between available grid points)
                 data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
+                print(data_point)
+                print(data_point.time)
                 var_data.append(data_point.sel(time=t_range).data.flatten())
             weather[var] = np.stack(var_data)
 

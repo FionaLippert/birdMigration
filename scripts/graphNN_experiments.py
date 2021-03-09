@@ -320,7 +320,7 @@ if args.action == 'test':
     #short_names = model_types
     short_names = [type for type, r in it.product(model_labels, range(repeats))]
 
-    timesteps = 15
+    timesteps = 6
     output_path = osp.join(root, 'model_performance', args.experiment,
                            f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={timesteps}',
                             'test_errors.png')
