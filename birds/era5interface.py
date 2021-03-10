@@ -106,16 +106,16 @@ def extract_points(data_path, lonlat_list, t_range, vars):
 
     return weather
 
-def sample_points_from polygon(polygon, n_points):
-    minx, miny, maxx, maxy = self.departure_area.total_bounds
-    lon = self.rng.uniform(minx, maxx)
-    lat = self.rng.uniform(miny, maxy)
-    pos = geometry.Point(lon, lat)
-    while not self.departure_area.contains(pos).any():
-        lon = np.random.uniform(minx, maxx)
-        lat = np.random.uniform(miny, maxy)
-        pos = geometry.Point(lon, lat)
-    return lon, lat
+# def sample_points_from_polygon(polygon, n_points):
+#     minx, miny, maxx, maxy = self.departure_area.total_bounds
+#     lon = self.rng.uniform(minx, maxx)
+#     lat = self.rng.uniform(miny, maxy)
+#     pos = geometry.Point(lon, lat)
+#     while not self.departure_area.contains(pos).any():
+#         lon = np.random.uniform(minx, maxx)
+#         lat = np.random.uniform(miny, maxy)
+#         pos = geometry.Point(lon, lat)
+#     return lon, lat
 
 def compute_cell_avg(data_path, cell_geometry, t_range, vars):
     # t_range must be given as UTC
