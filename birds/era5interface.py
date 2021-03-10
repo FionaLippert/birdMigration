@@ -134,11 +134,12 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars):
                 var_data_poly = []
                 for i in range(n_points):
                     lon, lat = sample_point_from_polygon(poly)
+                    #print(lon, lat)
                     # Extract time-series data at given point (interpolate between available grid points)
                     var_data_poly.append(ds.interp(longitude=lon,
                                                    latitude=lat,
                                                    method='linear').sel(time=t_range).data.flatten())
-                var_data.append(np.stack(var_data_poly, axis=0).mean(0))
+                var_data.append(np.nanmean(np.stack(var_data_poly, axis=0), axis=0))
             weather[var] = np.stack(var_data, axis=0)
 
     return weather

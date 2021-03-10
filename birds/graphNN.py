@@ -20,7 +20,8 @@ from birds import spatial, datahandling, era5interface, abm
 class RadarData(InMemoryDataset):
 
     def __init__(self, root, year, season='fall', timesteps=1,
-                 data_source='radar', bird_scale = 2000, env_points=100, start=None, end=None, transform=None, pre_transform=None):
+                 data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100, env_cells=False,
+                 start=None, end=None, transform=None, pre_transform=None):
 
         #self.split = split
         self.season = season
@@ -30,7 +31,9 @@ class RadarData(InMemoryDataset):
         self.start = start
         self.end = end
         self.bird_scale = bird_scale
-        self.env_points = 100 # number of environment variable samples per radar cell
+        self.env_points = env_points # number of environment variable samples per radar cell
+        self.use_buffers = use_buffers
+        self.env_cells = env_cells
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -93,6 +96,9 @@ class RadarData(InMemoryDataset):
             print('load abm data')
             abm_dir = osp.join(self.raw_dir, 'abm')
             data, abm_time = abm.load_season(abm_dir, self.season, self.year, cells)
+            if self.use_buffers:
+                radar_buffers = space.pts_local.buffer(25_000)
+                buffer_data, _ = abm.load_season(abm_dir, self.season, self.year, radar_buffers)
 
             # adjust time range of sun data to abm time range
             t_range = abm_time.tz_convert('UTC').tz_localize(None)#[:-1] # remove time zone info
@@ -111,11 +117,16 @@ class RadarData(InMemoryDataset):
         #
         # wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'wind_850.nc'),
         #                                     radars.keys(), t_range, vars=['u', 'v'])
-        # wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
-        #                                     radars.keys(), t_range, vars=['u', 'v'])
-        wind = era5interface.compute_cell_avg(
-            os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
-            cells.to_crs('epsg:4326').geometry, self.env_points, t_range, vars=['u', 'v'])
+
+        if self.env_cells:
+            wind = era5interface.compute_cell_avg(
+                os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
+                cells.to_crs('epsg:4326').geometry, self.env_points, t_range, vars=['u', 'v'])
+        else:
+            wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
+                                            radars.keys(), t_range, vars=['u', 'v'])
+
+        print(wind)
 
         print('load sun data')
 
@@ -155,6 +166,8 @@ class RadarData(InMemoryDataset):
 
 
         data = reshape(data, nights, dft.check)
+        if self.use_buffers:
+            buffer_data = reshape(buffer_data, nights, dft.check)
         solarpos = reshape(solarpos, nights, dft.check)
         solarpos_change = reshape(solarpos_change, nights, dft.check)
         wind = {key: reshape(val, nights, dft.check) for key, val in wind.items()}
@@ -181,6 +194,8 @@ class RadarData(InMemoryDataset):
             return (features - min) / (max - min)
 
         areas = cells.geometry.area.to_numpy()
+        if self.use_buffers:
+            buffer_areas = radar_buffers.area.to_numpy()
 
         # compute total number of birds within each cell around radar
         if self.timesteps > 1 and self.data_source == 'radar':
@@ -189,11 +204,17 @@ class RadarData(InMemoryDataset):
             birds_per_cell = data * areas[:, None]
         else:
             birds_per_cell = data
+            if self.use_buffers and self.timesteps > 1:
+                birds_per_cell_from_buffer = buffer_data / buffer_areas[:, None, None] * areas[:, None, None]
+            elif self.use_buffers and self.timesteps == 1:
+                birds_per_cell_from_buffer = buffer_data / buffer_areas[:, None] * areas[:, None]
 
         # normalize node data
         print('normalize radar data')
         #birds_per_cell = normalize(birds_per_cell, min=0)
         birds_per_cell = birds_per_cell / self.bird_scale
+        if self.use_buffers:
+            birds_per_cell_from_buffer = birds_per_cell_from_buffer / self.bird_scale
         print('normalize solarpos')
         solarpos = normalize(solarpos)
         #solarpos = solarpos / 360
@@ -217,8 +238,12 @@ class RadarData(InMemoryDataset):
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
 
-        data_list = [Data(x=torch.tensor(birds_per_cell[:, :-1, t], dtype=torch.float),
-                          y=torch.tensor(birds_per_cell[:, 1:, t], dtype=torch.float),
+        if self.use_buffers:
+            x = birds_per_cell_from_buffer
+        else:
+            x = birds_per_cell
+        data_list = [Data(x=torch.tensor(x[:, :-1, t], dtype=torch.float),
+                          y=torch.tensor(x[:, 1:, t], dtype=torch.float),
                           coords=torch.stack([
                               torch.tensor(xcoords, dtype=torch.float),
                               torch.tensor(ycoords, dtype=torch.float)

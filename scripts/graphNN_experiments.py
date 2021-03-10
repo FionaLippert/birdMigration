@@ -35,6 +35,8 @@ parser.add_argument('--ts_test', type=int, default=6, help='length of testing se
 parser.add_argument('--save_predictions', action='store_true', default=False, help='save predictions for each radar separately')
 parser.add_argument('--plot_predictions', action='store_true', default=False, help='plot predictions for each radar separately')
 parser.add_argument('--fix_boundary', action='store_true', default=False, help='fix boundary cells to ground truth')
+parser.add_argument('--use_env_cells', action='store_true', default=False, help='use entire cells to interpolate environment variables')
+parser.add_argument('--use_buffers', action='store_true', default=False, help='use radar buffers for training instead of entire cells')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -57,8 +59,8 @@ def persistence(last_ob, timesteps):
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
-    train_data = [RadarData(root, year, season, timesteps, data_source=data_source,
-                            bird_scale=bird_scale) for year in train_years]
+    train_data = [RadarData(root, year, season, timesteps, data_source=data_source, env_cells=args.use_env_cells,
+                            use_buffers=args.use_buffers, bird_scale=bird_scale) for year in train_years]
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
         fix_boundary = [ridx for ridx, b in boundaries.items() if b]
@@ -67,7 +69,8 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
-    val_data = RadarData(root, val_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    val_data = RadarData(root, val_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+                         env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     val_loader = DataLoader(val_data, batch_size=1)
 
     for r in range(repeats):
@@ -161,8 +164,8 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
         for nidx, data in enumerate(test_loader):
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
             pred_gam[idx, nights[nidx]] = y_gam
-            loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps)]
-            
+            loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
+
     return loss, pred_gam
 
 
@@ -174,7 +177,8 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
-    test_data = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    test_data = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+                          env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
     radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
@@ -244,7 +248,8 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 def plot_predictions(timesteps, model_names, short_names, model_types, output_dir, tidx=None,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+                        env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = np.array(dataset.info['timepoints'])
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
@@ -314,7 +319,8 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 def predictions(timesteps, model_names, model_types, output_dir,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+                        env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = dataset.info['timepoints']
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
