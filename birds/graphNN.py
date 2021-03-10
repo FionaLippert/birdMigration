@@ -8,6 +8,7 @@ import networkx as nx
 import os.path as osp
 import os
 import pandas as pd
+import geopandas as gpd
 import pickle5 as pickle
 import glob
 from pvlib import solarposition
@@ -97,7 +98,7 @@ class RadarData(InMemoryDataset):
             abm_dir = osp.join(self.raw_dir, 'abm')
             data, abm_time = abm.load_season(abm_dir, self.season, self.year, cells)
             if self.use_buffers:
-                radar_buffers = space.pts_local.buffer(25_000)
+                radar_buffers = gpd.GeoDataFrame(geometry=space.pts_local.buffer(25_000))
                 buffer_data, _ = abm.load_season(abm_dir, self.season, self.year, radar_buffers)
 
             # adjust time range of sun data to abm time range
