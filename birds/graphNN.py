@@ -378,6 +378,8 @@ class BirdFlowTime(MessagePassing):
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
         x = data.x[..., 0].view(-1, 1)
+        print(data.y.shape)
+        print(len(self.fix_boundary))
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr

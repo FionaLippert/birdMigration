@@ -106,6 +106,37 @@ def extract_points(data_path, lonlat_list, t_range, vars):
 
     return weather
 
+def sample_points_from polygon(polygon, n_points):
+    minx, miny, maxx, maxy = self.departure_area.total_bounds
+    lon = self.rng.uniform(minx, maxx)
+    lat = self.rng.uniform(miny, maxy)
+    pos = geometry.Point(lon, lat)
+    while not self.departure_area.contains(pos).any():
+        lon = np.random.uniform(minx, maxx)
+        lat = np.random.uniform(miny, maxy)
+        pos = geometry.Point(lon, lat)
+    return lon, lat
+
+def compute_cell_avg(data_path, cell_geometry, t_range, vars):
+    # t_range must be given as UTC
+    data = xr.open_dataset(data_path)
+    data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
+    data = data.rio.interpolate_na() # fill nan's by interpolating spatially
+
+    #t_range = t_range.tz_convert('UTC') # convert datetimeindex to UTC if it was given at a different timezone
+    weather = {}
+
+    for var, ds in data.items():
+        if var in vars:
+            var_data = []
+            for lonlat in lonlat_list:
+                # Extract time-series data at given point (interpolate between available grid points)
+                data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
+                var_data.append(data_point.sel(time=t_range).data.flatten())
+            weather[var] = np.stack(var_data)
+
+    return weather
+
 
 
 if __name__ == '__main__':
