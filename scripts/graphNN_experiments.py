@@ -151,7 +151,7 @@ def load_model(name):
 
 def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps, loss_func):
     df_gam = pd.read_csv(csv_file)
-    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime, tz='UTC')
+    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime) #, tz='UTC')
     dti = pd.DatetimeIndex(time, tz='UTC')
 
     loss = np.zeros((len(radars), len(nights), timesteps-1))
