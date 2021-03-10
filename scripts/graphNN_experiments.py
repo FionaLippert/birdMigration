@@ -195,6 +195,10 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
                           env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
+    nights = test_data.info['nights']
+    with open(osp.join(osp.dirname(output_path), 'nights.pickle'), 'wb') as f:
+        pickle.dump(nights, f)
+
     radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
     with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
