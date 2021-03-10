@@ -166,7 +166,8 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
         for nidx, data in enumerate(test_loader):
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
             pred_gam[idx, nights[nidx]] = y_gam
-            loss[idx, nidx, :] = [np.square(y_gam[t+1] - data.y[idx, t] * bird_scale) for t in range(timesteps-1)]
+            y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][1]:nights[nidx][1]+timesteps-1])].gam_prediction.to_numpy()
+            loss[idx, nidx, :] = [np.square(y_gam[t] - data.y[idx, t] * bird_scale) for t in range(timesteps-1)]
             #loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
 
     return loss, pred_gam
