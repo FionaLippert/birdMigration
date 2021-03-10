@@ -14,6 +14,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import DataLoader
 from torch.optim import lr_scheduler
+from birds import GBT
 
 
 parser = argparse.ArgumentParser(description='GraphNN experiments')
@@ -164,9 +165,20 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
         for nidx, data in enumerate(test_loader):
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
             pred_gam[idx, nights[nidx]] = y_gam
-            loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
+            loss[idx, nidx, :] = [np.square(y_gam[t+1] - data.y[idx, t] * bird_scale) for t in range(timesteps-1)]
+            #loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
 
     return loss, pred_gam
+
+def gbt_rmse(bird_scale, seed=1234):
+    gbt = GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, seed)
+    X, y = GBT.prepare_data_nights(root, test_year, season, args.ts_test, args.data_source, bird_scale)
+    rmse = []
+    for t in range(1, args.ts_test):
+        y_hat = gbt.predict(X[t])
+        rmse.append(np.sqrt(np.mean(np.square(y[t] * bird_scale - y_hat * bird_scale))))
+    return rmse
+
 
 
 def plot_test_errors(timesteps, model_names, short_names, model_types, output_path,
@@ -224,16 +236,26 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         ax.fill_between(range(1, timesteps), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
                         color=line[0].get_color())
 
-    naive_losses = []
-    for data in test_loader:
-        naive_losses.append(torch.tensor([loss_func(data.x[:, 0]*bird_scale, data.y[:, t]*bird_scale) for t in range(timesteps-1)]))
-    naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
-    ax.plot(range(1, timesteps), naive_losses, label=f'naive "persistence" model')
-
     gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
                                        test_data.info['radars'], timesteps, loss_func)
     gam_losses = np.sqrt(gam_losses.mean(0).mean(0))
     ax.plot(range(1, timesteps), gam_losses, label=f'GAM')
+
+    gbt_losses = []
+    for r in range(args.repeats):
+        gbt_losses.append(gbt_rmse(bird_scale, seed=r))
+    gbt_mean_loss = np.stack(gbt_losses, axis=0).mean(0)
+    gbt_std_loss = np.stack(gbt_losses, axis=0).std(0)
+    line = ax.plot(range(1, timesteps), gbt_mean_loss, label=f'GBT')
+    ax.fill_between(range(1, timesteps), gbt_mean_loss - gbt_std_loss, gbt_mean_loss + gbt_std_loss, alpha=0.2,
+                    color=line[0].get_color())
+
+    naive_losses = []
+    for data in test_loader:
+        naive_losses.append(torch.tensor(
+            [loss_func(data.x[:, 0] * bird_scale, data.y[:, t] * bird_scale) for t in range(timesteps - 1)]))
+    naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
+    ax.plot(range(1, timesteps), naive_losses, label=f'constant night')
 
 
     ax.set_xlabel('timestep')
@@ -258,6 +280,11 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
     df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
     dti = pd.DatetimeIndex(time, tz='UTC')
 
+    gbt_models = []
+    for r in range(args.repeats):
+        gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, seed=r))
+    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars(root, test_year, season, args.ts_test, args.data_source, bird_scale)
+
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     models = [load_model(name) for name in model_names]
@@ -272,6 +299,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
             pred.append(np.zeros(len(time))) # * np.nan)
         pred = np.stack(pred, axis=0)
         pred_gam = np.zeros(len(time))
+        pred_gbt = np.zeros((args.repeats, len(time)))
         df_gam_idx = df_gam[df_gam.radar==radar]
 
         for nidx, data in enumerate(dataloader):
@@ -289,7 +317,9 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                     pred[midx][nights[nidx][1:timesteps]] = y[1:]
                     pred[midx][nights[nidx][0]] = data.x[idx, 0]
 
-            pred_gam[nights[nidx]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
+            pred_gam[nights[nidx][:timesteps]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps]])].gam_prediction.to_numpy()
+            for r in range(args.repeats):
+                pred_gbt[r, nights[nidx][:timesteps]] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
 
         fig, ax = plt.subplots(figsize=(20, 4))
         for midx, model_type in enumerate(model_types):
@@ -300,11 +330,15 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
             # line = ax.plot(time[tidx], pred[midx][tidx], ls='--', alpha=0.3)
             line = ax.errorbar(time[tidx], mean_pred, std_pred, ls='--', alpha=0.4, capsize=3)
             ax.scatter(time[tidx], mean_pred, s=30, facecolors='none', edgecolor=line[0].get_color(),
-                       label=f'prediction ({model_type})', alpha=0.4)
+                       label=f'{model_type}', alpha=0.4)
 
         line = ax.plot(time[tidx], pred_gam[tidx], ls='--', alpha=0.4)
         ax.scatter(time[tidx], pred_gam[tidx], s=30, facecolors='none', edgecolor=line[0].get_color(),
-                   label=f'prediction (GAM)', alpha=0.4)
+                   label=f'GAM', alpha=0.4)
+
+        line = ax.errorbar(time[tidx], pred_gbt[:, tidx].mean(0), pred_gbt[:, tidx].std(0), ls='--', alpha=0.4)
+        ax.scatter(time[tidx], pred_gbt[:, tidx].mean(0), s=30, facecolors='none', edgecolor=line[0].get_color(),
+                   label=f'GBT', alpha=0.4)
 
         ax.plot(time[tidx], gt[tidx] * bird_scale, label='ground truth', c='gray', alpha=0.8)
 

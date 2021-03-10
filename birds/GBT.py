@@ -1,5 +1,5 @@
 from sklearn.ensemble import GradientBoostingRegressor
-from graphNN import *
+from birds.graphNN import *
 from torch_geometric.data import DataLoader
 
 
@@ -9,23 +9,80 @@ def prepare_data(root, year, season, timesteps, data_source, bird_scale):
     X = []
     y = []
     for seq in dataset:
-        for t in range(1, timesteps):
+        for t in range(timesteps):
             features = np.concatenate([seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X.append(features)
-            y.append(seq.y[:, t-1])
+            if t == 0:
+                y.append(seq.x[:, 0])
+            else:
+                y.append(seq.y[:, t-1])
     X = np.concatenate(X, axis=0)
     y = np.concatenate(y, axis=0)
     return X, y
 
-root = '/home/fiona/birdMigration/data'
-bird_scale = 2000
-X, y = prepare_data(root, '2016', 'fall', 6, 'abm', bird_scale)
-reg = GradientBoostingRegressor(random_state=0)
-reg.fit(X, y)
+def prepare_data_nights(root, year, season, timesteps, data_source, bird_scale):
+    dataset = RadarData(root, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    X = []
+    y = []
+    for seq in dataset:
+        X_night = []
+        y_night = []
+        for t in range(timesteps):
+            features = np.concatenate([seq.coords.detach().numpy(),
+                                       seq.areas.view(-1,1).detach().numpy(),
+                                       seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
+            X_night.append(features)
+            if t == 0:
+                y_night.append(seq.x[:, 0])
+            else:
+                y_night.append(seq.y[:, t - 1])
+        X.append(np.stack(X_night, axis=0))  # shape (timesteps, nodes, features)
+        y.append(np.stack(y_night, axis=0))  # shape (timesteps, nodes)
 
-X, y = prepare_data(root, '2015', 'fall', 6, 'abm', bird_scale)
-y_hat = reg.predict(X)
+    X = np.concatenate(X, axis=1)  # shape (timesteps, samples, features)
+    y = np.concatenate(y, axis=1)  # shape (timesteps, samples)
+    return X, y
 
-print(np.sqrt(np.square(y * bird_scale - y_hat * bird_scale)).mean())
+def prepare_data_nights_and_radars(root, year, season, timesteps, data_source, bird_scale):
+    dataset = RadarData(root, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    X = []
+    y = []
+    for seq in dataset:
+        X_night = []
+        y_night = []
+        for t in range(timesteps):
+            features = np.concatenate([seq.coords.detach().numpy(),
+                                       seq.areas.view(-1,1).detach().numpy(),
+                                       seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
+            X_night.append(features)
+            if t == 0:
+                y_night.append(seq.x[:, 0])
+            else:
+                y_night.append(seq.y[:, t - 1])
+        X.append(np.stack(X_night, axis=0)) # shape (timesteps, nodes, features)
+        y.append(np.stack(y_night, axis=0)) # shape (timesteps, nodes)
+
+    X = np.stack(X, axis=0) # shape (nights, timesteps, nodes, features)
+    y = np.stack(y, axis=0) # shape (nights, timesteps, nodes)
+    return X, y
+
+def fit_GBT(root, years, season, timesteps, data_source, bird_scale, seed=1234):
+    X = []
+    y = []
+    for year in years:
+        X_year, y_year = prepare_data(root, year, season, timesteps, data_source, bird_scale)
+        X.append(X_year)
+        y.append(y_year)
+    X = np.concatenate(X, axis=0)
+    y = np.concatenate(y, axis=0)
+    reg = GradientBoostingRegressor(random_state=seed, n_estimators=100, learning_rate=0.05,
+                                    max_depth=5, tol=0.00001, n_iter_no_change=200)
+    reg.fit(X, y)
+    return reg
+
+def predict_GBT(gbt, root, year, season, timesteps, data_source, bird_scale):
+    X, y = prepare_data(root, year, season, timesteps, data_source, bird_scale)
+    y_hat = gbt.predict(X)
+    return y, y_hat
