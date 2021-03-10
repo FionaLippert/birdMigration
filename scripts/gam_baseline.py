@@ -129,7 +129,7 @@ for coords, name in radars.items():
         print('base GAM loaded')
     else:
         gam = fit_baseGAM(vid, days, sun, sun_change)
-        with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}.pkl'), 'wb') as f:
+        with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}_{name}.pkl'), 'wb') as f:
             pickle.dump(gam, f)
 
         y_gam = predict_baseGAM(gam, days, sun, sun_change)

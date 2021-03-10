@@ -34,6 +34,7 @@ parser.add_argument('--ts_train', type=int, default=6, help='length of training 
 parser.add_argument('--ts_test', type=int, default=6, help='length of testing sequences')
 parser.add_argument('--save_predictions', action='store_true', default=False, help='save predictions for each radar separately')
 parser.add_argument('--plot_predictions', action='store_true', default=False, help='plot predictions for each radar separately')
+parser.add_argument('--fix_boundary', action='store_true', default=False, help='fix boundary cells to ground truth')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -41,6 +42,7 @@ args.cuda = (not args.cpu and torch.cuda.is_available())
 root = osp.join(args.root, 'data')
 model_dir = osp.join(args.root, 'models', args.experiment)
 os.makedirs(model_dir, exist_ok=True)
+gam_csv = osp.join(root, 'seasonal_trends', f'gam_summary_{args.data_source}.csv')
 
 season = 'fall'
 train_years = ['2016', '2017', '2018']
@@ -58,6 +60,10 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     train_data = [RadarData(root, year, season, timesteps, data_source=data_source,
                             bird_scale=bird_scale) for year in train_years]
     boundaries = train_data[0].info['boundaries']
+    if args.fix_boundary:
+        fix_boundary = [ridx for ridx, b in boundaries.items() if b]
+    else:
+        fix_boundaries = []
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
@@ -70,7 +76,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             use_conservation = False
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
-                                 use_departure=departure, seed=r)
+                                 use_departure=departure, seed=r, fix_boundary=fix_boundary)
             use_conservation = conservation
 
         if repeats == 1:
@@ -143,6 +149,13 @@ def load_model(name):
     model.recurrent = True
     return model
 
+def load_gam_predictions(csv_file, test_loader, nights, time):
+    df = pd.read_csv(csv_file)
+    for nidx, data in enumerate(test_loader):
+        night = nights[nidx]
+        time[night]
+
+
 def plot_test_errors(timesteps, model_names, short_names, model_types, output_path,
                      data_source='radar', bird_scale=2000, departure=False):
 
@@ -152,7 +165,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
     test_data = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
-    test_loader = DataLoader(test_data, batch_size=1)
+    test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
     radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
     with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
@@ -201,11 +214,12 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     for data in test_loader:
         naive_losses.append(torch.tensor([loss_func(data.x[:, 0]*bird_scale, data.y[:, t]*bird_scale) for t in range(timesteps-1)]))
     naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
-    #mean_loss = naive_losses.mean(0)
-    #std_loss = naive_losses.std(0)
-    line = ax.plot(range(1, timesteps), naive_losses, label=f'naive "persistence" model')
-    # ax.fill_between(range(1, timesteps), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
-    #                 color=line[0].get_color())
+    ax.plot(range(1, timesteps), naive_losses, label=f'naive "persistence" model')
+
+    # with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{args.data_source}.pkl'), 'rb') as f:
+    #     gam = pickle.load(f)
+
+
 
 
     ax.set_xlabel('timestep')
@@ -225,8 +239,11 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
     time = np.array(dataset.info['timepoints'])
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
         pickle.dump(nights, f)
+    df_gam = pd.read_csv(gam_csv)
+    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime, tz='UTC')
+    dti = pd.DatetimeIndex(time, tz='UTC')
 
-    dataloader = DataLoader(dataset, batch_size=1)
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
     models = [load_model(name) for name in model_names]
 
@@ -239,6 +256,8 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         for _ in models:
             pred.append(np.zeros(len(time))) # * np.nan)
         pred = np.stack(pred, axis=0)
+        pred_gam = np.zeros(len(time))
+        df_gam_idx = df_gam[df_gam.radar==radar]
 
         for nidx, data in enumerate(dataloader):
             gt[nights[nidx][0]] = data.x[idx, 0]
@@ -255,6 +274,8 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                     pred[midx][nights[nidx][1:timesteps]] = y[1:]
                     pred[midx][nights[nidx][0]] = data.x[idx, 0]
 
+            pred_gam[nights[nidx]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction
+
         fig, ax = plt.subplots(figsize=(20, 4))
         for midx, model_type in enumerate(model_types):
             all_pred = pred[midx*repeats:(midx+1)*repeats, tidx] * bird_scale
@@ -265,6 +286,10 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
             line = ax.errorbar(time[tidx], mean_pred, std_pred, ls='--', alpha=0.4, capsize=3)
             ax.scatter(time[tidx], mean_pred, s=30, facecolors='none', edgecolor=line[0].get_color(),
                        label=f'prediction ({model_type})', alpha=0.4)
+
+        line = ax.plot(time[tidx], pred_gam[tidx], ls='--', alpha=0.4)
+        ax.scatter(time[tidx], pred_gam[tidx], s=30, facecolors='none', edgecolor=line[0].get_color(),
+                   label=f'prediction (GAM)', alpha=0.4)
 
         ax.plot(time[tidx], gt[tidx] * bird_scale, label='ground truth', c='gray', alpha=0.8)
 

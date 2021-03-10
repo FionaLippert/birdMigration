@@ -132,10 +132,14 @@ class RadarData(InMemoryDataset):
         def timeslice(data, start_night, mask):
             data_night = data[:, start_night:]
             data_night = data_night[:, mask[start_night:]]
-            if data_night.shape[1] > self.timesteps:
-                data_night = data_night[:, 1:self.timesteps + 1]
+            #if data_night.shape[1] > self.timesteps:
+            if data_night.shape[1] >= self.timesteps:
+                #data_night = data_night[:, 1:self.timesteps + 1] # for radar data shift by 1 ts might be needed
+                data_night = data_night[:, :self.timesteps]
             else:
-                data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
+                # data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
+                #                     constant_values=0)
+                data_night = np.pad(data_night, ((0, 0), (0, self.timesteps - data_night.shape[1])),
                                     constant_values=0)
             return data_night
 
@@ -329,7 +333,7 @@ class Departure(torch.nn.Module):
 class BirdFlowTime(MessagePassing):
 
     def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
-                 use_departure=False, seed=12345):
+                 use_departure=False, seed=12345, fix_boundary=[]):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
@@ -366,6 +370,7 @@ class BirdFlowTime(MessagePassing):
         self.timesteps = timesteps
         self.norm = norm
         self.use_departure = use_departure
+        self.fix_boundary = fix_boundary
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -387,6 +392,9 @@ class BirdFlowTime(MessagePassing):
         if self.use_departure:
             features = torch.cat([coords, data.env[..., 0]], dim=1)
             x = self.departure(features)
+
+            if len(self.fix_boundary) > 0:
+                x[self.fix_boundary] = data[self.fix_boundary, 0]
         y_hat.append(x)
 
         self.flows = []
@@ -398,9 +406,14 @@ class BirdFlowTime(MessagePassing):
             x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=data.env[..., t],
                                    edge_attr=edge_attr, embedding=embedding)
 
+            if len(self.fix_boundary) > 0:
+                # use ground truth for boundary nodes
+                x[self.fix_boundary, 0] = data.y[self.fix_boundary, t]
+
             y_hat.append(x)
 
-        return torch.cat(y_hat, dim=-1)
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
 
 
     def message(self, x_j, coords_i, coords_j, env_j, norm_j, edge_attr, embedding_j):
@@ -504,7 +517,7 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
 
     return loss_all
 
-def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=True, bird_scale=2000, departure=False):
+def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=True, bird_scale=2000, departure=False, fix_boundary=[]):
     if cuda:
         model.cuda()
     model.eval()
@@ -521,6 +534,12 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
         else:
             output = output[:, 1:]
         gt = gt * bird_scale
+
+        if len(fix_boundary) > 0:
+            boundary_mask = np.ones(output.size(0))
+            boundary_mask[fix_boundary] = 0
+            output = output[boundary_mask]
+            gt = gt[boundary_mask]
 
         if get_outfluxes:
             outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
