@@ -255,7 +255,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
         pickle.dump(nights, f)
     df_gam = pd.read_csv(gam_csv)
-    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime, tz='UTC')
+    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
     dti = pd.DatetimeIndex(time, tz='UTC')
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
@@ -289,7 +289,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                     pred[midx][nights[nidx][1:timesteps]] = y[1:]
                     pred[midx][nights[nidx][0]] = data.x[idx, 0]
 
-            pred_gam[nights[nidx]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction
+            pred_gam[nights[nidx]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
 
         fig, ax = plt.subplots(figsize=(20, 4))
         for midx, model_type in enumerate(model_types):
