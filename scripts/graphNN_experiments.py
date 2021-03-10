@@ -38,6 +38,7 @@ parser.add_argument('--plot_predictions', action='store_true', default=False, he
 parser.add_argument('--fix_boundary', action='store_true', default=False, help='fix boundary cells to ground truth')
 parser.add_argument('--use_env_cells', action='store_true', default=False, help='use entire cells to interpolate environment variables')
 parser.add_argument('--use_buffers', action='store_true', default=False, help='use radar buffers for training instead of entire cells')
+parser.add_argument('--conservation', action='store_true', default=False, help='use mass conservation constraints')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -427,7 +428,7 @@ if args.action == 'test':
 
     model_types = ['linear+sigmoid', 'mlp']#, 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
     model_labels = ['G_linear+sigmoid', 'G_mlp']#, 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
-    cons = True
+    cons = args.conservation
     rec = True
     emb = 0
 
