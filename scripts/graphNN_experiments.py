@@ -227,7 +227,8 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
     gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
                                        test_data.info['radars'], timesteps, loss_func)
-    ax.plot(range(1, timesteps), gam_losses, label=f'GAM')
+    gam_losses = np.sqrt(gam_losses.mean(0).mean(0))
+    ax.plot(range(1, timesteps), gam_losses.mean(), label=f'GAM')
 
 
     ax.set_xlabel('timestep')
