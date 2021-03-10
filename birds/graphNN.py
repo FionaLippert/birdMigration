@@ -126,7 +126,7 @@ class RadarData(InMemoryDataset):
             wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
                                             radars.keys(), t_range, vars=['u', 'v'])
 
-        print(wind)
+        #print(wind)
 
         print('load sun data')
 
