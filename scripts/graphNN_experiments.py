@@ -32,6 +32,7 @@ parser.add_argument('--repeats', type=int, default=5, help='number of models to 
 parser.add_argument('--hidden_dim', type=int, default=16, help='number of hidden nodes in mlp')
 parser.add_argument('--ts_train', type=int, default=6, help='length of training sequences')
 parser.add_argument('--ts_test', type=int, default=6, help='length of testing sequences')
+parser.add_argument('--save_predictions', action='store_true', default=False, help='save predictions for each radar separately')
 parser.add_argument('--plot_predictions', action='store_true', default=False, help='plot predictions for each radar separately')
 args = parser.parse_args()
 
@@ -373,8 +374,8 @@ if args.action == 'test':
 
     plot_test_errors(args.ts_test, model_names, short_names, model_labels, output_path, data_source=args.data_source,
                      bird_scale=bird_scale, departure=departure)
-
-    predictions(args.ts_train, model_names, model_types, osp.dirname(output_path),
+    if args.save_predictions:
+        predictions(args.ts_train, model_names, model_types, osp.dirname(output_path),
                 data_source=args.data_source, repeats=repeats, bird_scale=bird_scale, departure=departure)
 
     if args.plot_predictions:
