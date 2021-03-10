@@ -63,7 +63,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     if args.fix_boundary:
         fix_boundary = [ridx for ridx, b in boundaries.items() if b]
     else:
-        fix_boundaries = []
+        fix_boundary = []
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
@@ -149,11 +149,20 @@ def load_model(name):
     model.recurrent = True
     return model
 
-def load_gam_predictions(csv_file, test_loader, nights, time):
-    df = pd.read_csv(csv_file)
-    for nidx, data in enumerate(test_loader):
-        night = nights[nidx]
-        time[night]
+def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps, loss_func):
+    df_gam = pd.read_csv(csv_file)
+    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime, tz='UTC')
+    dti = pd.DatetimeIndex(time, tz='UTC')
+
+    loss = np.zeros((len(radars), len(nights), timesteps-1))
+    pred_gam = np.zeros((len(radars), len(time)))
+    for idx, radar in enumerate(radars):
+        df_gam_idx = df_gam[df_gam.radar == radar]
+        for nidx, data in enumerate(test_loader):
+            y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction
+            pred_gam[idx, nights[nidx]] = y_gam
+            loss[idx, nidx, :] = loss_func(y_gam[1:timesteps], data.y)
+    return loss, pred_gam
 
 
 def plot_test_errors(timesteps, model_names, short_names, model_types, output_path,
@@ -216,10 +225,9 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
     ax.plot(range(1, timesteps), naive_losses, label=f'naive "persistence" model')
 
-    # with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{args.data_source}.pkl'), 'rb') as f:
-    #     gam = pickle.load(f)
-
-
+    gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
+                                       test_data.info['radars'], timesteps, loss_func)
+    ax.plot(range(1, timesteps), gam_losses, label=f'GAM')
 
 
     ax.set_xlabel('timestep')

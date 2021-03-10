@@ -20,7 +20,7 @@ from birds import spatial, datahandling, era5interface, abm
 class RadarData(InMemoryDataset):
 
     def __init__(self, root, year, season='fall', timesteps=1,
-                 data_source='radar', bird_scale = 2000, start=None, end=None, transform=None, pre_transform=None):
+                 data_source='radar', bird_scale = 2000, env_points=100, start=None, end=None, transform=None, pre_transform=None):
 
         #self.split = split
         self.season = season
@@ -30,6 +30,7 @@ class RadarData(InMemoryDataset):
         self.start = start
         self.end = end
         self.bird_scale = bird_scale
+        self.env_points = 100 # number of environment variable samples per radar cell
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -110,8 +111,11 @@ class RadarData(InMemoryDataset):
         #
         # wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'wind_850.nc'),
         #                                     radars.keys(), t_range, vars=['u', 'v'])
-        wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
-                                            radars.keys(), t_range, vars=['u', 'v'])
+        # wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
+        #                                     radars.keys(), t_range, vars=['u', 'v'])
+        wind = era5interface.compute_cell_avg(
+            os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
+            cells.to_crs('epsg:4326').geometry, self.env_points, t_range, vars=['u', 'v'])
 
         print('load sun data')
 
@@ -380,8 +384,7 @@ class BirdFlowTime(MessagePassing):
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
         x = data.x[..., 0].view(-1, 1)
-        print(data.y.shape)
-        print(len(self.fix_boundary))
+
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr

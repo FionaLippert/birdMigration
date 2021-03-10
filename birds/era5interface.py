@@ -6,6 +6,7 @@ import xarray as xr
 import numpy as np
 import pandas as pd
 import rioxarray
+from shapely import geometry
 
 # from . import datahandling
 # from .spatial import Spatial
@@ -106,18 +107,18 @@ def extract_points(data_path, lonlat_list, t_range, vars):
 
     return weather
 
-# def sample_points_from_polygon(polygon, n_points):
-#     minx, miny, maxx, maxy = self.departure_area.total_bounds
-#     lon = self.rng.uniform(minx, maxx)
-#     lat = self.rng.uniform(miny, maxy)
-#     pos = geometry.Point(lon, lat)
-#     while not self.departure_area.contains(pos).any():
-#         lon = np.random.uniform(minx, maxx)
-#         lat = np.random.uniform(miny, maxy)
-#         pos = geometry.Point(lon, lat)
-#     return lon, lat
+def sample_point_from_polygon(polygon):
+    minx, miny, maxx, maxy = polygon.bounds
+    lon = np.random.uniform(minx, maxx)
+    lat = np.random.uniform(miny, maxy)
+    pos = geometry.Point(lon, lat)
+    while not polygon.contains(pos):
+        lon = np.random.uniform(minx, maxx)
+        lat = np.random.uniform(miny, maxy)
+        pos = geometry.Point(lon, lat)
+    return (lon, lat)
 
-def compute_cell_avg(data_path, cell_geometry, t_range, vars):
+def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars):
     # t_range must be given as UTC
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
@@ -129,11 +130,16 @@ def compute_cell_avg(data_path, cell_geometry, t_range, vars):
     for var, ds in data.items():
         if var in vars:
             var_data = []
-            for lonlat in lonlat_list:
-                # Extract time-series data at given point (interpolate between available grid points)
-                data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
-                var_data.append(data_point.sel(time=t_range).data.flatten())
-            weather[var] = np.stack(var_data)
+            for poly in cell_geometries:
+                var_data_poly = []
+                for i in range(n_points):
+                    lon, lat = sample_point_from_polygon(poly)
+                    # Extract time-series data at given point (interpolate between available grid points)
+                    var_data_poly.append(ds.interp(longitude=lon,
+                                                   latitude=lat,
+                                                   method='linear').sel(time=t_range).data.flatten())
+                var_data.append(np.stack(var_data_poly, axis=0).mean(0))
+            weather[var] = np.stack(var_data, axis=0)
 
     return weather
 
