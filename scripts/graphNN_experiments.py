@@ -161,7 +161,7 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
         for nidx, data in enumerate(test_loader):
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
             pred_gam[idx, nights[nidx]] = y_gam
-            loss[idx, nidx, :] = loss_func(torch.tensor(y_gam[1:timesteps]), data.y[idx, nidx])
+            loss[idx, nidx, :] = loss_func(torch.tensor(y_gam[1:timesteps]), data.y[idx])
     return loss, pred_gam
 
 
