@@ -244,7 +244,7 @@ class RadarData(InMemoryDataset):
         else:
             x = birds_per_cell
         data_list = [Data(x=torch.tensor(x[:, :-1, t], dtype=torch.float),
-                          y=torch.tensor(x[:, 1:, t], dtype=torch.float),
+                          y=torch.tensor(birds_per_cell[:, 1:, t], dtype=torch.float),
                           coords=torch.stack([
                               torch.tensor(xcoords, dtype=torch.float),
                               torch.tensor(ycoords, dtype=torch.float)
