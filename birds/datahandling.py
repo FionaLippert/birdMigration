@@ -75,6 +75,8 @@ def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True, rada
         start = f'{year}-08-01 12:00:00' #+00:00'
         end = f'{year}-11-15 12:00:00' #+00:00'
 
+    print(start, end)
+
     dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days)
 
     if len(radar_names) == 0:
