@@ -547,7 +547,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
         gt = data.y * bird_scale
 
         if not departure:
-            gt = gt[:, :1]
+            gt = gt[:, 1:]
             output = output[:, 1:]
 
         if len(fix_boundary) > 0:
