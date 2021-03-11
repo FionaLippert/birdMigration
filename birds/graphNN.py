@@ -25,6 +25,7 @@ class RadarData(InMemoryDataset):
                  start=None, end=None, transform=None, pre_transform=None):
 
         self.split = split
+        self.root, root
         self.season = season
         self.year = year
         self.timesteps = timesteps
