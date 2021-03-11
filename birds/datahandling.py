@@ -53,7 +53,6 @@ def resample(f, start, end, var, unit, mask_days):
 
 def load_data(path, var='vid', start=None, end=None, t_unit='1H', mask_days=True):
     files = glob.glob(os.path.join(path, '*.nc'))
-    print(files)
     data = {get_name(f): resample(f, start, end, var, t_unit, mask_days) for f in files}
     names = {get_coords(f): get_name(f) for f in files}
     t_range = pd.date_range(start, end, freq=t_unit)
@@ -61,7 +60,9 @@ def load_data(path, var='vid', start=None, end=None, t_unit='1H', mask_days=True
 
 def load_radars(path):
     files = glob.glob(os.path.join(path, '*.nc'))
+    print(files)
     radars = {get_coords(f): get_name(f) for f in files}
+    print(files)
     return radars
 
 def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True, radar_names=[]):
@@ -74,8 +75,6 @@ def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True, rada
     elif season == 'fall':
         start = f'{year}-08-01 12:00:00' #+00:00'
         end = f'{year}-11-15 12:00:00' #+00:00'
-
-    print(start, end)
 
     dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days)
 

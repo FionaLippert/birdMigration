@@ -80,6 +80,7 @@ class RadarData(InMemoryDataset):
             radars = datahandling.load_radars(osp.join(self.raw_dir, 'radar', self.season, self.year))
             print('radars available', len(radars))
         else:
+            print(osp.join(self.raw_dir, 'radar', self.season, '2017'))
             radars = datahandling.load_radars(osp.join(self.raw_dir, 'radar', self.season, '2017'))
             print('radars not available', len(radars))
 
