@@ -9,7 +9,7 @@ def prepare_data(split, root, year, season, timesteps, data_source, bird_scale):
     X = []
     y = []
     for seq in dataset:
-        for t in range(timesteps):
+        for t in range(timesteps+1):
             features = np.concatenate([seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
@@ -26,7 +26,7 @@ def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_
     for seq in dataset:
         X_night = []
         y_night = []
-        for t in range(timesteps):
+        for t in range(timesteps+1):
             features = np.concatenate([seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
@@ -46,7 +46,7 @@ def prepare_data_nights_and_radars(split, root, year, season, timesteps, data_so
     for seq in dataset:
         X_night = []
         y_night = []
-        for t in range(timesteps):
+        for t in range(timesteps+1):
             features = np.concatenate([seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
