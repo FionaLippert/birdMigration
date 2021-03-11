@@ -263,7 +263,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         naive_losses.append(torch.tensor(
             [loss_func(data.x[:, 0] * bird_scale, data.y[:, t+1] * bird_scale) for t in range(timesteps)]))
     naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
-    ax.plot(range(1, timesteps), naive_losses, label=f'constant night')
+    ax.plot(range(1, timesteps+1), naive_losses, label=f'constant night')
 
 
     ax.set_xlabel('timestep')
