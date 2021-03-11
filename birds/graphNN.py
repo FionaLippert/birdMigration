@@ -20,11 +20,11 @@ from birds import spatial, datahandling, era5interface, abm
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, root, year, season='fall', timesteps=1,
-                 data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100, env_cells=False,
+    def __init__(self, split, root, year, season='fall', timesteps=1,
+                 data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100, env_cells=True,
                  start=None, end=None, transform=None, pre_transform=None):
 
-        #self.split = split
+        self.split = split
         self.season = season
         self.year = year
         self.timesteps = timesteps
@@ -35,6 +35,12 @@ class RadarData(InMemoryDataset):
         self.env_points = env_points # number of environment variable samples per radar cell
         self.use_buffers = use_buffers
         self.env_cells = env_cells
+        self.random_seed = 1234
+
+        if use_buffers:
+            self.processed_dirname = f'measurements=radar_buffers_split={split}'
+        else:
+            self.processed_dirname = 'measurements=voronoi_cells'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -53,7 +59,7 @@ class RadarData(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        return osp.join(self.root, 'processed', self.data_source, self.season, self.year)
+        return osp.join(self.root, 'processed', self.processed_dirname, self.data_source, self.season, self.year)
 
     @property
     def processed_file_names(self):
@@ -115,22 +121,13 @@ class RadarData(InMemoryDataset):
 
 
         print('load wind data')
-        #
-        # wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'wind_850.nc'),
-        #                                     radars.keys(), t_range, vars=['u', 'v'])
-
         if self.env_cells:
             wind = era5interface.compute_cell_avg(
                 os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
-                cells.to_crs('epsg:4326').geometry, self.env_points, t_range, vars=['u', 'v'])
+                cells.to_crs('epsg:4326').geometry, self.env_points, t_range, vars=['u', 'v'], seed=self.random_seed)
         else:
             wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
                                             radars.keys(), t_range, vars=['u', 'v'])
-
-        #print(wind)
-
-        print('load sun data')
-
 
 
         check = np.isfinite(solarpos).all(axis=0) # day/night mask
@@ -145,20 +142,25 @@ class RadarData(InMemoryDataset):
         nights = [[item[0] for item in g] for g in groups if g[0][1]] # and len(g) > self.timesteps]
 
         def reshape(data, nights, mask):
-            return np.stack([timeslice(data, night[0], mask) for night in nights], axis=-1)
+            reshaped = [timeslice(data, night[0], mask) for night in nights[:-1]]
+            reshaped = [d for d in reshaped if d.size > 0] # only use sequences that are fully available
+            reshaped = np.stack(reshaped, axis=-1)
+            return reshaped
 
         def timeslice(data, start_night, mask):
             data_night = data[:, start_night:]
+            # remove hours during the day
             data_night = data_night[:, mask[start_night:]]
-            #if data_night.shape[1] > self.timesteps:
-            if data_night.shape[1] >= self.timesteps:
+            if data_night.shape[1] > self.timesteps:
                 #data_night = data_night[:, 1:self.timesteps + 1] # for radar data shift by 1 ts might be needed
-                data_night = data_night[:, :self.timesteps]
+                data_night = data_night[:, :self.timesteps+1]
             else:
+                # timesteps is larger than the number of data points left after this night and next nights
                 # data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
                 #                     constant_values=0)
-                data_night = np.pad(data_night, ((0, 0), (0, self.timesteps - data_night.shape[1])),
-                                    constant_values=0)
+                # data_night = np.pad(data_night, ((0, 0), (0, self.timesteps - data_night.shape[1])),
+                #                     constant_values=0)
+                data_night = np.empty(0)
             return data_night
 
 
@@ -177,13 +179,6 @@ class RadarData(InMemoryDataset):
                 'direction': (abm.uv2deg(wind['u'], wind['v']) + 360) % 360
                 }
 
-        #
-        # else:
-        #     # discard missing data
-        #     data = data[:, dft.check]
-        #     solarpos = solarpos[:, dft.check]
-        #     wind = {key : val[:, dft.check] for key, val in wind.items()}
-
 
         def normalize(features, min=None, max=None):
             if min is None:
@@ -199,28 +194,21 @@ class RadarData(InMemoryDataset):
             buffer_areas = radar_buffers.area.to_numpy()
 
         # compute total number of birds within each cell around radar
-        if self.timesteps > 1 and self.data_source == 'radar':
+        if self.data_source == 'radar':
             birds_per_cell = data * areas[:, None, None]
-        elif self.data_source == 'radar':
-            birds_per_cell = data * areas[:, None]
         else:
             birds_per_cell = data
-            if self.use_buffers and self.timesteps > 1:
-                birds_per_cell_from_buffer = buffer_data / buffer_areas[:, None, None] * areas[:, None, None]
-            elif self.use_buffers and self.timesteps == 1:
-                birds_per_cell_from_buffer = buffer_data / buffer_areas[:, None] * areas[:, None]
+            if self.use_buffers:
+                birds_per_cell_from_buffer = (buffer_data / buffer_areas[:, None, None]) * areas[:, None, None]
 
         # normalize node data
         print('normalize radar data')
-        #birds_per_cell = normalize(birds_per_cell, min=0)
         birds_per_cell = birds_per_cell / self.bird_scale
         if self.use_buffers:
             birds_per_cell_from_buffer = birds_per_cell_from_buffer / self.bird_scale
         print('normalize solarpos')
         solarpos = normalize(solarpos)
-        #solarpos = solarpos / 360
         solarpos_change = normalize((solarpos_change))
-        #solarpos_change = solarpos_change / 360
 
         print('normalize coords')
         xcoords = normalize(cells.x)
@@ -236,15 +224,20 @@ class RadarData(InMemoryDataset):
         angles = normalize([angle(cells.x.iloc[j], cells.y.iloc[j],
                                   cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0, max=360)
 
-        # write data to disk
-        os.makedirs(self.processed_dir, exist_ok=True)
-
+        # input quantity
         if self.use_buffers:
             x = birds_per_cell_from_buffer
         else:
             x = birds_per_cell
-        data_list = [Data(x=torch.tensor(x[:, :-1, t], dtype=torch.float),
-                          y=torch.tensor(birds_per_cell[:, 1:, t], dtype=torch.float),
+
+        # target quantity
+        if self.use_buffers and self.split == 'train':
+            y = birds_per_cell_from_buffer
+        else:
+            y = birds_per_cell
+
+        data_list = [Data(x=torch.tensor(x[:, :, t], dtype=torch.float),
+                          y=torch.tensor(y[:, :, t], dtype=torch.float),
                           coords=torch.stack([
                               torch.tensor(xcoords, dtype=torch.float),
                               torch.tensor(ycoords, dtype=torch.float)
@@ -260,32 +253,18 @@ class RadarData(InMemoryDataset):
                               torch.tensor(distances, dtype=torch.float),
                               torch.tensor(angles, dtype=torch.float)
                           ], dim=1))
-                     for t in range(data.shape[-1] - 1)]
+                     for t in range(data.shape[-1])]
 
-        # else:
-        #     data_list = [Data(x=torch.tensor(birds_per_cell[..., t], dtype=torch.float),
-        #                       y=torch.tensor(birds_per_cell[..., t+1], dtype=torch.float),
-        #                       coords=torch.stack([
-        #                           torch.tensor(xcoords, dtype=torch.float),
-        #                           torch.tensor(ycoords, dtype=torch.float)
-        #                       ], dim=1),
-        #                       env=torch.stack([
-        #                           *[torch.tensor(w[..., t], dtype=torch.float) for w in wind.values()],
-        #                           torch.tensor(solarpos[..., t], dtype=torch.float)
-        #                       ], dim=1),
-        #                       edge_index=edge_index,
-        #                       edge_attr=torch.stack([
-        #                           torch.tensor(distances, dtype=torch.float),
-        #                           torch.tensor(angles, dtype=torch.float)
-        #                       ], dim=1))
-        #                  for t in range(data.shape[-1] - 1)]
-
+        # write data to disk
+        os.makedirs(self.processed_dir, exist_ok=True)
 
         info = {'radars': list(radars.values()),
                  'timepoints': t_range,
                  'time_mask': dft.check,
                  'nights': nights,
+                 'bird_scale': self.bird_scale,
                  'boundaries': cells['boundary'].to_dict()}
+
         with open(osp.join(self.processed_dir, self.info_file_name), 'wb') as f:
             pickle.dump(info, f)
 
@@ -328,7 +307,7 @@ class MLP(torch.nn.Module):
         x = data.x[..., 0]
 
         y_hat = []
-        for t in range(self.timesteps - 1):
+        for t in range(self.timesteps):
             if not self.recurrent:
                 x = data.x[..., t]
 
@@ -409,6 +388,7 @@ class BirdFlowTime(MessagePassing):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
+        # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
 
         coords = data.coords
@@ -432,7 +412,7 @@ class BirdFlowTime(MessagePassing):
 
         self.flows = []
         self.abs_flows = []
-        for t in range(self.timesteps - 1):
+        for t in range(self.timesteps):
             r = torch.rand(1)
             if r < teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
@@ -508,12 +488,12 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
         if cuda: data = data.to('cuda')
         optimizer.zero_grad()
         output = model(data, teacher_forcing) #.view(-1)
-
         gt = data.y
-        if departure:
-            gt = torch.cat([data.x[:,0].view(-1,1), gt], dim=1)
-        else:
-            output = output[:,1:]
+
+        if not departure:
+            # omit t=0
+            gt = gt[:, 1:]
+            output = output[:, 1:]
 
         if conservation:
             outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
@@ -542,7 +522,9 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
         if cuda: data = data.to('cuda')
         optimizer.zero_grad()
         output = model(data).view(-1)
-        gt = data.x[..., 0]
+
+        # use only data at t=0
+        gt = data.y[..., 0]
         loss = loss_func(output, gt)
         loss.backward()
         loss_all += data.num_graphs * loss
@@ -550,7 +532,8 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
 
     return loss_all
 
-def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=True, bird_scale=2000, departure=False, fix_boundary=[]):
+def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=True, bird_scale=2000,
+                departure=False, fix_boundary=[]):
     if cuda:
         model.cuda()
     model.eval()
@@ -560,13 +543,11 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
     for tidx, data in enumerate(test_loader):
         if cuda: data = data.to('cuda')
         output = model(data) * bird_scale #.view(-1)
+        gt = data.y * bird_scale
 
-        gt = data.y
-        if departure:
-            gt = torch.cat([data.x[:, 0].view(-1, 1), gt], dim=1)
-        else:
+        if not departure:
+            gt = gt[:, :1]
             output = output[:, 1:]
-        gt = gt * bird_scale
 
         if len(fix_boundary) > 0:
             boundary_mask = np.ones(output.size(0))
@@ -586,7 +567,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
                 outfluxes[tidx] = outfluxes[tidx].cpu()
                 outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps-1)]))
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 
@@ -603,9 +584,7 @@ def test_departure(model, test_loader, loss_func, cuda, bird_scale=2000):
     for tidx, data in enumerate(test_loader):
         if cuda: data = data.to('cuda')
         output = model(data).view(-1) * bird_scale
-
-        gt = data.x[..., 0]
-        gt = gt * bird_scale
+        gt = data.y[..., 0] * bird_scale
 
         loss_all.append(loss_func(output, gt))
 

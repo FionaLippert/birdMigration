@@ -107,18 +107,19 @@ def extract_points(data_path, lonlat_list, t_range, vars):
 
     return weather
 
-def sample_point_from_polygon(polygon):
+def sample_point_from_polygon(polygon, seed):
+    rng = np.random.default_rng(seed)
     minx, miny, maxx, maxy = polygon.bounds
     lon = np.random.uniform(minx, maxx)
     lat = np.random.uniform(miny, maxy)
     pos = geometry.Point(lon, lat)
     while not polygon.contains(pos):
-        lon = np.random.uniform(minx, maxx)
-        lat = np.random.uniform(miny, maxy)
+        lon = rng.uniform(minx, maxx)
+        lat = rng.uniform(miny, maxy)
         pos = geometry.Point(lon, lat)
     return (lon, lat)
 
-def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars):
+def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
     # t_range must be given as UTC
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
@@ -133,7 +134,7 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars):
             for poly in cell_geometries:
                 var_data_poly = []
                 for i in range(n_points):
-                    lon, lat = sample_point_from_polygon(poly)
+                    lon, lat = sample_point_from_polygon(poly, seed=seed)
                     #print(lon, lat)
                     # Extract time-series data at given point (interpolate between available grid points)
                     var_data_poly.append(ds.interp(longitude=lon,

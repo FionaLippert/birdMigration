@@ -61,7 +61,7 @@ def persistence(last_ob, timesteps):
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
-    train_data = [RadarData(root, year, season, timesteps, data_source=data_source, env_cells=args.use_env_cells,
+    train_data = [RadarData('train', root, year, season, timesteps, data_source=data_source, env_cells=args.use_env_cells,
                             use_buffers=args.use_buffers, bird_scale=bird_scale) for year in train_years]
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
@@ -71,7 +71,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
-    val_data = RadarData(root, val_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    val_data = RadarData(root, 'test', val_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                          env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     val_loader = DataLoader(val_data, batch_size=1)
 
@@ -159,26 +159,28 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
     df_gam.datetime = pd.DatetimeIndex(df_gam.datetime) #, tz='UTC')
     dti = pd.DatetimeIndex(time, tz='UTC')
 
-    loss = np.zeros((len(radars), len(nights), timesteps-1))
+    loss = np.zeros((len(radars), len(nights), timesteps))
     pred_gam = np.zeros((len(radars), len(time)))
     for idx, radar in enumerate(radars):
         df_gam_idx = df_gam[df_gam.radar == radar]
         for nidx, data in enumerate(test_loader):
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
             pred_gam[idx, nights[nidx]] = y_gam
-            y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][1]:nights[nidx][1]+timesteps-1])].gam_prediction.to_numpy()
-            loss[idx, nidx, :] = [np.square(y_gam[t] - data.y[idx, t] * bird_scale) for t in range(timesteps-1)]
+            start_idx = nights[nidx][1]
+            y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[start_idx:start_idx+timesteps])].gam_prediction.to_numpy()
+            loss[idx, nidx, :] = [np.square(y_gam[t] - data.y[idx, t+1] * bird_scale) for t in range(timesteps)]
             #loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
 
     return loss, pred_gam
 
 def gbt_rmse(bird_scale, seed=1234):
     gbt = GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, seed)
-    X, y = GBT.prepare_data_nights(root, test_year, season, args.ts_test, args.data_source, bird_scale)
+    X, y = GBT.prepare_data_nights('test', root, test_year, season, args.ts_test, args.data_source, bird_scale)
     rmse = []
-    for t in range(1, args.ts_test):
-        y_hat = gbt.predict(X[t])
-        rmse.append(np.sqrt(np.mean(np.square(y[t] * bird_scale - y_hat * bird_scale))))
+    for t in range(args.ts_test):
+        gt = y[t+1] * bird_scale
+        y_hat = gbt.predict(X[t+1]) * bird_scale
+        rmse.append(np.sqrt(np.mean(np.square(gt - y_hat))))
     return rmse
 
 
@@ -191,7 +193,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
-    test_data = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    test_data = RadarData('test', root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                           env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
@@ -238,36 +240,35 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         losses = torch.stack(loss_all[type]).sqrt()
         mean_loss = losses.mean(0).detach().numpy()
         std_loss = losses.std(0).detach().numpy()
-        line = ax.plot(range(1, timesteps), mean_loss, label=f'{type}')
-        ax.fill_between(range(1, timesteps), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
+        line = ax.plot(range(1, timesteps+1), mean_loss, label=f'{type}')
+        ax.fill_between(range(1, timesteps+1), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
                         color=line[0].get_color())
 
     gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
                                        test_data.info['radars'], timesteps, loss_func)
-    gam_losses = np.sqrt(gam_losses.mean(0).mean(0))
-    ax.plot(range(1, timesteps), gam_losses, label=f'GAM')
+    gam_losses = np.sqrt(gam_losses.mean(axis=(0,1)))
+    ax.plot(range(1, timesteps+1), gam_losses, label=f'GAM')
 
     gbt_losses = []
     for r in range(args.repeats):
         gbt_losses.append(gbt_rmse(bird_scale, seed=r))
     gbt_mean_loss = np.stack(gbt_losses, axis=0).mean(0)
     gbt_std_loss = np.stack(gbt_losses, axis=0).std(0)
-    line = ax.plot(range(1, timesteps), gbt_mean_loss, label=f'GBT')
-    ax.fill_between(range(1, timesteps), gbt_mean_loss - gbt_std_loss, gbt_mean_loss + gbt_std_loss, alpha=0.2,
+    line = ax.plot(range(1, timesteps+1), gbt_mean_loss, label=f'GBT')
+    ax.fill_between(range(1, timesteps+1), gbt_mean_loss - gbt_std_loss, gbt_mean_loss + gbt_std_loss, alpha=0.2,
                     color=line[0].get_color())
 
     naive_losses = []
     for data in test_loader:
         naive_losses.append(torch.tensor(
-            [loss_func(data.x[:, 0] * bird_scale, data.y[:, t] * bird_scale) for t in range(timesteps - 1)]))
+            [loss_func(data.x[:, 0] * bird_scale, data.y[:, t+1] * bird_scale) for t in range(timesteps)]))
     naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
     ax.plot(range(1, timesteps), naive_losses, label=f'constant night')
 
 
     ax.set_xlabel('timestep')
     ax.set_ylabel('RMSE')
-    #ax.set_ylim(-0.005, 0.035)
-    ax.set_xticks(range(1, timesteps))
+    ax.set_xticks(range(1, timesteps+1))
     ax.legend()
     fig.savefig(output_path, bbox_inches='tight')
     plt.close(fig)
@@ -276,7 +277,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 def plot_predictions(timesteps, model_names, short_names, model_types, output_dir, tidx=None,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    dataset = RadarData('test', root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                         env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = np.array(dataset.info['timepoints'])
@@ -309,23 +310,18 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         df_gam_idx = df_gam[df_gam.radar==radar]
 
         for nidx, data in enumerate(dataloader):
-            gt[nights[nidx][0]] = data.x[idx, 0]
-            gt[nights[nidx][1:timesteps]] = data.y[idx]
+            gt[nights[nidx][:timesteps+1]] = data.y[idx]
 
             if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
                 model.timesteps = timesteps
                 if args.cuda: model.cuda()
                 y = model(data).cpu().detach().numpy()[idx]
-                if departure:
-                    pred[midx][nights[nidx][:timesteps]] = y
-                else:
-                    pred[midx][nights[nidx][1:timesteps]] = y[1:]
-                    pred[midx][nights[nidx][0]] = data.x[idx, 0]
+                pred[midx][nights[nidx][:timesteps]] = y
 
-            pred_gam[nights[nidx][:timesteps]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps]])].gam_prediction.to_numpy()
+            pred_gam[nights[nidx][:timesteps+1]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps+1]])].gam_prediction.to_numpy()
             for r in range(args.repeats):
-                pred_gbt[r, nights[nidx][:timesteps]] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
+                pred_gbt[r, nights[nidx][:timesteps+1]] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
 
         fig, ax = plt.subplots(figsize=(20, 4))
         for midx, model_type in enumerate(model_types):
@@ -359,7 +355,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 def predictions(timesteps, model_names, model_types, output_dir,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = RadarData(root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    dataset = RadarData('test', root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                         env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = dataset.info['timepoints']
@@ -377,19 +373,14 @@ def predictions(timesteps, model_names, model_types, output_dir,
         pred = np.stack(pred, axis=0)
 
         for nidx, data in enumerate(dataloader):
-            gt[nights[nidx][0]] = data.x[idx, 0]
-            gt[nights[nidx][1:timesteps]] = data.y[idx]
+            gt[nights[nidx][:timesteps+1]] = data.y[idx]
 
             if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
                 model.timesteps = timesteps
                 if args.cuda: model.cuda()
                 y = model(data).cpu().detach().numpy()[idx]
-                if departure:
-                    pred[midx][nights[nidx][:timesteps]] = y
-                else:
-                    pred[midx][nights[nidx][1:timesteps]] = y[1:]
-                    pred[midx][nights[nidx][0]] = data.x[idx, 0]
+                pred[midx][nights[nidx][:timesteps]] = y
 
         df = pd.DataFrame({'radar': [radar] * time.size,
                            'datetime': time,
@@ -409,7 +400,7 @@ def predictions(timesteps, model_names, model_types, output_dir,
 
 
 
-epochs = args.epochs #2 #10 #500
+epochs = args.epochs
 norm = False
 repeats = args.repeats #1
 departure = False #True #True #True
@@ -461,4 +452,5 @@ if args.action == 'test':
 
     if args.plot_predictions:
         plot_predictions(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
-                     data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24), departure=departure) #, tidx=range(18*24, 32*24))
+                     data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24),
+                         departure=departure, bird_scale=bird_scale) #, tidx=range(18*24, 32*24))
