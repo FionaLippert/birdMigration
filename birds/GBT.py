@@ -4,7 +4,7 @@ from torch_geometric.data import DataLoader
 
 
 def prepare_data(split, root, year, season, timesteps, data_source, bird_scale):
-    dataset = RadarData(split, root, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    dataset = RadarData(root, split, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
     #dataloader = DataLoader(dataset, batch_size=1)
     X = []
     y = []
@@ -20,7 +20,7 @@ def prepare_data(split, root, year, season, timesteps, data_source, bird_scale):
     return X, y
 
 def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_scale):
-    dataset = RadarData(split, root, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    dataset = RadarData(root, split, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
     X = []
     y = []
     for seq in dataset:
@@ -40,7 +40,7 @@ def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_
     return X, y
 
 def prepare_data_nights_and_radars(split, root, year, season, timesteps, data_source, bird_scale):
-    dataset = RadarData(split, root, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+    dataset = RadarData(root, split, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
     X = []
     y = []
     for seq in dataset:

@@ -20,12 +20,11 @@ from birds import spatial, datahandling, era5interface, abm
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, split, root, year, season='fall', timesteps=1,
+    def __init__(self, root, split, year, season='fall', timesteps=1,
                  data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100, env_cells=True,
                  start=None, end=None, transform=None, pre_transform=None):
 
         self.split = split
-        self.root = root
         self.season = season
         self.year = year
         self.timesteps = timesteps

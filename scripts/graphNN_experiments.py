@@ -61,7 +61,7 @@ def persistence(last_ob, timesteps):
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
-    train_data = [RadarData('train', root, year, season, timesteps, data_source=data_source, env_cells=args.use_env_cells,
+    train_data = [RadarData(root, 'train', year, season, timesteps, data_source=data_source, env_cells=args.use_env_cells,
                             use_buffers=args.use_buffers, bird_scale=bird_scale) for year in train_years]
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
@@ -193,7 +193,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
-    test_data = RadarData('test', root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    test_data = RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                           env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
@@ -277,7 +277,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 def plot_predictions(timesteps, model_names, short_names, model_types, output_dir, tidx=None,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = RadarData('test', root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    dataset = RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                         env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = np.array(dataset.info['timepoints'])
@@ -355,7 +355,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 def predictions(timesteps, model_names, model_types, output_dir,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = RadarData('test', root, test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+    dataset = RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                         env_cells=args.use_env_cells, use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = dataset.info['timepoints']
