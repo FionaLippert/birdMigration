@@ -109,15 +109,18 @@ def prepare_features(target_dir, data_dir, data_source, season, year,
         radar_year = year
     voronoi, radar_buffers, G = static_features(data_dir, season, radar_year)
 
+    # save to disk
+    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
+    radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
+    nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'))
+
     # load dynamic features
     dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                                           env_vars, env_points, random_seed)
 
     # save to disk
     dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
-    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
-    radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
-    nx.write_graphml_lxml(G, osp.join(target_dir, 'delaunay.graphml'))
+
 
 def angle(x1, y1, x2, y2):
     # for coords given in lonlat crs
@@ -143,7 +146,7 @@ def normalize(features, min=None, max=None):
     return (features - min) / (max - min)
 
 def reshape(data, nights, mask):
-    reshaped = [timeslice(data, night[0], mask) for night in nights[:-1]]
+    reshaped = [timeslice(data, night[0], mask) for night in nights]
     reshaped = [d for d in reshaped if d.size > 0] # only use sequences that are fully available
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
@@ -163,7 +166,7 @@ class RadarData(InMemoryDataset):
 
     def __init__(self, root, split, year, season='fall', timesteps=1,
                  data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100,
-                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'],
+                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=False,
                  start=None, end=None, transform=None, pre_transform=None):
 
         self.split = split
@@ -177,6 +180,7 @@ class RadarData(InMemoryDataset):
         self.env_points = env_points # number of environment variable samples per radar cell
         self.radar_years = radar_years # years for which radar data is available
         self.env_vars = env_vars
+        self.multinight = multinight
         self.use_buffers = use_buffers and data_source == 'abm'
         self.random_seed = 1234
 
@@ -231,7 +235,7 @@ class RadarData(InMemoryDataset):
         # load features
         dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir, 'dynamic_features.csv'))
         voronoi = gpd.read_file(osp.join(self.preprocessed_dir, 'voronoi.shp'))
-        G = nx.read_graphml_lxml(osp.join(self.preprocessed_dir, 'delaunay.graphml'))
+        G = nx.read_gpickle(osp.join(self.preprocessed_dir, 'delaunay.gpickle'))
 
         # extract edges from graph
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
@@ -285,7 +289,7 @@ class RadarData(InMemoryDataset):
 
         night_mask = night.any(axis=0)
 
-        # find timesteps where it is night for all radars
+        # find timesteps where it's night for all radars
         check = night.all(axis=0) # day/night mask
         dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
                             'tidx': range(len(time))}, index=time)
