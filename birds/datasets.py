@@ -327,7 +327,7 @@ class RadarData(InMemoryDataset):
                           y=torch.tensor(targets[:, :, nidx], dtype=torch.float),
                           coords=torch.tensor(coords, dtype=torch.float),
                           areas=torch.tensor(areas, dtype=torch.float),
-                          env=torch.tensor(env, dtype=torch.float),
+                          env=torch.tensor(env[..., nidx], dtype=torch.float),
                           edge_index=edge_index,
                           edge_attr=torch.stack([
                               torch.tensor(distances, dtype=torch.float),
