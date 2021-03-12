@@ -38,7 +38,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
                      env_vars=['u', 'v'], env_points=100, random_seed=1234):
 
     print(f'##### load data for {season} {year} #####')
-    
+
     if data_source == 'radar':
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
@@ -92,6 +92,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         # which is the opposite of the standard meteorological wind direction
         df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
 
+        for k, v in df.items():
+            print(k, len(v))
         df = pd.DataFrame(df)
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
