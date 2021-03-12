@@ -152,17 +152,13 @@ def reshape(data, nights, mask, timesteps):
     return reshaped
 
 def timeslice(data, start_night, mask, timesteps):
-    print(data.shape)
     data_night = data[..., start_night:]
-    print(data_night.shape)
     # remove hours during the day
     data_night = data_night[..., mask[start_night:]]
-    print(data_night.shape)
     if data_night.shape[-1] > timesteps:
         data_night = data_night[..., :timesteps+1]
     else:
         data_night = np.empty(0)
-    print(data_night.shape)
     return data_night
 
 
@@ -284,7 +280,7 @@ class RadarData(InMemoryDataset):
             df = groups.get_group(name).sort_values(by='datetime').reset_index(drop=True)
             inputs.append(df[input_col].to_numpy())
             targets.append(df[target_col].to_numpy())
-            env.append(df[env_cols].to_numpy())
+            env.append(df[env_cols].to_numpy().T)
             night.append(df.night.to_numpy())
             dusk.append(df.dusk.to_numpy())
             dawn.append(df.dawn.to_numpy())
