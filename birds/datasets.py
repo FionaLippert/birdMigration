@@ -58,10 +58,10 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     print('load sun data')
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
 
-    # print('load env data')
-    # env = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
-    #                                      voronoi.geometry, env_points,
-    #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    print('load env data')
+    env = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
+                                         voronoi.geometry, env_points,
+                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
@@ -76,10 +76,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
         # time related variables for radar ridx
         solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
-        print(solarpos.shape)
         night = solarpos < -6
-        print(solarpos[:-1].shape, solarpos[1:].shape)
-        print(night[:-1].shape, night[1:].shape)
         df['solarpos_dt'] = solarpos[:-1] - solarpos[1:]
         df['solarpos'] = solarpos[:-1]
         df['night'] = night[:-1]
@@ -87,17 +84,15 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         df['dawn'] = np.logical_and(night[:-1], ~night[1:])  # switching from night to day
         df['datetime'] = t_range
 
-        # # environmental variables for radar ridx
-        # for var in env_vars:
-        #     df[var] = env[var][ridx]
-        # df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
-        # # Note that here wind direction is the direction into which the wind is blowing,
-        # # which is the opposite of the standard meteorological wind direction
-        # df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
+        # environmental variables for radar ridx
+        for var in env_vars:
+            df[var] = env[var][ridx]
+        df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
+        # Note that here wind direction is the direction into which the wind is blowing,
+        # which is the opposite of the standard meteorological wind direction
+        df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
 
-        for k, v in df.items():
-            print(k, len(v))
-        df = pd.DataFrame(df)
+        dfs.append(pd.DataFrame(df))
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     return dynamic_feature_df
