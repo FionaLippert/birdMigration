@@ -436,6 +436,7 @@ class BirdFlowTime(MessagePassing):
         # x_j are source features with shape [E, out_channels]
 
         if embedding_j is None:
+            print(coords_i.shape, coords_j.shape, env_j.shape, edge_attr.shape)
             features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
         else:
             features = torch.cat([coords_i, coords_j, env_j, edge_attr, embedding_j], dim=1)

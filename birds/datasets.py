@@ -266,7 +266,6 @@ class RadarData(InMemoryDataset):
         tidx = np.arange(len(time))
         areas = voronoi.area_km2.to_numpy()
         coords = voronoi[coord_cols].to_numpy()
-        print(coords.shape)     # should have shape (radars, 2)
 
         inputs = []
         targets = []
@@ -291,7 +290,6 @@ class RadarData(InMemoryDataset):
         night = np.stack(night, axis=0)
         dusk = np.stack(dusk, axis=0)
         dawn = np.stack(dawn, axis=0)
-        print(env.shape)    # should have shape (radars, features, time)
 
 
         # find timesteps where it's night for all radars
