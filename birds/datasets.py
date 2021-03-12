@@ -75,7 +75,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx
-        solarpos = solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation
+        solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
         print(solarpos.shape)
         night = solarpos < -6
         print(solarpos[:-1].shape, solarpos[1:].shape)
