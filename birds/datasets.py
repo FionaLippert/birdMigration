@@ -248,7 +248,8 @@ class RadarData(InMemoryDataset):
                                   voronoi.lon.iloc[i], voronoi.lat.iloc[i]) for j, i in G.edges], min=0, max=360)
 
         # normalize dynamic features
-        cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night', 'dusk', 'datetime'])
+        cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
+                                                 'dusk', 'dawn', 'datetime'])
         dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
             lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
         dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
@@ -295,7 +296,6 @@ class RadarData(InMemoryDataset):
                             'check_any': np.append(np.logical_and(check_any[:-1], check_any[1:]), False),
                             'tidx': range(len(time))}, index=time)
 
-
         # group into nights
         groups = [list(g) for k, g in it.groupby(enumerate(dft.check_all), key=lambda x: x[-1])]
         nights = [[item[0] for item in g] for g in groups if g[0][1]]
@@ -304,12 +304,16 @@ class RadarData(InMemoryDataset):
         global_dusk = np.zeros(tidx.shape)
         global_dusk[global_dusk_idx] = 1
 
-        if not self.multinight:
-            inputs = reshape(inputs, nights, dft.check_all)
-            targets = reshape(targets, nights, dft.check_all)
-            env = reshape(env, nights, dft.check_all)
-            tidx = reshape(tidx, nights, dft.check_all)
-            global_dusk = reshape(global_dusk_idx, nights, dft.check_all)
+        if self.multinight:
+            mask = dft.check_any
+        else:
+            mask = dft.check_all
+
+        inputs = reshape(inputs, nights, mask)
+        targets = reshape(targets, nights, mask)
+        env = reshape(env, nights, mask)
+        tidx = reshape(tidx, nights, mask)
+        global_dusk = reshape(global_dusk_idx, nights, mask)
 
         # create graph data objects per night
         data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
