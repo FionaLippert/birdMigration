@@ -145,8 +145,8 @@ def normalize(features, min=None, max=None):
         features = np.array(features)
     return (features - min) / (max - min)
 
-def reshape(data, nights, mask):
-    reshaped = [timeslice(data, night[0], mask) for night in nights]
+def reshape(data, nights, mask, timesteps):
+    reshaped = [timeslice(data, night[0], mask, timesteps) for night in nights]
     reshaped = [d for d in reshaped if d.size > 0] # only use sequences that are fully available
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
@@ -309,11 +309,11 @@ class RadarData(InMemoryDataset):
         else:
             mask = dft.check_all
 
-        inputs = reshape(inputs, nights, mask)
-        targets = reshape(targets, nights, mask)
-        env = reshape(env, nights, mask)
-        tidx = reshape(tidx, nights, mask)
-        global_dusk = reshape(global_dusk_idx, nights, mask)
+        inputs = reshape(inputs, nights, mask, self.timesteps)
+        targets = reshape(targets, nights, mask, self.timesteps)
+        env = reshape(env, nights, mask, self.timesteps)
+        tidx = reshape(tidx, nights, mask, self.timesteps)
+        global_dusk = reshape(global_dusk_idx, nights, mask, self.timesteps)
 
         # create graph data objects per night
         data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
