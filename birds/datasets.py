@@ -36,8 +36,11 @@ def static_features(data_dir, season, year):
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                      env_vars=['u', 'v'], env_points=100, random_seed=1234):
+
+    print(f'##### load data for {season} {year} #####')
+    
     if data_source == 'radar':
-        print(f'load radar data for year {year}')
+        print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
         data, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid',
                                                     mask_days=False, radar_names=voronoi.radar)
@@ -45,7 +48,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':
-        print(f'load abm data for year {year}')
+        print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
         data, t_range = abm.load_season(abm_dir, season, year, voronoi)
         buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers)
@@ -62,13 +65,14 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
     dfs = []
     for ridx, row in voronoi.iterrows():
-        df = pd.DataFrame()
+
+        df = {}
 
         # bird measurementf for radar ridx
         df['birds'] = data[ridx]
         if data_source == 'abm':
             df['birds_from_buffer'] = buffer_data[ridx]
-        df['radar'] = row.radar
+        df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx
         solarpos = solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation
@@ -87,6 +91,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         # Note that here wind direction is the direction into which the wind is blowing,
         # which is the opposite of the standard meteorological wind direction
         df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
+
+        df = pd.DataFrame(df)
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     return dynamic_feature_df
