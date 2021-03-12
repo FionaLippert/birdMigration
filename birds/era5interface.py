@@ -120,7 +120,8 @@ def sample_point_from_polygon(polygon, seed):
     return (lon, lat)
 
 def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
-    # t_range must be given as UTC
+    t_range = t_range.tz_localize('UTC')
+    cell_geometries.to_crs('EPSG:4326') #epsg='4326')
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
