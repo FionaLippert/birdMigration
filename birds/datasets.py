@@ -57,7 +57,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
     print('load env data')
     env = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
-                                         voronoi.to_crs('epsg:4326').geometry, env_points,
+                                         voronoi.geometry, env_points,
                                          t_range, vars=env_vars, seed=random_seed)
 
     dfs = []
