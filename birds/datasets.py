@@ -272,6 +272,8 @@ class RadarData(InMemoryDataset):
         targets = []
         env = []
         night = []
+        dusk = []
+        dawn = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
@@ -280,11 +282,15 @@ class RadarData(InMemoryDataset):
             targets.append(df[target_col].to_numpy())
             env.append(df[env_cols].to_numpy())
             night.append(df.night.to_numpy())
+            dusk.append(df.dusk.to_numpy())
+            dawn.append(df.dawn.to_numpy())
 
         inputs = np.stack(inputs, axis=0)
         targets = np.stack(targets, axis=0)
         env = np.stack(env, axis=0)
         night = np.stack(night, axis=0)
+        dusk = np.stack(dusk, axis=0)
+        dawn = np.stack(dawn, axis=0)
         print(env.shape)    # should have shape (radars, features, time)
 
 
@@ -313,7 +319,9 @@ class RadarData(InMemoryDataset):
         targets = reshape(targets, nights, mask, self.timesteps)
         env = reshape(env, nights, mask, self.timesteps)
         tidx = reshape(tidx, nights, mask, self.timesteps)
-        global_dusk = reshape(global_dusk_idx, nights, mask, self.timesteps)
+        global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
+        local_dusk = reshape(dusk, nights, mask, self.timesteps)
+        local_dawn = reshape(dawn, nights, mask, self.timesteps)
 
         # create graph data objects per night
         data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
@@ -327,7 +335,9 @@ class RadarData(InMemoryDataset):
                               torch.tensor(angles, dtype=torch.float)
                           ], dim=1),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                          dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool))
+                          global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
+                          local_dusk=torch.tensor(local_dusk[:, nidx], dtype=torch.bool),
+                          local_dawn=torch.tensor(local_dawn[:, nidx], dtype=torch.bool))
                      for nidx in range(inputs.shape[-1])]
 
         # write data to disk
