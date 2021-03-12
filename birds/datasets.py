@@ -262,7 +262,7 @@ class RadarData(InMemoryDataset):
         env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt']
         coord_cols = ['x', 'y']
 
-        time = dynamic_feature_df.datetime.unique().sort_values()
+        time = dynamic_feature_df.datetime.sort_values().unique()
         tidx = np.arange(len(time))
         areas = voronoi.area_km2.to_numpy()
         coords = voronoi[coord_cols].to_numpy()
