@@ -10,7 +10,7 @@ import geopandas as gpd
 
 
 class Spatial:
-    def __init__(self, radars, epsg='4326', epsg_local='3035'):
+    def __init__(self, radars): #, epsg_local='3035'):
         """
         Initialization of Spatial object
         Args:
@@ -19,15 +19,17 @@ class Spatial:
             epsg_local (str): coordinate reference system as epsg string
         """
         self.radars = radars
-        self.epsg = epsg
-        self.epsg_local = epsg_local
+        #self.epsg = epsg
+        self.epsg_lonlat = '4326'          # epsg code for lon lat crs
+        self.epsg_equidistant = '4087'     # epsg code for "WGS 84 / World Equidistant Cylindrical"
+        self.epsg_equal_area = '3035'      # epsg code for "Lambert Azimuthal Equal Area projection"
+        #self.epsg_local = epsg_local
         self.N = len(radars)
 
-        # projection to local crs
+        # projections of radar positions
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
-                                        crs=f'EPSG:{epsg}')
-        #print(self.pts_lonlat)
-        self.pts_local = self.pts_lonlat.to_crs(epsg=epsg_local)
+                                        crs=f'EPSG:{self.epsg_lonlat}')
+        self.pts_local = self.pts_lonlat.to_crs(epsg=self.epsg_equidistant)
 
         self.voronoi()
 
@@ -43,7 +45,7 @@ class Spatial:
 
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
         sink = boundary.buffer(buffer).difference(boundary)
-        self.sink = gpd.GeoSeries(sink, crs=f'EPSG:{self.epsg_local}')
+        self.sink = gpd.GeoSeries(sink, crs=f'EPSG:{self.epsg_equidistant}')
 
         # compute voronoi cells
         xy = self.pts2coords(self.pts_local)
@@ -66,7 +68,7 @@ class Spatial:
                                   'lat': [c[1] for c in lonlat],
                                   },
                                  geometry=polygons,
-                                 crs=f'EPSG:{self.epsg_local}')
+                                 crs=f'EPSG:{self.epsg_equidistant}')
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
 
         adj = np.zeros((self.N, self.N))
@@ -75,7 +77,7 @@ class Spatial:
             intersec = cells.geometry.iloc[i].intersection(cells.geometry.iloc[j])
             if type(intersec) is geometry.LineString:
                 adj[i, j] = self.distance(xy[i], xy[j],
-                                          epsg=self.epsg_local)
+                                          epsg=self.epsg_equidistant)
                 adj[j, i] = adj[i, j]
                 edges.append(geometry.LineString((xy[i], xy[j])))
 
@@ -98,7 +100,7 @@ class Spatial:
         self.cells = cells
         self.G = G
         self.max_dist = np.max(adj)
-        self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_local}')
+        self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_equidistant}')
 
         return cells, G
 
@@ -130,16 +132,16 @@ class Spatial:
         Returns:
             dist (float): distance in meters
         """
-        if epsg == self.epsg_local:
+        if epsg == self.epsg_equidistant:
             dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
-        elif epsg == '4326':
+        elif epsg == self.epsg_lonlat:
             dist = geodesic(self.flip(coord1), self.flip(coord2)).kilometers
         else:
             dist = None  # raise error?
         return dist
 
     def angle(self, coord1, coord2):
-
+        # coords should be in lonlat crs
         y = coord1[0] - coord2[0]
         x = coord1[1] - coord2[1]
 

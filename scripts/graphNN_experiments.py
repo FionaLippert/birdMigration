@@ -14,7 +14,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import DataLoader
 from torch.optim import lr_scheduler
-from birds import GBT
+from birds import GBT, datasets
 
 
 parser = argparse.ArgumentParser(description='GraphNN experiments')
@@ -61,7 +61,7 @@ def persistence(last_ob, timesteps):
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
-    train_data = [RadarData(root, 'train', year, season, timesteps, data_source=data_source, env_cells=args.use_env_cells,
+    train_data = [datasets.RadarData(root, 'train', year, season, timesteps, data_source=data_source,
                             use_buffers=args.use_buffers, bird_scale=bird_scale) for year in train_years]
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
@@ -71,8 +71,8 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
-    val_data = RadarData(root, 'test', val_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                         env_cells=args.use_env_cells, use_buffers=args.use_buffers)
+    val_data = datasets.RadarData(root, 'test', val_year, season, timesteps, data_source=data_source,
+                                  bird_scale=bird_scale, use_buffers=args.use_buffers)
     val_loader = DataLoader(val_data, batch_size=1)
 
     for r in range(repeats):
