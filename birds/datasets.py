@@ -248,7 +248,7 @@ class RadarData(InMemoryDataset):
                                   voronoi.lon.iloc[i], voronoi.lat.iloc[i]) for j, i in G.edges], min=0, max=360)
 
         # normalize dynamic features
-        cidx = ~dynamic_feature_df.columns.isin('birds', 'birds_from_buffer', 'radar', 'night', 'dusk', 'datetime')
+        cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night', 'dusk', 'datetime'])
         dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
             lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
         dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
@@ -287,27 +287,29 @@ class RadarData(InMemoryDataset):
         print(env.shape)    # should have shape (radars, features, time)
 
 
-        night_mask = night.any(axis=0)
-
         # find timesteps where it's night for all radars
-        check = night.all(axis=0) # day/night mask
-        dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
+        check_all = night.all(axis=0) # day/night mask
+        # find timesteps where it's night for at least one radar
+        check_any = night.any(axis=0)
+        dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
+                            'check_any': np.append(np.logical_and(check_any[:-1], check_any[1:]), False),
                             'tidx': range(len(time))}, index=time)
 
 
         # group into nights
-        groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
+        groups = [list(g) for k, g in it.groupby(enumerate(dft.check_all), key=lambda x: x[-1])]
         nights = [[item[0] for item in g] for g in groups if g[0][1]]
 
         global_dusk_idx = [night[0] for night in nights]
         global_dusk = np.zeros(tidx.shape)
         global_dusk[global_dusk_idx] = 1
 
-        inputs = reshape(inputs, nights, dft.check)
-        targets = reshape(targets, nights, dft.check)
-        env = reshape(env, nights, dft.check)
-        tidx = reshape(tidx, nights, dft.check)
-        global_dusk = reshape(global_dusk_idx, nights, dft.check)
+        if not self.multinight:
+            inputs = reshape(inputs, nights, dft.check_all)
+            targets = reshape(targets, nights, dft.check_all)
+            env = reshape(env, nights, dft.check_all)
+            tidx = reshape(tidx, nights, dft.check_all)
+            global_dusk = reshape(global_dusk_idx, nights, dft.check_all)
 
         # create graph data objects per night
         data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
