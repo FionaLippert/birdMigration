@@ -400,12 +400,10 @@ def load_season(root, season, year, cells):
             states.append(result['states'])
             t_range = result['time']
 
-    print('loaded trajectories')
     traj = np.concatenate(traj, axis=1)
     states = np.concatenate(states, axis=1)
     T = states.shape[0]
 
-    print('aggregate data')
     counts, cols = aggregate(traj, states, cells, range(T), state=1)
     counts = counts.fillna(0)
     data = counts[cols].to_numpy()

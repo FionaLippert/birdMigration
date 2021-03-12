@@ -37,7 +37,7 @@ def static_features(data_dir, season, year):
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                      env_vars=['u', 'v'], env_points=100, random_seed=1234):
     if data_source == 'radar':
-        print('load radar data')
+        print(f'load radar data for year {year}')
         radar_dir = osp.join(data_dir, 'radar')
         data, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid',
                                                     mask_days=False, radar_names=voronoi.radar)
@@ -45,7 +45,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':
-        print('load abm data')
+        print(f'load abm data for year {year}')
         abm_dir = osp.join(data_dir, 'abm')
         data, t_range = abm.load_season(abm_dir, season, year, voronoi)
         buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers)
