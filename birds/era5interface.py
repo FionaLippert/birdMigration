@@ -117,7 +117,7 @@ def sample_point_from_polygon(polygon, seed):
         lon = rng.uniform(minx, maxx)
         lat = rng.uniform(miny, maxy)
         pos = geometry.Point(lon, lat)
-    return (lon, lat)
+    return lon, lat
 
 def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
     # t_range must be given as UTC, but not localized
@@ -128,7 +128,7 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
 
     #t_range = t_range.tz_convert('UTC') # convert datetimeindex to UTC if it was given at a different timezone
     weather = {}
-
+    print(t_range)
     for var, ds in data.items():
         if var in vars:
             var_data = []
@@ -137,9 +137,11 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
                 for i in range(n_points):
                     lon, lat = sample_point_from_polygon(poly, seed=seed)
                     # Extract time-series data at given point (interpolate between available grid points)
-                    var_data_poly.append(ds.interp(longitude=lon,
-                                                   latitude=lat,
-                                                   method='linear').sel(time=t_range).data.flatten())
+                    interp = ds.interp(longitude=lon, latitude=lat, method='linear')
+                    print(interp)
+                    interp = interp.sel(time=t_range).data.flatten()
+                    print(interp)
+                    var_data_poly.append(interp)
                 var_data.append(np.nanmean(np.stack(var_data_poly, axis=0), axis=0))
             weather[var] = np.stack(var_data, axis=0)
 
