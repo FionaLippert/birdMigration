@@ -336,7 +336,7 @@ class RadarData(InMemoryDataset):
                               torch.tensor(angles, dtype=torch.float)
                           ], dim=1),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                          global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
+                          global_dusk=torch.tensor(global_dusk[nidx], dtype=torch.bool),
                           local_dusk=torch.tensor(local_dusk[:, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(local_dawn[:, nidx], dtype=torch.bool))
                      for nidx in range(inputs.shape[-1])]
