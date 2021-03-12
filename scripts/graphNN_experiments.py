@@ -248,7 +248,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
                         color=line[0].get_color())
 
     gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
-                                       test_data.info['radars'], timesteps, loss_func)
+                                       test_data.info['radars'], timesteps, test_data.info['time_mask'], loss_func)
     gam_losses = np.sqrt(gam_losses.mean(axis=(0,1)))
     ax.plot(range(1, timesteps+1), gam_losses, label=f'GAM')
 
