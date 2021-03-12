@@ -152,13 +152,17 @@ def reshape(data, nights, mask, timesteps):
     return reshaped
 
 def timeslice(data, start_night, mask, timesteps):
+    print(data.shape)
     data_night = data[..., start_night:]
+    print(data_night.shape)
     # remove hours during the day
     data_night = data_night[..., mask[start_night:]]
+    print(data_night.shape)
     if data_night.shape[-1] > timesteps:
         data_night = data_night[..., :timesteps+1]
     else:
         data_night = np.empty(0)
+    print(data_night.shape)
     return data_night
 
 
@@ -298,12 +302,13 @@ class RadarData(InMemoryDataset):
         check_all = night.all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar
         check_any = night.any(axis=0)
-        dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
-                            'check_any': np.append(np.logical_and(check_any[:-1], check_any[1:]), False),
-                            'tidx': range(len(time))}, index=time)
+
+        # dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
+        #                     'check_any': np.append(np.logical_and(check_any[:-1], check_any[1:]), False),
+        #                     'tidx': range(len(time))}, index=time)
 
         # group into nights
-        groups = [list(g) for k, g in it.groupby(enumerate(dft.check_all), key=lambda x: x[-1])]
+        groups = [list(g) for k, g in it.groupby(enumerate(check_all), key=lambda x: x[-1])]
         nights = [[item[0] for item in g] for g in groups if g[0][1]]
 
         global_dusk_idx = [night[0] for night in nights]
@@ -311,9 +316,9 @@ class RadarData(InMemoryDataset):
         global_dusk[global_dusk_idx] = 1
 
         if self.multinight:
-            mask = dft.check_any
+            mask = check_any
         else:
-            mask = dft.check_all
+            mask = check_all
 
         inputs = reshape(inputs, nights, mask, self.timesteps)
         targets = reshape(targets, nights, mask, self.timesteps)
@@ -345,7 +350,8 @@ class RadarData(InMemoryDataset):
 
         info = {'radars': voronoi.radar.values,
                  'timepoints': time,
-                 'time_mask': dft.check,
+                 'time_mask': mask,
+                 'tidx': tidx,
                  'nights': nights,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict()}
