@@ -154,7 +154,7 @@ def load_model(name):
     model.recurrent = True
     return model
 
-def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps, loss_func):
+def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps, mask, loss_func):
     df_gam = pd.read_csv(csv_file)
     df_gam.datetime = pd.DatetimeIndex(df_gam.datetime) #, tz='UTC')
     dti = pd.DatetimeIndex(time, tz='UTC')
@@ -166,9 +166,12 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
         for nidx, data in enumerate(test_loader):
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx]])].gam_prediction.to_numpy()
             pred_gam[idx, nights[nidx]] = y_gam
-            start_idx = nights[nidx][1]
-            y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[start_idx:start_idx+timesteps])].gam_prediction.to_numpy()
-            loss[idx, nidx, :] = [np.square(y_gam[t] - data.y[idx, t+1] * bird_scale) for t in range(timesteps)]
+
+            start_idx = nights[nidx][0]
+            dti_night = dti[:, start_idx:]
+            dti_night = dti_night[:, mask[start_idx:]]
+            y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti_night[:timesteps+1])].gam_prediction.to_numpy()
+            loss[idx, nidx, :] = [np.square(y_gam[t+1] - data.y[idx, t+1] * bird_scale) for t in range(timesteps)]
             #loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
 
     return loss, pred_gam
