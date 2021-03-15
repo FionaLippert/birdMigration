@@ -320,7 +320,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                 model.timesteps = timesteps
                 if args.cuda: model.cuda()
                 y = model(data).cpu().detach().numpy()[idx]
-                pred[midx][nights[nidx][:timesteps]] = y
+                pred[midx][nights[nidx][:timesteps+1]] = y
 
             pred_gam[nights[nidx][:timesteps+1]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps+1]])].gam_prediction.to_numpy()
             for r in range(args.repeats):
