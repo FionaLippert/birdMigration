@@ -112,7 +112,7 @@ def prepare_features(target_dir, data_dir, data_source, season, year,
     # save to disk
     voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
     radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
-    nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'))
+    nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
 
     # load dynamic features
     dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
