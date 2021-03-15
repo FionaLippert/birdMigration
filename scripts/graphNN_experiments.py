@@ -57,11 +57,11 @@ def persistence(last_ob, timesteps):
     # always return last observed value
 	return [last_ob] * timesteps
 
-
+# TODO why does training not work with new dataloader??
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
-    train_data = [datasets.RadarData(root, 'train', year, season, timesteps, data_source=data_source,
+    train_data = [RadarData(root, 'train', year, season, timesteps, data_source=data_source,
                             use_buffers=args.use_buffers, bird_scale=bird_scale) for year in train_years]
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
@@ -70,10 +70,8 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         fix_boundary = []
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
-    for data in train_loader:
-        print(data.x)
 
-    val_data = datasets.RadarData(root, 'test', val_year, season, timesteps, data_source=data_source,
+    val_data = RadarData(root, 'test', val_year, season, timesteps, data_source=data_source,
                                   bird_scale=bird_scale, use_buffers=args.use_buffers)
     val_loader = DataLoader(val_data, batch_size=1)
 
