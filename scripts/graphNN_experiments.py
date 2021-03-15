@@ -293,7 +293,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
     gbt_models = []
     for r in range(args.repeats):
         gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, seed=r))
-    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars(root, test_year, season, args.ts_test, args.data_source, bird_scale)
+    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', test_year, season, args.ts_test, args.data_source, bird_scale)
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
