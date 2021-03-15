@@ -417,6 +417,9 @@ class BirdFlowTime(MessagePassing):
             r = torch.rand(1)
             if r < teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
+
+            # TODO mask x so that bird densities at nodes with sun > -6 are set to zero
+            # TODO add av_cell tensor which always contains the total number of available birds in a cell (use for departure model)
             x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=data.env[..., t],
                                    edge_attr=edge_attr, embedding=embedding)
 
@@ -456,11 +459,14 @@ class BirdFlowTime(MessagePassing):
 
         return abs_flow
 
-
+    # TODO add this to include departure model
     # def update(self, aggr_out, coords, env):
-    #    # return aggregation (sum) of inflows computed by message() PLUS departure prediction
+    #    # return aggregation (sum) of inflows computed by message()
+    #    # add departure prediction if local_dusk flag is True
+    #
     #    features = torch.cat([coords, env], dim=1)
     #    departure = self.departure(features)
+    #    departure = departure * local_dusk # only use departure model if it is local dusk
     #    return aggr_out + departure
 
 
