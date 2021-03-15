@@ -70,7 +70,9 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         fix_boundary = []
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
-    print(train_loader[0])
+    for data in train_loader:
+        print(data)
+        break
 
     val_data = datasets.RadarData(root, 'test', val_year, season, timesteps, data_source=data_source,
                                   bird_scale=bird_scale, use_buffers=args.use_buffers)
