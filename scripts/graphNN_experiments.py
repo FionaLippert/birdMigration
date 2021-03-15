@@ -288,7 +288,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         pickle.dump(nights, f)
     df_gam = pd.read_csv(gam_csv)
     df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
-    dti = pd.DatetimeIndex(time, tz='UTC')
+    dti = pd.DatetimeIndex(time) #, tz='UTC')
 
     gbt_models = []
     for r in range(args.repeats):
