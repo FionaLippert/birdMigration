@@ -197,7 +197,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
     test_data = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                          env_cells=args.use_env_cells, use_buffers=args.use_buffers)
+                          use_buffers=args.use_buffers)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
     nights = test_data.info['nights']
@@ -281,7 +281,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
     dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                        env_cells=args.use_env_cells, use_buffers=args.use_buffers)
+                        use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = np.array(dataset.info['timepoints'])
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
@@ -359,7 +359,7 @@ def predictions(timesteps, model_names, model_types, output_dir,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
     dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                        env_cells=args.use_env_cells, use_buffers=args.use_buffers)
+                        use_buffers=args.use_buffers)
     nights = dataset.info['nights']
     time = dataset.info['timepoints']
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
