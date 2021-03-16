@@ -41,6 +41,7 @@ class RadarData(InMemoryDataset):
             self.processed_dirname = f'measurements=radar_buffers_split={split}'
         else:
             self.processed_dirname = 'measurements=voronoi_cells'
+            self.processed_dirname = 'test'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 

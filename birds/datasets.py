@@ -187,7 +187,7 @@ class RadarData(InMemoryDataset):
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers_split={split}'
         else:
-            self.processed_dirname = 'measurements=voronoi_cells'
+            self.processed_dirname = f'measurements=voronoi_cells'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -250,6 +250,7 @@ class RadarData(InMemoryDataset):
         # normalize dynamic features
         cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
                                                  'dusk', 'dawn', 'datetime'])
+
         dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
             lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
         dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
@@ -264,8 +265,12 @@ class RadarData(InMemoryDataset):
 
         time = dynamic_feature_df.datetime.sort_values().unique()
         tidx = np.arange(len(time))
-        areas = voronoi.area_km2.to_numpy()
-        coords = voronoi[coord_cols].to_numpy()
+
+        # normalize static features
+        cidx = ['area_km2', *coord_cols]
+        static = voronoi.loc[:, cidx].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
+        areas = static.area_km2.to_numpy()
+        coords = static[coord_cols].to_numpy()
 
         inputs = []
         targets = []
