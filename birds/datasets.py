@@ -154,6 +154,7 @@ def reshape(data, nights, mask, timesteps):
 def timeslice(data, start_night, mask, timesteps):
     data_night = data[..., start_night:]
     # remove hours during the day
+
     data_night = data_night[..., mask[start_night:]]
     if data_night.shape[-1] > timesteps:
         data_night = data_night[..., :timesteps+1]
@@ -301,7 +302,8 @@ class RadarData(InMemoryDataset):
         check_all = night.all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar
         check_any = night.any(axis=0)
-
+        # also include timesteps immediately before dusk
+        check_any = np.append(np.logical_or(check_any[:-1], check_any[1:]), check_any[-1])
         # dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
         #                     'check_any': np.append(np.logical_and(check_any[:-1], check_any[1:]), False),
         #                     'tidx': range(len(time))}, index=time)
@@ -310,12 +312,13 @@ class RadarData(InMemoryDataset):
         groups = [list(g) for k, g in it.groupby(enumerate(check_all), key=lambda x: x[-1])]
         nights = [[item[0] for item in g] for g in groups if g[0][1]]
 
-        global_dusk_idx = [night[0] for night in nights]
-        global_dusk = np.zeros(tidx.shape)
-        global_dusk[global_dusk_idx] = 1
+        # global_dusk_idx = [night[0] for night in nights]
+        # global_dusk = np.zeros(tidx.shape)
+        # global_dusk[global_dusk_idx] = 1
 
         if self.multinight:
-            mask = check_any
+            #mask = check_any
+            mask = np.ones(check_any.shape, dtype=bool)
         else:
             mask = check_all
 
@@ -323,9 +326,11 @@ class RadarData(InMemoryDataset):
         targets = reshape(targets, nights, mask, self.timesteps)
         env = reshape(env, nights, mask, self.timesteps)
         tidx = reshape(tidx, nights, mask, self.timesteps)
-        global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
+        # global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
         local_dusk = reshape(dusk, nights, mask, self.timesteps)
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
+
+        print(inputs.shape, env.shape, local_dusk.shape, local_dawn.shape)
 
         # create graph data objects per night
         data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
@@ -339,7 +344,7 @@ class RadarData(InMemoryDataset):
                               torch.tensor(angles, dtype=torch.float)
                           ], dim=1),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                          global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
+                          # global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
                           local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
                      for nidx in range(inputs.shape[-1])]
@@ -352,6 +357,7 @@ class RadarData(InMemoryDataset):
                  'time_mask': mask,
                  'tidx': tidx,
                  'nights': nights,
+                 'local_nights': night,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict()}
 

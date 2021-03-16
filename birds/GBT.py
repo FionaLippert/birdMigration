@@ -1,10 +1,12 @@
 from sklearn.ensemble import GradientBoostingRegressor
 from birds.graphNN import *
+from birds import datasets
 from torch_geometric.data import DataLoader
 
 
-def prepare_data(split, root, year, season, timesteps, data_source, bird_scale):
-    dataset = RadarData(root, split, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+def prepare_data(split, root, year, season, timesteps, data_source, bird_scale, multinight):
+    dataset = datasets.RadarData(root, split, year, season, timesteps, data_source=data_source,
+                                 bird_scale=bird_scale, multinight=multinight)
     #dataloader = DataLoader(dataset, batch_size=1)
     X = []
     y = []
@@ -19,8 +21,9 @@ def prepare_data(split, root, year, season, timesteps, data_source, bird_scale):
     y = np.concatenate(y, axis=0)
     return X, y
 
-def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_scale):
-    dataset = RadarData(root, split, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_scale, multinight):
+    dataset = datasets.RadarData(root, split, year, season, timesteps, data_source=data_source,
+                                 bird_scale=bird_scale, multinight=multinight)
     X = []
     y = []
     for seq in dataset:
@@ -39,8 +42,9 @@ def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_
     y = np.concatenate(y, axis=1)  # shape (timesteps, samples)
     return X, y
 
-def prepare_data_nights_and_radars(split, root, year, season, timesteps, data_source, bird_scale):
-    dataset = RadarData(root, split, year, season, timesteps, data_source=data_source, bird_scale=bird_scale)
+def prepare_data_nights_and_radars(split, root, year, season, timesteps, data_source, bird_scale, multinight):
+    dataset = datasets.RadarData(root, split, year, season, timesteps, data_source=data_source,
+                                 bird_scale=bird_scale, multinight=multinight)
     X = []
     y = []
     for seq in dataset:
@@ -59,11 +63,11 @@ def prepare_data_nights_and_radars(split, root, year, season, timesteps, data_so
     y = np.stack(y, axis=0) # shape (nights, timesteps, nodes)
     return X, y
 
-def fit_GBT(root, years, season, timesteps, data_source, bird_scale, seed=1234):
+def fit_GBT(root, years, season, timesteps, data_source, bird_scale, multinight=False, seed=1234):
     X = []
     y = []
     for year in years:
-        X_year, y_year = prepare_data('train', root, year, season, timesteps, data_source, bird_scale)
+        X_year, y_year = prepare_data('train', root, year, season, timesteps, data_source, bird_scale, multinight)
         X.append(X_year)
         y.append(y_year)
     X = np.concatenate(X, axis=0)
@@ -73,7 +77,7 @@ def fit_GBT(root, years, season, timesteps, data_source, bird_scale, seed=1234):
     reg.fit(X, y)
     return reg
 
-def predict_GBT(gbt, root, year, season, timesteps, data_source, bird_scale):
-    X, y = prepare_data('test', root, year, season, timesteps, data_source, bird_scale)
+def predict_GBT(gbt, root, year, season, timesteps, data_source, bird_scale, multinight=False):
+    X, y = prepare_data('test', root, year, season, timesteps, data_source, bird_scale, multinight)
     y_hat = gbt.predict(X)
     return y, y_hat

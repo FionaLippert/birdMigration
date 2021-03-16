@@ -346,7 +346,7 @@ class Departure(torch.nn.Module):
 class BirdFlowTime(MessagePassing):
 
     def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
-                 use_departure=False, seed=12345, fix_boundary=[]):
+                 use_departure=False, seed=12345, fix_boundary=[], multinight=False):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
@@ -355,8 +355,8 @@ class BirdFlowTime(MessagePassing):
         hidden_channels = hidden_dim #16 #2*in_channels #int(in_channels / 2)
         out_channels = 1
 
-        in_channels_dep = 6
-        hidden_channels_dep = int(in_channels_dep / 2)
+        in_channels_dep = 7
+        hidden_channels_dep = in_channels_dep #int(in_channels_dep / 2)
         out_channels_dep = 1
 
         if model == 'linear':
@@ -364,17 +364,23 @@ class BirdFlowTime(MessagePassing):
         elif model == 'linear+sigmoid':
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
                                                 torch.nn.Sigmoid())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, out_channels_dep),
+                                                 torch.nn.Sigmoid())
         else:
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(hidden_channels, out_channels),
                                                 torch.nn.Sigmoid())
-
-        if use_departure:
             self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels_dep),
                                                  torch.nn.ReLU(),
                                                  torch.nn.Linear(hidden_channels_dep, out_channels_dep),
                                                  torch.nn.Sigmoid())
+
+        #if use_departure:
+        # self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels_dep),
+        #                                      torch.nn.ReLU(),
+        #                                      torch.nn.Linear(hidden_channels_dep, out_channels_dep),
+        #                                      torch.nn.Sigmoid())
             #                                      #torch.nn.Tanh())
             # self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, out_channels_dep),
             #                                     torch.nn.Sigmoid())
@@ -384,6 +390,7 @@ class BirdFlowTime(MessagePassing):
         self.norm = norm
         self.use_departure = use_departure
         self.fix_boundary = fix_boundary
+        self.multinight = multinight
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -392,6 +399,11 @@ class BirdFlowTime(MessagePassing):
 
         # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
+
+        # birds on the ground at t=0
+        # TODO use additional aggregation network to estimate the number of birds aggregated on the ground
+        #  based on environmental conditions in the past
+        ground = torch.zeros_like(x)
 
         coords = data.coords
         edge_index = data.edge_index
@@ -419,14 +431,28 @@ class BirdFlowTime(MessagePassing):
             if r < teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
 
-            # TODO mask x so that bird densities at nodes with sun > -6 are set to zero
-            # TODO add av_cell tensor which always contains the total number of available birds in a cell (use for departure model)
+
             x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=data.env[..., t],
-                                   edge_attr=edge_attr, embedding=embedding)
+                               edge_attr=edge_attr, embedding=embedding, ground=ground,
+                               local_dusk=data.local_dusk[:, t])
 
             if len(self.fix_boundary) > 0:
                 # use ground truth for boundary nodes
                 x[self.fix_boundary, 0] = data.y[self.fix_boundary, t]
+
+            if self.multinight:
+                # for locations where it is dawn: save birds to ground and set birds in the air to zero
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+                else:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+                x = x * ~data.local_dawn[:, t].view(-1, 1)
+
+                # TODO for radar data, birds can stay on the ground or depart later in the night, so
+                #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
+                # for locations where it is dusk: set birds on ground to zero
+                ground = ground * ~data.local_dusk[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -460,15 +486,20 @@ class BirdFlowTime(MessagePassing):
 
         return abs_flow
 
-    # TODO add this to include departure model
-    # def update(self, aggr_out, coords, env):
-    #    # return aggregation (sum) of inflows computed by message()
-    #    # add departure prediction if local_dusk flag is True
-    #
-    #    features = torch.cat([coords, env], dim=1)
-    #    departure = self.departure(features)
-    #    departure = departure * local_dusk # only use departure model if it is local dusk
-    #    return aggr_out + departure
+
+    def update(self, aggr_out, coords, env, ground, local_dusk):
+        # return aggregation (sum) of inflows computed by message()
+        # add departure prediction if local_dusk flag is True
+
+        if self.multinight:
+            features = torch.cat([coords, env, ground], dim=1)
+            departure = self.departure(features)
+            departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
+            pred = aggr_out + departure
+        else:
+            pred = aggr_out
+
+        return pred
 
 
 
@@ -553,9 +584,9 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
 
-        if not departure:
-            gt = gt[:, 1:]
-            output = output[:, 1:]
+        # if not departure:
+        #     gt = gt[:, 1:]
+        #     output = output[:, 1:]
 
         if len(fix_boundary) > 0:
             boundary_mask = np.ones(output.size(0))
@@ -575,7 +606,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
                 outfluxes[tidx] = outfluxes[tidx].cpu()
                 outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps)]))
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps + 1)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 

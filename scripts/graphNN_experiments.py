@@ -39,6 +39,7 @@ parser.add_argument('--fix_boundary', action='store_true', default=False, help='
 parser.add_argument('--use_env_cells', action='store_true', default=False, help='use entire cells to interpolate environment variables')
 parser.add_argument('--use_buffers', action='store_true', default=False, help='use radar buffers for training instead of entire cells')
 parser.add_argument('--conservation', action='store_true', default=False, help='use mass conservation constraints')
+parser.add_argument('--multinight', action='store_true', default=False, help='use departure NN to bridge nights')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -57,12 +58,12 @@ def persistence(last_ob, timesteps):
     # always return last observed value
 	return [last_ob] * timesteps
 
-# TODO why does training not work with new dataloader??
+
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
     train_data = [datasets.RadarData(root, 'train', year, season, timesteps, data_source=data_source,
-                            use_buffers=args.use_buffers, bird_scale=bird_scale) for year in train_years]
+                            use_buffers=args.use_buffers, bird_scale=bird_scale, multinight=args.multinight) for year in train_years]
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
         fix_boundary = [ridx for ridx, b in boundaries.items() if b]
@@ -72,7 +73,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
     val_data = datasets.RadarData(root, 'test', val_year, season, timesteps, data_source=data_source,
-                                  bird_scale=bird_scale, use_buffers=args.use_buffers)
+                                  bird_scale=bird_scale, use_buffers=args.use_buffers, multinight=args.multinight)
     val_loader = DataLoader(val_data, batch_size=1)
 
     for r in range(repeats):
@@ -81,7 +82,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             use_conservation = False
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
-                                 use_departure=departure, seed=r, fix_boundary=fix_boundary)
+                                 use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight)
             use_conservation = conservation
 
         if repeats == 1:
@@ -159,7 +160,7 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
     df_gam.datetime = pd.DatetimeIndex(df_gam.datetime) #, tz='UTC')
     dti = pd.DatetimeIndex(time) #, tz='UTC')
 
-    loss = np.zeros((len(radars), len(nights), timesteps))
+    loss = np.zeros((len(radars), len(nights), timesteps + 1))
     pred_gam = np.zeros((len(radars), len(time)))
     for idx, radar in enumerate(radars):
         df_gam_idx = df_gam[df_gam.radar == radar]
@@ -171,18 +172,26 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
             dti_night = dti[start_idx:]
             dti_night = dti_night[mask[start_idx:]]
             y_gam = df_gam_idx[df_gam_idx.datetime.isin(dti_night[:timesteps+1])].gam_prediction.to_numpy()
-            loss[idx, nidx, :] = [np.square(y_gam[t+1] - data.y[idx, t+1] * bird_scale) for t in range(timesteps)]
+            loss[idx, nidx, :] = [np.square(y_gam[t] - data.y[idx, t] * bird_scale) for t in range(timesteps + 1)]
             #loss[idx, nidx, :] = [loss_func(torch.tensor(y_gam[t+1]), data.y[idx, t]) for t in range(timesteps-1)]
 
     return loss, pred_gam
 
-def gbt_rmse(bird_scale, seed=1234):
-    gbt = GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, seed)
-    X, y = GBT.prepare_data_nights('test', root, test_year, season, args.ts_test, args.data_source, bird_scale)
+def gbt_rmse(bird_scale, multinight, mask, seed=1234):
+    gbt = GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, multinight, seed)
+    X, y = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test, args.data_source,
+                                   bird_scale, multinight)
+    # X has shape (nights, timesteps, radars, features)
+    # y has shape (nights, timesteps, radars)
+    # mask has shape (radars, timesteps, nights) --> change to (nights, timesteps, radars)
+    mask = np.swapaxes(mask, 0, -1)
     rmse = []
-    for t in range(args.ts_test):
-        gt = y[t+1] * bird_scale
-        y_hat = gbt.predict(X[t+1]) * bird_scale
+    for t in range(args.ts_test + 1):
+        gt = y[:, t, :] * bird_scale
+        gt = np.concatenate([gt[nidx] for nidx in range(X.shape[0])])
+        y_hat = gbt.predict(np.concatenate([X[nidx, t] for nidx in range(X.shape[0])])) * bird_scale
+        mask_t = np.concatenate([mask[nidx, t, :] for nidx in range(X.shape[0])])
+        y_hat = y_hat * mask_t
         rmse.append(np.sqrt(np.mean(np.square(gt - y_hat))))
     return rmse
 
@@ -197,12 +206,15 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
 
     test_data = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                          use_buffers=args.use_buffers)
+                          use_buffers=args.use_buffers, multinight=args.multinight)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
     nights = test_data.info['nights']
     with open(osp.join(osp.dirname(output_path), 'nights.pickle'), 'wb') as f:
         pickle.dump(nights, f)
+
+    local_nights = test_data.info['local_nights']
+    tidx = test_data.info['tidx']
 
     radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
     with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
@@ -243,30 +255,35 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         losses = torch.stack(loss_all[type]).sqrt()
         mean_loss = losses.mean(0).detach().numpy()
         std_loss = losses.std(0).detach().numpy()
-        line = ax.plot(range(1, timesteps+1), mean_loss, label=f'{type}')
-        ax.fill_between(range(1, timesteps+1), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
+        line = ax.plot(range(timesteps+1), mean_loss, label=f'{type}')
+        ax.fill_between(range(timesteps+1), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
                         color=line[0].get_color())
 
     gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
                                        test_data.info['radars'], timesteps, test_data.info['time_mask'], loss_func)
     gam_losses = np.sqrt(gam_losses.mean(axis=(0,1)))
-    ax.plot(range(1, timesteps+1), gam_losses, label=f'GAM')
+    ax.plot(range(timesteps+1), gam_losses, label=f'GAM')
 
     gbt_losses = []
+    mask = np.stack([local_nights[:, tidx[:, nidx]] for nidx in range(tidx.shape[1])], axis=-1)
     for r in range(args.repeats):
-        gbt_losses.append(gbt_rmse(bird_scale, seed=r))
+        gbt_losses.append(gbt_rmse(bird_scale, args.multinight, mask, seed=r))
     gbt_mean_loss = np.stack(gbt_losses, axis=0).mean(0)
     gbt_std_loss = np.stack(gbt_losses, axis=0).std(0)
-    line = ax.plot(range(1, timesteps+1), gbt_mean_loss, label=f'GBT')
-    ax.fill_between(range(1, timesteps+1), gbt_mean_loss - gbt_std_loss, gbt_mean_loss + gbt_std_loss, alpha=0.2,
+    line = ax.plot(range(timesteps+1), gbt_mean_loss, label=f'GBT')
+    ax.fill_between(range(timesteps+1), gbt_mean_loss - gbt_std_loss, gbt_mean_loss + gbt_std_loss, alpha=0.2,
                     color=line[0].get_color())
 
     naive_losses = []
-    for data in test_loader:
+    def naive(t, nidx):
+        daytime_mask = local_nights[:, tidx[t, nidx]]
+        return data.x[:, 0] * daytime_mask * bird_scale
+
+    for nidx, data in enumerate(test_loader):
         naive_losses.append(torch.tensor(
-            [loss_func(data.x[:, 0] * bird_scale, data.y[:, t+1] * bird_scale) for t in range(timesteps)]))
+            [loss_func(naive(t, nidx), data.y[:, t] * bird_scale) for t in range(timesteps + 1)]))
     naive_losses = torch.stack(naive_losses, dim=0).mean(0).sqrt()
-    ax.plot(range(1, timesteps+1), naive_losses, label=f'constant night')
+    ax.plot(range(timesteps+1), naive_losses, label=f'constant night')
 
 
     ax.set_xlabel('timestep')
@@ -281,8 +298,9 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
     dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                        use_buffers=args.use_buffers)
+                        use_buffers=args.use_buffers, multinight=args.multinight)
     nights = dataset.info['nights']
+    seq_tidx = dataset.info['tidx']
     time = np.array(dataset.info['timepoints'])
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
         pickle.dump(nights, f)
@@ -292,8 +310,10 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
 
     gbt_models = []
     for r in range(args.repeats):
-        gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, seed=r))
-    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test, args.data_source, bird_scale)
+        gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale,
+                                      args.multinight, seed=r))
+    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
+                                                      args.data_source, bird_scale, args.multinight)
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
@@ -313,18 +333,20 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         df_gam_idx = df_gam[df_gam.radar==radar]
 
         for nidx, data in enumerate(dataloader):
-            gt[nights[nidx][:timesteps+1]] = data.y[idx]
+            #gt[nights[nidx][:timesteps+1]] = data.y[idx]
+            gt[seq_tidx[:, nidx]] = data.y[idx]
 
             if args.cuda: data = data.to('cuda')
             for midx, model in enumerate(models):
                 model.timesteps = timesteps
                 if args.cuda: model.cuda()
                 y = model(data).cpu().detach().numpy()[idx]
-                pred[midx][nights[nidx][:timesteps+1]] = y
+                #pred[midx][nights[nidx][:timesteps+1]] = y
+                pred[midx][seq_tidx[:, nidx]] = y
 
             pred_gam[nights[nidx][:timesteps+1]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps+1]])].gam_prediction.to_numpy()
             for r in range(args.repeats):
-                pred_gbt[r, nights[nidx][:timesteps+1]] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
+                pred_gbt[r, seq_tidx[:, nidx]] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
 
         fig, ax = plt.subplots(figsize=(20, 4))
         for midx, model_type in enumerate(model_types):
@@ -332,10 +354,10 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
             mean_pred = all_pred.mean(0)
             std_pred = all_pred.std(0)
 
-            # line = ax.plot(time[tidx], pred[midx][tidx], ls='--', alpha=0.3)
-            # line = ax.errorbar(time[tidx], mean_pred, std_pred, ls='--', alpha=0.4, capsize=3)
-            # ax.scatter(time[tidx], mean_pred, s=30, facecolors='none', edgecolor=line[0].get_color(),
-            #            label=f'{model_type}', alpha=0.4)
+            line = ax.plot(time[tidx], pred[midx][tidx], ls='--', alpha=0.3)
+            line = ax.errorbar(time[tidx], mean_pred, std_pred, ls='--', alpha=0.4, capsize=3)
+            ax.scatter(time[tidx], mean_pred, s=30, facecolors='none', edgecolor=line[0].get_color(),
+                       label=f'{model_type}', alpha=0.4)
 
         line = ax.plot(time[tidx], pred_gam[tidx], ls='--', alpha=0.4)
         ax.scatter(time[tidx], pred_gam[tidx], s=30, facecolors='none', edgecolor=line[0].get_color(),
@@ -355,11 +377,94 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         plt.close(fig)
 
 
+def plot_predictions_1seq(timesteps, model_names, short_names, model_types, output_dir, nidx=0,
+                     data_source='radar', repeats=1, bird_scale=2000, departure=False):
+
+    dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
+                        use_buffers=args.use_buffers, multinight=args.multinight)
+    nights = dataset.info['nights']
+    local_nights = dataset.info['local_nights']
+    seq_tidx = dataset.info['tidx']
+    time = np.array(dataset.info['timepoints'])
+    with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
+        pickle.dump(nights, f)
+    df_gam = pd.read_csv(gam_csv)
+    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
+    dti = pd.DatetimeIndex(time) #, tz='UTC')
+
+    gbt_models = []
+    for r in range(args.repeats):
+        gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale,
+                                      args.multinight, seed=r))
+    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
+                                                      args.data_source, bird_scale, args.multinight)
+
+    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    models = [load_model(name) for name in model_names]
+
+    for idx, radar in enumerate(dataset.info['radars']):
+        pred = []
+        for _ in models:
+            pred.append(np.zeros(len(seq_tidx[:, nidx]))) # * np.nan)
+        pred = np.stack(pred, axis=0)
+        #pred_gam = np.zeros(len(seq_tidx[:, nidx]))
+        pred_gbt = np.zeros((args.repeats, len(seq_tidx[:, nidx])))
+        df_gam_idx = df_gam[df_gam.radar==radar]
+
+        data = list(dataloader)[nidx]
+
+        gt = data.y[idx]
+
+        if args.cuda: data = data.to('cuda')
+        for midx, model in enumerate(models):
+            model.timesteps = timesteps
+            if args.cuda: model.cuda()
+            y = model(data).cpu().detach().numpy()[idx]
+            #pred[midx][nights[nidx][:timesteps+1]] = y
+            pred[midx] = y
+
+        pred_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[seq_tidx[:, nidx]])].gam_prediction.to_numpy()
+        for r in range(args.repeats):
+            pred_gbt[r] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
+
+        tidx = seq_tidx[:, nidx]
+        fig, ax = plt.subplots(figsize=(20, 4))
+        for midx, model_type in enumerate(model_types):
+            all_pred = pred[midx*repeats:(midx+1)*repeats] * bird_scale
+            mean_pred = all_pred.mean(0)
+            std_pred = all_pred.std(0)
+
+            line = ax.plot(dti[tidx], pred[midx], ls='--', alpha=0.3)
+            line = ax.errorbar(dti[tidx], mean_pred, std_pred, ls='--', alpha=0.4, capsize=3)
+            ax.scatter(dti[tidx], mean_pred, s=30, facecolors='none', edgecolor=line[0].get_color(),
+                       label=f'{model_type}', alpha=0.4)
+
+        line = ax.plot(dti[tidx], pred_gam, ls='--', alpha=0.4)
+        ax.scatter(dti[tidx], pred_gam, s=30, facecolors='none', edgecolor=line[0].get_color(),
+                   label=f'GAM', alpha=0.4)
+
+        line = ax.errorbar(dti[tidx], pred_gbt.mean(0), pred_gbt.std(0), ls='--', alpha=0.4)
+        ax.scatter(dti[tidx], pred_gbt.mean(0), s=30, facecolors='none', edgecolor=line[0].get_color(),
+                   label=f'GBT', alpha=0.4)
+
+        ax.plot(dti[tidx], gt * bird_scale, label='ground truth', c='gray', alpha=0.8)
+
+        #plt.xticks(range(tidx.size), time[tidx], rotation=45, ha='right');
+
+        ax.set_title(radar)
+        #ax.set_ylim(-0.05, 1.05)
+        ax.set_ylabel('bird density')
+        fig.legend(loc='upper right', bbox_to_anchor=(0.77, 0.85))
+        fig.savefig(os.path.join(output_dir, f'{radar}.png'), bbox_inches='tight')
+        plt.close(fig)
+
+
 def predictions(timesteps, model_names, model_types, output_dir,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
     dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                        use_buffers=args.use_buffers)
+                        use_buffers=args.use_buffers, multinight=args.multinight)
     nights = dataset.info['nights']
     time = dataset.info['timepoints']
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
@@ -454,6 +559,10 @@ if args.action == 'test':
                 data_source=args.data_source, repeats=repeats, bird_scale=bird_scale, departure=departure)
 
     if args.plot_predictions:
-        plot_predictions(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
-                     data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24),
-                         departure=departure, bird_scale=bird_scale) #, tidx=range(18*24, 32*24))
+        # plot_predictions(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
+        #              data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24),
+        #                  departure=departure, bird_scale=bird_scale) #, tidx=range(18*24, 32*24))
+
+        plot_predictions_1seq(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
+                         data_source=args.data_source, repeats=repeats, nidx=6,
+                         departure=departure, bird_scale=bird_scale)  # , tidx=range(18*24, 32*24))
