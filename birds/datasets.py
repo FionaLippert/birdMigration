@@ -330,7 +330,6 @@ class RadarData(InMemoryDataset):
         local_dusk = reshape(dusk, nights, mask, self.timesteps)
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
 
-        print(inputs.shape, env.shape, local_dusk.shape, local_dawn.shape)
 
         # create graph data objects per night
         data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),

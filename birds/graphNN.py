@@ -346,16 +346,20 @@ class Departure(torch.nn.Module):
 class BirdFlowTime(MessagePassing):
 
     def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
-                 use_departure=False, seed=12345, fix_boundary=[], multinight=False):
+                 use_departure=False, seed=12345, fix_boundary=[], multinight=False, use_wind=True):
         super(BirdFlowTime, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
 
         in_channels = 10 + embedding
+        if not use_wind:
+            in_channels -= 2
         hidden_channels = hidden_dim #16 #2*in_channels #int(in_channels / 2)
         out_channels = 1
 
         in_channels_dep = 7
+        if not use_wind:
+            in_channels_dep -= 2
         hidden_channels_dep = in_channels_dep #int(in_channels_dep / 2)
         out_channels_dep = 1
 
@@ -391,6 +395,7 @@ class BirdFlowTime(MessagePassing):
         self.use_departure = use_departure
         self.fix_boundary = fix_boundary
         self.multinight = multinight
+        self.use_wind = use_wind
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -416,12 +421,12 @@ class BirdFlowTime(MessagePassing):
         deg_inv = deg.pow(-1)
 
         y_hat = []
-        if self.use_departure:
-            features = torch.cat([coords, data.env[..., 0]], dim=1)
-            x = self.departure(features)
-
-            if len(self.fix_boundary) > 0:
-                x[self.fix_boundary] = data[self.fix_boundary, 0]
+        # if self.use_departure:
+        #     features = torch.cat([coords, data.env[..., 0]], dim=1)
+        #     x = self.departure(features)
+        #
+        #     if len(self.fix_boundary) > 0:
+        #         x[self.fix_boundary] = data[self.fix_boundary, 0]
         y_hat.append(x)
 
         self.flows = []
@@ -432,7 +437,11 @@ class BirdFlowTime(MessagePassing):
                 x = data.x[..., t].view(-1, 1)
 
 
-            x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=data.env[..., t],
+
+            env = data.env[..., t]
+            if not self.use_wind:
+                env = env[:, 2:]
+            x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=env,
                                edge_attr=edge_attr, embedding=embedding, ground=ground,
                                local_dusk=data.local_dusk[:, t])
 
@@ -517,6 +526,8 @@ def distance(x1, y1, x2, y2):
 
 def MSE(output, gt):
     return torch.mean((output - gt)**2)
+
+
 
 def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, conservation=True, departure=False,
                  teacher_forcing=1.0):

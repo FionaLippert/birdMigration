@@ -36,10 +36,12 @@ parser.add_argument('--ts_test', type=int, default=6, help='length of testing se
 parser.add_argument('--save_predictions', action='store_true', default=False, help='save predictions for each radar separately')
 parser.add_argument('--plot_predictions', action='store_true', default=False, help='plot predictions for each radar separately')
 parser.add_argument('--fix_boundary', action='store_true', default=False, help='fix boundary cells to ground truth')
-parser.add_argument('--use_env_cells', action='store_true', default=False, help='use entire cells to interpolate environment variables')
+#parser.add_argument('--use_env_cells', action='store_true', default=False, help='use entire cells to interpolate environment variables')
 parser.add_argument('--use_buffers', action='store_true', default=False, help='use radar buffers for training instead of entire cells')
 parser.add_argument('--conservation', action='store_true', default=False, help='use mass conservation constraints')
 parser.add_argument('--multinight', action='store_true', default=False, help='use departure NN to bridge nights')
+parser.add_argument('--weighted_loss', action='store_true', default=False, help='weight squared errors according '
+                                'to bird densities to promote better fits for high migration events')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -58,17 +60,25 @@ def persistence(last_ob, timesteps):
     # always return last observed value
 	return [last_ob] * timesteps
 
+def MSE_weighted(output, gt, p=0.75):
+    errors = (output - gt)**2 * (1 + gt**p)
+    mse = torch.mean(errors)
+    return mse
+
 
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
 
-    train_data = [datasets.RadarData(root, 'train', year, season, timesteps, data_source=data_source,
-                            use_buffers=args.use_buffers, bird_scale=bird_scale, multinight=args.multinight) for year in train_years]
+    train_data = [datasets.RadarData(root, 'train', year, season, timesteps,
+                                     data_source=data_source, use_buffers=args.use_buffers,
+                                     bird_scale=bird_scale, multinight=args.multinight) for year in train_years]
+
     boundaries = train_data[0].info['boundaries']
     if args.fix_boundary:
         fix_boundary = [ridx for ridx, b in boundaries.items() if b]
     else:
         fix_boundary = []
+
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
@@ -93,7 +103,11 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         params = model.parameters()
         optimizer = torch.optim.Adam(params, lr=args.lr)
         scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay)#, gamma=args.gamma)
-        loss_func = torch.nn.MSELoss()
+
+        if args.weighted_loss:
+            loss_func = MSE_weighted
+        else:
+            loss_func = torch.nn.MSELoss()
 
         training_curve = np.zeros(epochs)
         val_curve = np.zeros(epochs)
@@ -210,13 +224,16 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
 
     nights = test_data.info['nights']
-    with open(osp.join(osp.dirname(output_path), 'nights.pickle'), 'wb') as f:
-        pickle.dump(nights, f)
-
     local_nights = test_data.info['local_nights']
     tidx = test_data.info['tidx']
-
     radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
+
+    with open(osp.join(osp.dirname(output_path), 'nights.pickle'), 'wb') as f:
+        pickle.dump(nights, f)
+    with open(osp.join(osp.dirname(output_path), 'seq_tidx.pickle'), 'wb') as f:
+        pickle.dump(tidx, f)
+    with open(osp.join(osp.dirname(output_path), 'local_nights.pickle'), 'wb') as f:
+        pickle.dump(local_nights, f)
     with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
 
