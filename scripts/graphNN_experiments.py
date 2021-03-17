@@ -31,6 +31,8 @@ parser.add_argument('--teacher_forcing', type=float, default=1.0, help='probabil
 parser.add_argument('--teacher_forcing_gamma', type=float, default=0.9, help='decay rate of teacher forcing probability')
 parser.add_argument('--repeats', type=int, default=5, help='number of models to be trained with different random seeds')
 parser.add_argument('--hidden_dim', type=int, default=16, help='number of hidden nodes in mlp')
+parser.add_argument('--dropout_p', type=float, default=0, help='dropout probability')
+parser.add_argument('--use_dropout', action='store_true', default=False, help='use dropout in MLPs')
 parser.add_argument('--ts_train', type=int, default=6, help='length of training sequences')
 parser.add_argument('--ts_test', type=int, default=6, help='length of testing sequences')
 parser.add_argument('--save_predictions', action='store_true', default=False, help='save predictions for each radar separately')
@@ -68,7 +70,7 @@ def MSE_weighted(output, gt, p=0.75):
 
 
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
-                 repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False):
+                 repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False, dropout_p=0):
 
     train_data = [datasets.RadarData(root, 'train', year, season, timesteps,
                                      data_source=data_source, use_buffers=args.use_buffers,
@@ -94,7 +96,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
-                                 use_wind=(not args.no_wind))
+                                 use_wind=(not args.no_wind), dropout_p=dropout_p)
             use_conservation = conservation
 
         if repeats == 1:
@@ -156,14 +158,22 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
 
 
 
-def make_name_repeat(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100, repeat=1):
-    name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
+def make_name_repeat(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100, repeat=1, dropout=0):
+    if dropout == 0:
+        name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
            f'epochs={epochs}_recurrent={recurrent}_norm={norm}_repeat={repeat}.pt'
+    else:
+        name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
+               f'epochs={epochs}_recurrent={recurrent}_norm={norm}_repeat={repeat}_dropout={dropout}.pt'
     return name
 
-def make_name(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100):
-    name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
+def make_name(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100, dropout=0):
+    if dropout == 0:
+        name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
            f'epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'
+    else:
+        name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
+               f'epochs={epochs}_recurrent={recurrent}_norm={norm}_dropout={dropout}.pt'
     return name
 
 def load_model(name):
@@ -537,15 +547,19 @@ bird_scale = 2000
 if args.action =='train':
 
     model_types = ['linear+sigmoid', 'mlp'] #, 'standard_mlp']
-    cons_settings = [True, False]
+    cons_settings = [False] # [True, False]
+    if args.use_dropout:
+        dropout_settings = [0, .25, .5]
+    else:
+        dropout_settings = [0]
     rec_settings = [True] #, False]
     emb_settings = [0]
 
-    all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings)
+    all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings, dropout_settings)
 
-    for type, cons, rec, emb in all_settings:
+    for type, cons, rec, emb, dropout in all_settings:
         run_training(args.ts_train, type, cons, rec, emb, epochs=epochs, data_source=args.data_source, repeats=repeats,
-                     bird_scale=bird_scale, departure=departure)
+                     bird_scale=bird_scale, departure=departure, dropout_p=dropout)
 
 if args.action == 'test':
 
@@ -557,10 +571,10 @@ if args.action == 'test':
 
     if repeats > 1:
         #all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings)
-        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r)
+        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r, dropout=args.dropout)
                        for type, r in it.product(model_types, range(repeats))]
     else:
-        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs)
+        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs, dropout=args.dropout)
                        for type in model_types]
     #short_names = model_types
     short_names = [type for type, r in it.product(model_labels, range(repeats))]
