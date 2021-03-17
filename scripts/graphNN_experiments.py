@@ -42,6 +42,7 @@ parser.add_argument('--conservation', action='store_true', default=False, help='
 parser.add_argument('--multinight', action='store_true', default=False, help='use departure NN to bridge nights')
 parser.add_argument('--weighted_loss', action='store_true', default=False, help='weight squared errors according '
                                 'to bird densities to promote better fits for high migration events')
+parser.add_argument('--no_wind', action='store_true', default=False, help='do not use wind features in models')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -92,7 +93,8 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             use_conservation = False
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
-                                 use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight)
+                                 use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
+                                 use_wind=args.use_wind)
             use_conservation = conservation
 
         if repeats == 1:
