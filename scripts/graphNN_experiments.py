@@ -45,6 +45,7 @@ parser.add_argument('--multinight', action='store_true', default=False, help='us
 parser.add_argument('--weighted_loss', action='store_true', default=False, help='weight squared errors according '
                                 'to bird densities to promote better fits for high migration events')
 parser.add_argument('--no_wind', action='store_true', default=False, help='do not use wind features in models')
+parser.add_argument('--use_black_box', action='store_true', default=False, help='use black box NN without interpretation of messages')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -93,6 +94,9 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         if model_type == 'standard_mlp':
             model = MLP(6*22, 2*22, 22, timesteps, recurrent, seed=r)
             use_conservation = False
+        elif args.use_black_box:
+            model = BirdDynamics(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
+                                 seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p)
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
@@ -121,7 +125,10 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         else:
             tf = args.teacher_forcing
         for epoch in range(epochs):
-            loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, args.cuda,
+            if args.use_black_box:
+                loss = train_dynamics(model, train_loader, optimizer, loss_func, args.cuda, teacher_forcing=tf)
+            else:
+                loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, args.cuda,
                          use_conservation, departure=False, teacher_forcing=tf)
             print(f'epoch {epoch + 1}: loss = {loss / len(train_data)}')
             if departure:
@@ -131,7 +138,10 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             training_curve[epoch] = loss / len(train_data)
 
             model.eval()
-            val_loss = test_fluxes(model, val_loader, timesteps, loss_func, args.cuda,
+            if args.use_black_box:
+                val_loss = test_dynamics(model, val_loader, timesteps, loss_func, args.cuda, bird_scale=1).mean()
+            else:
+                val_loss = test_fluxes(model, val_loader, timesteps, loss_func, args.cuda,
                                    get_outfluxes=False, bird_scale=1).mean()
             val_curve[epoch] = val_loss
             print(f'epoch {epoch + 1}: val loss = {val_loss}')
@@ -268,6 +278,10 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
             loss_all[short_names[midx]].append(
                 test_fluxes(model, test_loader, timesteps, loss_func, args.cuda,
                      get_outfluxes=False, bird_scale=bird_scale).mean(0)
+            )
+        elif args.use_black_box:
+            loss_all[short_names[midx]].append(
+                test_dynamics(model, test_loader, timesteps, loss_func, args.cuda, bird_scale).mean(0)
             )
         else:
             l, outfluxes, outfluxes_abs = test_fluxes(model, test_loader, timesteps, loss_func, args.cuda,
@@ -571,10 +585,10 @@ if args.action == 'test':
 
     if repeats > 1:
         #all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings)
-        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r, dropout=args.dropout)
+        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r, dropout=args.use_dropout)
                        for type, r in it.product(model_types, range(repeats))]
     else:
-        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs, dropout=args.dropout)
+        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs, dropout=args.use_dropout)
                        for type in model_types]
     #short_names = model_types
     short_names = [type for type, r in it.product(model_labels, range(repeats))]
