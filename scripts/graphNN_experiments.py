@@ -94,7 +94,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
-                                 use_wind=args.use_wind)
+                                 use_wind=(not args.no_wind))
             use_conservation = conservation
 
         if repeats == 1:
