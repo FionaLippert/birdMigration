@@ -104,9 +104,11 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             use_conservation = conservation
 
         if repeats == 1:
-            name = make_name(timesteps, model_type, conservation, recurrent, embedding, norm, epochs)
+            name = make_name(timesteps, model_type, conservation, recurrent, embedding, norm,
+                             epochs, dropout=dropout_p)
         else:
-            name = make_name_repeat(timesteps, model_type, conservation, recurrent, embedding, norm, epochs, repeat=r)
+            name = make_name_repeat(timesteps, model_type, conservation, recurrent, embedding, norm,
+                                    epochs, repeat=r, dropout=dropout_p)
 
         params = model.parameters()
         optimizer = torch.optim.Adam(params, lr=args.lr)
@@ -585,10 +587,10 @@ if args.action == 'test':
 
     if repeats > 1:
         #all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings)
-        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r, dropout=args.use_dropout)
+        model_names = [make_name_repeat(args.ts_train, type, cons, rec, emb, epochs=epochs, repeat=r, dropout=args.dropout_p)
                        for type, r in it.product(model_types, range(repeats))]
     else:
-        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs, dropout=args.use_dropout)
+        model_names = [make_name(args.ts_train, type, cons, rec, emb, epochs=epochs, dropout=args.dropout_p)
                        for type in model_types]
     #short_names = model_types
     short_names = [type for type, r in it.product(model_labels, range(repeats))]
