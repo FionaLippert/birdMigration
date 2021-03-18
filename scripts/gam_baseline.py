@@ -66,9 +66,9 @@ for year in years:
     dynamic_feature_df = pd.read_csv(feature_path)
     #voronoi = gpd.read_file(osp.join(preprocessed_dir, 'voronoi.shp'))
 
-    df.append(dynamic_feature_df, ignore_index=True)
+    df.append(dynamic_feature_df)
 
-df = pd.concat(df)
+df = pd.concat(df, ignore_index=True)
 df['dayofyear'] = df.datetime.dayofyear
 df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl')
 
