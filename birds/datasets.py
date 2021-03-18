@@ -277,7 +277,7 @@ class RadarData(InMemoryDataset):
         inputs = []
         targets = []
         env = []
-        night = []
+        nighttime = []
         dusk = []
         dawn = []
 
@@ -287,22 +287,22 @@ class RadarData(InMemoryDataset):
             inputs.append(df[input_col].to_numpy())
             targets.append(df[target_col].to_numpy())
             env.append(df[env_cols].to_numpy().T)
-            night.append(df.night.to_numpy())
+            nighttime.append(df.night.to_numpy())
             dusk.append(df.dusk.to_numpy())
             dawn.append(df.dawn.to_numpy())
 
         inputs = np.stack(inputs, axis=0)
         targets = np.stack(targets, axis=0)
         env = np.stack(env, axis=0)
-        night = np.stack(night, axis=0)
+        nighttime = np.stack(nighttime, axis=0)
         dusk = np.stack(dusk, axis=0)
         dawn = np.stack(dawn, axis=0)
 
 
         # find timesteps where it's night for all radars
-        check_all = night.all(axis=0) # day/night mask
+        check_all = nighttime.all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar
-        check_any = night.any(axis=0)
+        check_any = nighttime.any(axis=0)
         # also include timesteps immediately before dusk
         check_any = np.append(np.logical_or(check_any[:-1], check_any[1:]), check_any[-1])
         # dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
@@ -330,7 +330,7 @@ class RadarData(InMemoryDataset):
         # global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
         local_dusk = reshape(dusk, nights, mask, self.timesteps)
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
-        local_night = reshape(night, nights, mask, self.timesteps)
+        local_night = reshape(nighttime, nights, mask, self.timesteps)
 
 
         # create graph data objects per night
@@ -358,8 +358,8 @@ class RadarData(InMemoryDataset):
                  'timepoints': time,
                  'time_mask': mask,
                  'tidx': tidx,
-                 'nights': night,
-                 'local_nights': local_night,
+                 'nights': nights,
+                 'local_nights': nighttime,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict()}
 
