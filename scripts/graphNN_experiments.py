@@ -96,7 +96,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             use_conservation = False
         elif args.use_black_box:
             model = BirdDynamics(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
-                                 seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p)
+                                 seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,

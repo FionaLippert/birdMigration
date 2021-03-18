@@ -52,7 +52,10 @@ bird_scale = 2000
 load_baseGAM = True
 csv_file = osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv')
 
-years = ['2015', '2016'] #, '2017']
+if data_source == 'abm':
+    years = ['2015', '2016', '2017', '2018', '2019']
+else:
+    years = ['2015', '2016', '2017']
 
 df = []
 for year in years:
