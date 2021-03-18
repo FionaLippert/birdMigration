@@ -75,26 +75,25 @@ df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl')
 df_new = []
 for r in df.radar.unique():
     print(r)
-    df_radar = df[df.radar == r]
-    gam = fit_baseGAM(df_radar.birds / bird_scale,
-                      df_radar.dayofyear,
-                      df_radar.solarpos,
-                      df_radar.solarpos_dt)
+    ridx = df.radar == r
+    gam = fit_baseGAM(df.loc[ridx, 'birds'] / bird_scale,
+                      df.loc[ridx, 'dayofyear'],
+                      df.loc[ridx, 'solarpos'],
+                      df.loc[ridx, 'solarpos_dt'])
 
     with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}_{r}.pkl'), 'wb') as f:
         pickle.dump(gam, f)
 
     y_gam = predict_baseGAM(gam,
-                            df_radar.dayofyear,
-                            df_radar.solarpos,
-                            df_radar.solarpos_dt)
+                            df.loc[ridx, 'dayofyear'],
+                            df.loc[ridx, 'solarpos'],
+                            df.loc[ridx, 'solarpos_dt'])
 
-    df_radar['gam_pred'] = y_gam
-    df_new.append(df_radar)
-    print(df.columns)
+    df.loc[ridx, 'gam_pred'] = y_gam
+    #df_new.append(df_radar)
 
-df_new = pd.concat(df_new, ignore_index=True)
-df_new.to_csv(osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv'))
+#df_new = pd.concat(df_new, ignore_index=True)
+df.to_csv(osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv'))
 
 assert 0
 
