@@ -16,9 +16,7 @@ from birds import spatial, datahandling, era5interface, abm
 def static_features(data_dir, season, year):
     # load radar info
     radar_dir = osp.join(data_dir, 'radar', season, year)
-    print(radar_dir)
     radars = datahandling.load_radars(radar_dir)
-    print(radars)
 
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars)
@@ -85,6 +83,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         df['dusk'] = np.logical_and(~night[:-1], night[1:])  # switching from day to night
         df['dawn'] = np.logical_and(night[:-1], ~night[1:])  # switching from night to day
         df['datetime'] = t_range
+        df['tidx'] = np.arange(t_range.size)
 
         # environmental variables for radar ridx
         for var in env_vars:
@@ -109,7 +108,6 @@ def prepare_features(target_dir, data_dir, data_source, season, year,
         radar_year = radar_years[-1]
     else:
         radar_year = year
-    print(radar_year)
     voronoi, radar_buffers, G = static_features(data_dir, season, radar_year)
 
     # save to disk
@@ -296,15 +294,15 @@ class RadarData(InMemoryDataset):
         inputs = np.stack(inputs, axis=0)
         targets = np.stack(targets, axis=0)
         env = np.stack(env, axis=0)
-        night = np.stack(night, axis=0)
+        local_night = np.stack(night, axis=0)
         dusk = np.stack(dusk, axis=0)
         dawn = np.stack(dawn, axis=0)
 
 
         # find timesteps where it's night for all radars
-        check_all = night.all(axis=0) # day/night mask
+        check_all = local_night.all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar
-        check_any = night.any(axis=0)
+        check_any = local_night.any(axis=0)
         # also include timesteps immediately before dusk
         check_any = np.append(np.logical_or(check_any[:-1], check_any[1:]), check_any[-1])
         # dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
@@ -332,6 +330,7 @@ class RadarData(InMemoryDataset):
         # global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
         local_dusk = reshape(dusk, nights, mask, self.timesteps)
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
+        local_night = reshape(local_night, nights, mask, self.timesteps)
 
 
         # create graph data objects per night
@@ -347,6 +346,7 @@ class RadarData(InMemoryDataset):
                           ], dim=1),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
                           # global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
+                          local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
                           local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
                      for nidx in range(inputs.shape[-1])]

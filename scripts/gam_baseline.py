@@ -10,7 +10,7 @@ import pickle5 as pickle
 from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser(description='GAM baseline')
-parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
+parser.add_argument('--data_root', type=str, default='/home/fiona/birdMigration/data', help='entry point to required data')
 args = parser.parse_args()
 
 def persistence(last_ob, timesteps):
@@ -41,7 +41,7 @@ def predict_envGAM(gam, baseGAM_pred, wind_speed, wind_dir):
 
 
 #root = '/home/fiona/birdMigration/data'
-root = args.root
+root = args.data_root
 raw_dir = osp.join(root, 'raw')
 radar_dir = osp.join(raw_dir, 'radar')
 abm_dir = osp.join(raw_dir, 'abm')
@@ -52,7 +52,7 @@ bird_scale = 2000
 load_baseGAM = True
 csv_file = osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv')
 
-years = ['2015', '2016', '2017']
+years = ['2015', '2016'] #, '2017']
 
 df = []
 for year in years:
@@ -66,10 +66,34 @@ for year in years:
     dynamic_feature_df = pd.read_csv(feature_path)
     #voronoi = gpd.read_file(osp.join(preprocessed_dir, 'voronoi.shp'))
 
-    df.append(dynamic_feature_df)
+    df.append(dynamic_feature_df, ignore_index=True)
 
 df = pd.concat(df)
-print(df.head())
+df['dayofyear'] = df.datetime.dayofyear
+df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl')
+
+df_new = []
+for r in df.radar.values:
+    print(r)
+    df_radar = df[df.radar == r]
+    gam = fit_baseGAM(df_radar.birds / bird_scale,
+                      df_radar.dayofyear,
+                      df_radar.solarpos,
+                      df_radar.solarpos_dt)
+
+    with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}_{r}.pkl'), 'wb') as f:
+        pickle.dump(gam, f)
+
+    y_gam = predict_baseGAM(gam, df_radar.birds / bird_scale,
+                            df_radar.dayofyear,
+                            df_radar.solarpos,
+                            df_radar.solarpos_dt)
+
+    df_radar['gam_pred'] = y_gam
+    df_new.append(df_radar)
+
+df_new = pd.concat(df_new, ignore_index=True)
+df_new.to_csv(osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv'))
 
 assert 0
 

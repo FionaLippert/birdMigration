@@ -603,7 +603,7 @@ class BirdDynamics(MessagePassing):
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
                 else:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-                x = x * ~data.local_dawn[:, t].view(-1, 1)
+                x = x * ~data.local_night[:, t].view(-1, 1)
 
                 # TODO for radar data, birds can stay on the ground or depart later in the night, so
                 #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
