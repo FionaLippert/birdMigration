@@ -73,7 +73,7 @@ df['dayofyear'] = pd.DatetimeIndex(df.datetime).dayofyear
 df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl')
 
 df_new = []
-for r in df.radar.values:
+for r in df.radar.unique():
     print(r)
     df_radar = df[df.radar == r]
     gam = fit_baseGAM(df_radar.birds / bird_scale,
@@ -91,6 +91,7 @@ for r in df.radar.values:
 
     df_radar['gam_pred'] = y_gam
     df_new.append(df_radar)
+    print(df.columns)
 
 df_new = pd.concat(df_new, ignore_index=True)
 df_new.to_csv(osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv'))
