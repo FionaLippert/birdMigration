@@ -16,6 +16,7 @@ from birds import spatial, datahandling, era5interface, abm
 def static_features(data_dir, season, year):
     # load radar info
     radar_dir = osp.join(data_dir, 'radar', season, year)
+    print(radar_dir)
     radars = datahandling.load_radars(radar_dir)
     print(radars)
 
