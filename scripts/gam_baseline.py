@@ -59,7 +59,7 @@ for year in years:
 
     preprocessed_dir = osp.join(root, 'preprocessed', data_source, season, year)
     feature_path = osp.join(preprocessed_dir, 'dynamic_features.csv')
-    if not osp.isfile(preprocessed_dir):
+    if not osp.isfile(feature_path):
         os.makedirs(preprocessed_dir, exist_ok=True)
         datasets.prepare_features(preprocessed_dir, raw_dir, data_source, season, year)
 
