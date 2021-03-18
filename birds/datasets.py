@@ -41,7 +41,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
     if data_source == 'radar':
         print(f'load radar data')
-        radar_dir = osp.join(data_dir, 'rad ar')
+        radar_dir = osp.join(data_dir, 'radar')
         data, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid',
                                                     mask_days=False, radar_names=voronoi.radar)
         data = data * voronoi.area_km2.to_numpy()[:, None, None] # rescale according to voronoi cell size
