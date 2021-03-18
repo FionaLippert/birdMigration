@@ -375,7 +375,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         pred = np.stack(pred, axis=0)
         pred_gam = np.zeros(len(time))
         pred_gbt = np.zeros((args.repeats, len(time)))
-        df_gam_idx = df_gam[df_gam.radar==radar]
+        df_gam_idx = df_gam[df_gam.radar.str.contains(radar)]
 
         for nidx, data in enumerate(dataloader):
             #gt[nights[nidx][:timesteps+1]] = data.y[idx]
@@ -389,7 +389,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                 #pred[midx][nights[nidx][:timesteps+1]] = y
                 pred[midx][seq_tidx[:, nidx]] = y
 
-            pred_gam[nights[nidx][:timesteps+1]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps+1]])].gam_prediction.to_numpy()
+            pred_gam[nights[nidx][:timesteps+1]] = df_gam_idx[df_gam_idx.datetime.isin(dti[nights[nidx][:timesteps+1]])].gam_pred.to_numpy()
             for r in range(args.repeats):
                 pred_gbt[r, seq_tidx[:, nidx]] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
 
@@ -455,7 +455,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
         pred = np.stack(pred, axis=0)
         #pred_gam = np.zeros(len(seq_tidx[:, nidx]))
         pred_gbt = np.zeros((args.repeats, len(seq_tidx[:, nidx])))
-        df_gam_idx = df_gam[df_gam.radar==radar]
+        df_gam_idx = df_gam[df_gam.radar.str.contains(radar)]
 
         data = list(dataloader)[nidx]
 
@@ -469,7 +469,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
             #pred[midx][nights[nidx][:timesteps+1]] = y
             pred[midx] = y
 
-        pred_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[seq_tidx[:, nidx]])].gam_prediction.to_numpy()
+        pred_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[seq_tidx[:, nidx]])].gam_pred.to_numpy()
         for r in range(args.repeats):
             pred_gbt[r] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
 
