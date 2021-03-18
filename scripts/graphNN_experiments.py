@@ -310,7 +310,6 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     ax.plot(range(timesteps+1), gam_losses, label=f'GAM')
 
     gbt_losses = []
-    print(local_nights.shape, tidx.shape)
     mask = np.stack([local_nights[:, tidx[:, nidx]] for nidx in range(tidx.shape[1])], axis=-1)
     for r in range(args.repeats):
         gbt_losses.append(gbt_rmse(bird_scale, args.multinight, mask, seed=r))

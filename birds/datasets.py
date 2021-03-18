@@ -294,15 +294,15 @@ class RadarData(InMemoryDataset):
         inputs = np.stack(inputs, axis=0)
         targets = np.stack(targets, axis=0)
         env = np.stack(env, axis=0)
-        local_night = np.stack(night, axis=0)
+        night = np.stack(night, axis=0)
         dusk = np.stack(dusk, axis=0)
         dawn = np.stack(dawn, axis=0)
 
 
         # find timesteps where it's night for all radars
-        check_all = local_night.all(axis=0) # day/night mask
+        check_all = night.all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar
-        check_any = local_night.any(axis=0)
+        check_any = night.any(axis=0)
         # also include timesteps immediately before dusk
         check_any = np.append(np.logical_or(check_any[:-1], check_any[1:]), check_any[-1])
         # dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
@@ -330,7 +330,7 @@ class RadarData(InMemoryDataset):
         # global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
         local_dusk = reshape(dusk, nights, mask, self.timesteps)
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
-        local_night = reshape(local_night, nights, mask, self.timesteps)
+        local_night = reshape(night, nights, mask, self.timesteps)
 
 
         # create graph data objects per night
@@ -358,7 +358,7 @@ class RadarData(InMemoryDataset):
                  'timepoints': time,
                  'time_mask': mask,
                  'tidx': tidx,
-                 'nights': nights,
+                 'nights': night,
                  'local_nights': local_night,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict()}
