@@ -359,7 +359,7 @@ class RadarData(InMemoryDataset):
                  'time_mask': mask,
                  'tidx': tidx,
                  'nights': nights,
-                 'local_nights': night,
+                 'local_nights': local_night,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict()}
 
