@@ -630,7 +630,7 @@ class BirdDynamics(MessagePassing):
     def update(self, aggr_out, x, coords, env, ground, dusk):
 
         #features = torch.cat([aggr_out, x.view(-1, 1), coords, env], dim=1)
-        features = torch.cat([ground.view(-1, 1), dusk.view(-1, 1), coords, env], dim=1)
+        features = torch.cat([ground.view(-1, 1), dusk.view(-1, 1).float(), coords, env], dim=1)
         departure = self.departure(features)
         delta = self.node_nn(aggr_out)
         pred = x + delta + departure
