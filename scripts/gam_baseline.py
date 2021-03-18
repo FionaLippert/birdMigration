@@ -69,7 +69,7 @@ for year in years:
     df.append(dynamic_feature_df)
 
 df = pd.concat(df, ignore_index=True)
-df['dayofyear'] = df.datetime.dayofyear
+df['dayofyear'] = pd.DatetimeIndex(df.datetime).dayofyear
 df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl')
 
 df_new = []
