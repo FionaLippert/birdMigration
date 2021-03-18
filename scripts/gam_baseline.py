@@ -84,10 +84,11 @@ df_new = []
 for r in df.radar.unique():
     print(r)
     ridx = df.radar == r
-    gam = fit_baseGAM(df.loc[ridx, 'birds'] / bird_scale,
-                      df.loc[ridx, 'dayofyear'],
-                      df.loc[ridx, 'solarpos'],
-                      df.loc[ridx, 'solarpos_dt'])
+    dfr = df[ridx].dropna()
+    gam = fit_baseGAM(dfr['birds'] / bird_scale,
+                      dfr['dayofyear'],
+                      dfr['solarpos'],
+                      dfr['solarpos_dt'])
 
     with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}_{r}.pkl'), 'wb') as f:
         pickle.dump(gam, f)
