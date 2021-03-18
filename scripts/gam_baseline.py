@@ -1,9 +1,9 @@
 from pygam import PoissonGAM, te
 import numpy as np
-from birds import datahandling, abm, spatial, era5interface
+from birds import datahandling, abm, spatial, era5interface, datasets
 import os.path as osp
 import os
-import pandas as pd
+import geopandas as gpd
 import pandas as pd
 import pickle5 as pickle
 from matplotlib import pyplot as plt
@@ -36,14 +36,39 @@ def predict_envGAM(gam, baseGAM_pred, wind_speed, wind_dir):
 
 
 root = '/home/fiona/birdMigration/data'
-radar_dir = osp.join(root, 'raw', 'radar')
-abm_dir = osp.join(root, 'raw', 'abm')
-env_dir = osp.join(root, 'raw', 'env')
+raw_dir = osp.join(root, 'raw')
+radar_dir = osp.join(raw_dir, 'radar')
+abm_dir = osp.join(raw_dir, 'abm')
+env_dir = osp.join(raw_dir, 'env')
 season = 'fall'
 data_source = 'abm'
 bird_scale = 2000
 load_baseGAM = True
 csv_file = osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv')
+
+years = ['2015', '2016', '2017']
+
+df = []
+for year in years:
+
+    preprocessed_dir = osp.join(root, 'preprocessed_test', data_source, season, year)
+    feature_path = osp.join(preprocessed_dir, 'dynamic_features.csv')
+    if not osp.isfile(preprocessed_dir):
+        os.makedirs(preprocessed_dir, exist_ok=True)
+        datasets.prepare_features(preprocessed_dir, raw_dir, data_source, season, year)
+
+    dynamic_feature_df = pd.read_csv(feature_path)
+    #voronoi = gpd.read_file(osp.join(preprocessed_dir, 'voronoi.shp'))
+
+    df.append(dynamic_feature_df)
+
+df = pd.concat(df)
+print(df.head())
+
+assert 0
+
+
+
 
 all_data = []
 all_days = []
