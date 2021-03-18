@@ -11,6 +11,9 @@ from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser(description='GAM baseline')
 parser.add_argument('--data_root', type=str, default='/home/fiona/birdMigration/data', help='entry point to required data')
+parser.add_argument('--data_source', type=str, default='abm', help='data source to be used')
+parser.add_argument('--season', type=str, default='fall', help='season; either fall or spring')
+parser.add_argument('--bird_scale', type=int, default=2000, help='scalar by which absolute bird counts will be normalized by')
 args = parser.parse_args()
 
 def persistence(last_ob, timesteps):
@@ -46,10 +49,10 @@ raw_dir = osp.join(root, 'raw')
 radar_dir = osp.join(raw_dir, 'radar')
 abm_dir = osp.join(raw_dir, 'abm')
 env_dir = osp.join(raw_dir, 'env')
-season = 'fall'
-data_source = 'abm'
-bird_scale = 2000
-load_baseGAM = True
+season = args.season #'fall'
+data_source = args.data_source #'abm'
+bird_scale = args.bird_scale #2000
+#load_baseGAM = True
 csv_file = osp.join(root, 'seasonal_trends', f'gam_summary_{data_source}.csv')
 
 if data_source == 'abm':
@@ -92,7 +95,7 @@ for r in df.radar.unique():
                             df.loc[ridx, 'solarpos'],
                             df.loc[ridx, 'solarpos_dt'])
 
-    df.loc[ridx, 'gam_pred'] = y_gam
+    df.loc[ridx, 'gam_pred'] = y_gam * bird_scale
     #df_new.append(df_radar)
 
 #df_new = pd.concat(df_new, ignore_index=True)
