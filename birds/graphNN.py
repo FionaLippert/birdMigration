@@ -1,5 +1,7 @@
 import torch
 from torch import nn
+from torch.autograd import Variable
+import torch.nn.functional as F
 from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj
@@ -637,7 +639,7 @@ class BirdDynamics(MessagePassing):
 
 class BirdLSTM(MessagePassing):
 
-    def __init__(self, msg_n_in=16, node_n_in=8, n_out=1, n_hidden=16, timesteps=6, embedding=0, model='linear',
+    def __init__(self, msg_n_in=16, node_n_in=7, n_out=1, n_hidden=16, timesteps=6,
                  seed=12345, multinight=False, use_wind=True, dropout_p=0):
         super(BirdLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
@@ -649,31 +651,7 @@ class BirdLSTM(MessagePassing):
         if not use_wind:
             node_n_in -= 2
 
-        if model == 'linear':
-            self.edgeflow = torch.nn.Linear(msg_n_in, n_out)
-        elif model == 'linear+sigmoid':
-            self.msg_nn = torch.nn.Sequential(torch.nn.Linear(msg_n_in, n_hidden),
-                                                torch.nn.Sigmoid())
-            self.node_nn = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.Tanh())
-            self.departure = torch.nn.Sequential(torch.nn.Linear(node_n_in, n_out),
-                                               torch.nn.Tanh())
-        else:
-            self.msg_nn = torch.nn.Sequential(torch.nn.Linear(msg_n_in, n_hidden),
-                                                torch.nn.ReLU(),
-                                                torch.nn.Linear(n_hidden, n_hidden),
-                                                torch.nn.Sigmoid())
-            self.node_nn = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.ReLU(),
-                                                 torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.Tanh())
-            self.departure = torch.nn.Sequential(torch.nn.Linear(node_n_in, n_hidden),
-                                               torch.nn.ReLU(),
-                                               torch.nn.Linear(n_hidden, n_out),
-                                               torch.nn.Tanh())
-
-        self.msg_fc1 = nn.Linear(2 * n_hidden, n_hidden)
-        self.msg_fc2 = nn.Linear(2 * n_hidden, n_hidden)
+        self.msg_nn = nn.Linear(msg_n_in, n_hidden)
 
         self.hidden_r = nn.Linear(n_hidden, n_hidden, bias=False)
         self.hidden_i = nn.Linear(n_hidden, n_hidden, bias=False)
@@ -691,6 +669,8 @@ class BirdLSTM(MessagePassing):
         self.timesteps = timesteps
         self.multinight = multinight
         self.use_wind = use_wind
+        self.dropout_p = dropout_p
+        self.n_hidden = n_hidden
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -700,18 +680,14 @@ class BirdLSTM(MessagePassing):
         # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
 
-        # birds on ground at t=0
-        ground = torch.zeros_like(x)
+        hidden = Variable(torch.zeros(data.x.size(0),  self.n_hidden))
+        if x.is_cuda:
+            hidden = hidden.cuda()
 
 
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr
-        if self.node_embedding is not None:
-            embedding = torch.cat([self.node_embedding.weight]*data.num_graphs)
-        else:
-            embedding = None
-
 
         y_hat = []
         y_hat.append(x)
@@ -724,8 +700,9 @@ class BirdLSTM(MessagePassing):
             env = data.env[..., t]
             if not self.use_wind:
                 env = env[:, 2:]
-            x = self.propagate(edge_index, x=x, coords=coords, env=env, ground=ground, dusk=data.local_dusk[:, t],
-                               edge_attr=edge_attr, embedding=embedding)
+
+            x, hidden = self.propagate(edge_index, x=x, coords=coords, env=env, ground=ground, hidden=hidden,
+                                       dusk=data.local_dusk[:, t], edge_attr=edge_attr, embedding=embedding)
 
 
             if self.multinight:
@@ -759,15 +736,25 @@ class BirdLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, ground, dusk):
+    def update(self, aggr_out, x, coords, env, dusk, hidden):
 
-        #features = torch.cat([aggr_out, x.view(-1, 1), coords, env], dim=1)
-        features = torch.cat([ground.view(-1, 1), dusk.view(-1, 1).float(), coords, env], dim=1)
-        departure = self.departure(features)
-        delta = self.node_nn(aggr_out)
-        pred = x + delta + departure
+        inputs = torch.cat([dusk.view(-1, 1).float(), coords, env], dim=1)
 
-        return pred
+        # GRU-style gated aggregation
+        r = F.sigmoid(self.input_r(inputs) + self.hidden_r(aggr_out))
+        i = F.sigmoid(self.input_i(inputs) + self.hidden_i(aggr_out))
+        n = F.tanh(self.input_n(inputs) + r * self.hidden_h(aggr_out))
+        hidden = (1 - i) * n + i * hidden
+
+        # Output MLP
+        pred = F.dropout(F.relu(self.out_fc1(hidden)), p=self.dropout_p)
+        pred = F.dropout(F.relu(self.out_fc2(pred)), p=self.dropout_p)
+        pred = self.out_fc3(pred)
+
+        # Predict bird difference
+        pred = x + pred
+
+        return pred, hidden
 
 
 
