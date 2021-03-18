@@ -93,8 +93,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         # which is the opposite of the standard meteorological wind direction
         df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
 
-        print(df)
-        for k, v in df:
+        for k, v in df.items():
             print(k, len(v))
         dfs.append(pd.DataFrame(df))
 

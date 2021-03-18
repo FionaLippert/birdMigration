@@ -672,20 +672,20 @@ class BirdLSTM(MessagePassing):
                                                torch.nn.Linear(n_hidden, n_out),
                                                torch.nn.Tanh())
 
-        self.msg_fc1 = nn.Linear(2 * n_hidden, n_hid)
-        self.msg_fc2 = nn.Linear(2 * n_hid, n_hid)
+        self.msg_fc1 = nn.Linear(2 * n_hidden, n_hidden)
+        self.msg_fc2 = nn.Linear(2 * n_hidden, n_hidden)
 
-        self.hidden_r = nn.Linear(n_hid, n_hid, bias=False)
-        self.hidden_i = nn.Linear(n_hid, n_hid, bias=False)
-        self.hidden_h = nn.Linear(n_hid, n_hid, bias=False)
+        self.hidden_r = nn.Linear(n_hidden, n_hidden, bias=False)
+        self.hidden_i = nn.Linear(n_hidden, n_hidden, bias=False)
+        self.hidden_h = nn.Linear(n_hidden, n_hidden, bias=False)
 
-        self.input_r = nn.Linear(n_in_node, n_hid, bias=True)
-        self.input_i = nn.Linear(n_in_node, n_hid, bias=True)
-        self.input_n = nn.Linear(n_in_node, n_hid, bias=True)
+        self.input_r = nn.Linear(node_n_in, n_hidden, bias=True)
+        self.input_i = nn.Linear(node_n_in, n_hidden, bias=True)
+        self.input_n = nn.Linear(node_n_in, n_hidden, bias=True)
 
-        self.out_fc1 = nn.Linear(n_hid, n_hid)
-        self.out_fc2 = nn.Linear(n_hid, n_hid)
-        self.out_fc3 = nn.Linear(n_hid, n_in_node)
+        self.out_fc1 = nn.Linear(n_hidden, n_hidden)
+        self.out_fc2 = nn.Linear(n_hidden, n_hidden)
+        self.out_fc3 = nn.Linear(n_hidden, node_n_in)
 
 
         self.timesteps = timesteps
