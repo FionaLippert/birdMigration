@@ -515,44 +515,48 @@ class BirdFlowTime(MessagePassing):
 
 class BirdDynamics(MessagePassing):
 
-    def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
-                 use_departure=False, seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0):
+    def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear',
+                 seed=12345, multinight=False, use_wind=True, dropout_p=0):
         super(BirdDynamics, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
 
-        in_channels = 11 + embedding
+        in_channels = 16
         if not use_wind:
             in_channels -= 2
         hidden_channels = hidden_dim #16 #2*in_channels #int(in_channels / 2)
         out_channels = 1
 
-        in_channels_node = hidden_channels + 7
+        in_channels_dep = 8
         if not use_wind:
-            in_channels_node -= 2
+            in_channels_dep -= 2
 
         if model == 'linear':
             self.edgeflow = torch.nn.Linear(in_channels, out_channels)
         elif model == 'linear+sigmoid':
             self.msg_nn = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
                                                 torch.nn.Sigmoid())
-            self.node_nn = torch.nn.Sequential(torch.nn.Linear(in_channels_node, out_channels),
+            self.node_nn = torch.nn.Sequential(torch.nn.Linear(hidden_channels, out_channels),
                                                  torch.nn.Tanh())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, out_channels),
+                                               torch.nn.Tanh())
         else:
             self.msg_nn = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(hidden_channels, hidden_channels),
                                                 torch.nn.Sigmoid())
-            self.node_nn = torch.nn.Sequential(torch.nn.Linear(in_channels_node, hidden_channels),
+            self.node_nn = torch.nn.Sequential(torch.nn.Linear(hidden_channels, hidden_channels),
                                                  torch.nn.ReLU(),
                                                  torch.nn.Linear(hidden_channels, out_channels),
                                                  torch.nn.Tanh())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(hidden_channels, out_channels),
+                                               torch.nn.Tanh())
 
 
         self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
         self.timesteps = timesteps
-        self.norm = norm
-        self.use_departure = use_departure
         self.multinight = multinight
         self.use_wind = use_wind
 
@@ -564,11 +568,17 @@ class BirdDynamics(MessagePassing):
         # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
 
+        # birds on ground at t=0
+        ground = torch.zeros_like(x)
+
 
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr
-        embedding = torch.cat([self.node_embedding.weight]*data.num_graphs) if self.node_embedding is not None else None
+        if self.node_embedding is not None:
+            embedding = torch.cat([self.node_embedding.weight]*data.num_graphs)
+        else:
+            embedding = None
 
 
         y_hat = []
@@ -582,8 +592,23 @@ class BirdDynamics(MessagePassing):
             env = data.env[..., t]
             if not self.use_wind:
                 env = env[:, 2:]
-            x = self.propagate(edge_index, x=x, coords=coords, env=env,
+            x = self.propagate(edge_index, x=x, coords=coords, env=env, ground=ground, dusk=data.local_dusk[:, t],
                                edge_attr=edge_attr, embedding=embedding)
+
+
+            if self.multinight:
+                # for locations where it is dawn: save birds to ground and set birds in the air to zero
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+                else:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+                x = x * ~data.local_dawn[:, t].view(-1, 1)
+
+                # TODO for radar data, birds can stay on the ground or depart later in the night, so
+                #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
+                # for locations where it is dusk: set birds on ground to zero
+                ground = ground * ~data.local_dusk[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -591,25 +616,24 @@ class BirdDynamics(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, coords_i, coords_j, env_j, edge_attr, embedding_j):
+    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        if embedding_j is None:
-            features = torch.cat([x_j.view(-1, 1), coords_i, coords_j, env_j, edge_attr], dim=1)
-        else:
-            features = torch.cat([x_j.view(-1, 1), coords_i, coords_j, env_j, edge_attr, embedding_j], dim=1)
+        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
         msg = self.msg_nn(features)
 
         return msg
 
 
-    def update(self, aggr_out, x, coords, env):
+    def update(self, aggr_out, x, coords, env, ground, dusk):
 
-        features = torch.cat([aggr_out, x.view(-1, 1), coords, env], dim=1)
-        delta = self.node_nn(features)
-        pred = x + delta
+        #features = torch.cat([aggr_out, x.view(-1, 1), coords, env], dim=1)
+        features = torch.cat([ground.view(-1, 1), dusk.view(-1, 1), coords, env], dim=1)
+        departure = self.departure(features)
+        delta = self.node_nn(aggr_out)
+        pred = x + delta + departure
 
         return pred
 
