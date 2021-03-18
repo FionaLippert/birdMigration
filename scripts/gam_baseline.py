@@ -70,7 +70,7 @@ for year in years:
 
 df = pd.concat(df, ignore_index=True)
 df['dayofyear'] = pd.DatetimeIndex(df.datetime).dayofyear
-df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl')
+df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl', inplace=True)
 
 df_new = []
 for r in df.radar.unique():
