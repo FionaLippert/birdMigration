@@ -77,14 +77,16 @@ for year in years:
 df = pd.concat(df, ignore_index=True)
 df['dayofyear'] = pd.DatetimeIndex(df.datetime).dayofyear
 df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl', inplace=True)
-print(df.isna().size)
-df.fillna(0, inplace=True)
+#print(df.isna().size)
+#df.fillna(0, inplace=True)
 
 df_new = []
 for r in df.radar.unique():
     print(r)
     ridx = df.radar == r
-    dfr = df[ridx].dropna()
+    dfr = df[ridx]
+    print(dfr.isna().size)
+    dfr = dfr.dropna()
     gam = fit_baseGAM(dfr['birds'] / bird_scale,
                       dfr['dayofyear'],
                       dfr['solarpos'],
