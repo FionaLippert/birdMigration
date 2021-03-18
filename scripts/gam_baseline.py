@@ -84,7 +84,7 @@ for r in df.radar.values:
     with open(osp.join(root, 'seasonal_trends', f'gam_base_model_{data_source}_{r}.pkl'), 'wb') as f:
         pickle.dump(gam, f)
 
-    y_gam = predict_baseGAM(gam, df_radar.birds / bird_scale,
+    y_gam = predict_baseGAM(gam,
                             df_radar.dayofyear,
                             df_radar.solarpos,
                             df_radar.solarpos_dt)
