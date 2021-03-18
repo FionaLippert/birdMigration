@@ -17,6 +17,7 @@ def static_features(data_dir, season, year):
     # load radar info
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
+    print(radars)
 
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars)
@@ -107,6 +108,7 @@ def prepare_features(target_dir, data_dir, data_source, season, year,
         radar_year = radar_years[-1]
     else:
         radar_year = year
+    print(radar_year)
     voronoi, radar_buffers, G = static_features(data_dir, season, radar_year)
 
     # save to disk
