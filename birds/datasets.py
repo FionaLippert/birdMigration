@@ -44,9 +44,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         radar_dir = osp.join(data_dir, 'radar')
         data, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid',
                                                     mask_days=False, radar_names=voronoi.radar)
-        print(data.shape)
         data = data * voronoi.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
-        print(data.shape)
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':
@@ -95,8 +93,6 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         # which is the opposite of the standard meteorological wind direction
         df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
 
-        for k, v in df.items():
-            print(k, len(v))
         dfs.append(pd.DataFrame(df))
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)

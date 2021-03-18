@@ -77,6 +77,8 @@ for year in years:
 df = pd.concat(df, ignore_index=True)
 df['dayofyear'] = pd.DatetimeIndex(df.datetime).dayofyear
 df.radar.replace(['nlhrw', 'nldbl'], 'nlhrw-nldbl', inplace=True)
+print(df.isna().size)
+df.fillna(0, inplace=True)
 
 df_new = []
 for r in df.radar.unique():
