@@ -8,6 +8,10 @@ import pandas as pd
 import pickle5 as pickle
 from matplotlib import pyplot as plt
 
+parser = argparse.ArgumentParser(description='GAM baseline')
+parser.add_argument('--root', type=str, default='/home/fiona/birdMigration', help='entry point to required data')
+args = parser.parse_args()
+
 def persistence(last_ob, timesteps):
     # always return last observed value
 	return [last_ob] * timesteps
@@ -35,7 +39,8 @@ def predict_envGAM(gam, baseGAM_pred, wind_speed, wind_dir):
 
 
 
-root = '/home/fiona/birdMigration/data'
+#root = '/home/fiona/birdMigration/data'
+root = args.root
 raw_dir = osp.join(root, 'raw')
 radar_dir = osp.join(raw_dir, 'radar')
 abm_dir = osp.join(raw_dir, 'abm')
