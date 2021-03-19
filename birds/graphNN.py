@@ -283,21 +283,18 @@ class BirdFlowRecurrent(MessagePassing):
         elif model == 'linear+sigmoid':
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, n_out),
                                                 torch.nn.Sigmoid())
-            self.departure = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
-                                                 torch.nn.Sigmoid())
+
         else:
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, n_hidden),
                                                 torch.nn.Dropout(p=dropout_p),
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(n_hidden, n_out),
                                                 torch.nn.Sigmoid())
-            self.departure = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.Dropout(p=dropout_p),
-                                                 torch.nn.ReLU(),
-                                                 torch.nn.Linear(n_hidden, n_out),
-                                                 torch.nn.tanh())
 
-        self.node_lstm = nn.LSTM(nodes_n_in, n_hidden)
+        self.departure = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
+                                             torch.nn.Tanh())
+
+        self.node_lstm = nn.LSTMCell(nodes_n_in, n_hidden)
 
         self.timesteps = timesteps
         self.fix_boundary = fix_boundary
@@ -316,10 +313,12 @@ class BirdFlowRecurrent(MessagePassing):
         # birds on the ground at t=0
         ground = torch.zeros_like(x)
 
-        # initialize hidden variables
+        # initialize lstm variables
         hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden))
+        states = Variable(torch.zeros(data.x.size(0), self.n_hidden))
         if x.is_cuda:
             hidden = hidden.cuda()
+            states = states.cuda()
 
         coords = data.coords
         edge_index = data.edge_index
@@ -339,9 +338,10 @@ class BirdFlowRecurrent(MessagePassing):
             env = data.env[..., t]
             if not self.use_wind:
                 env = env[:, 2:]
-            x = self.propagate(edge_index, x=x, coords=coords, env=env, hidden=hidden,
-                               edge_attr=edge_attr, ground=ground,
-                               local_dusk=data.local_dusk[:, t])
+            x, states, hidden = self.propagate(edge_index, x=x, coords=coords, env=env,
+                                                states=states, hidden=hidden,
+                                                edge_attr=edge_attr, ground=ground,
+                                                local_dusk=data.local_dusk[:, t])
 
             if len(self.fix_boundary) > 0:
                 # use ground truth for boundary nodes
@@ -381,19 +381,19 @@ class BirdFlowRecurrent(MessagePassing):
         return abs_flow
 
 
-    def update(self, aggr_out, coords, env, ground, local_dusk, hidden):
+    def update(self, aggr_out, coords, env, ground, local_dusk, states, hidden):
         # return aggregation (sum) of inflows computed by message()
         # add departure prediction if local_dusk flag is True
 
         inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.float().view(-1, 1)], dim=1)
         inputs = inputs.view(1, inputs.size(0), inputs.size(1))
         hidden = hidden.view(1, hidden.size(0), hidden.size(1))
-        outputs, hidden = self.node_lstm(inputs, hidden)
-        departure = self.departure(outputs)
+        states, hidden = self.node_lstm(inputs, (states, hidden))
+        departure = self.departure(states)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = aggr_out + departure
 
-        return pred, hidden
+        return pred, states, hidden
 
 
 class BirdDynamics(MessagePassing):
