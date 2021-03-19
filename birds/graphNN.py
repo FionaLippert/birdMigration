@@ -317,7 +317,7 @@ class BirdFlowRecurrent(MessagePassing):
         ground = torch.zeros_like(x)
 
         # initialize hidden variables
-        hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden))
+        hidden = Variable(1, torch.zeros(data.x.size(0), self.n_hidden))
         if x.is_cuda:
             hidden = hidden.cuda()
 
@@ -386,6 +386,7 @@ class BirdFlowRecurrent(MessagePassing):
         # add departure prediction if local_dusk flag is True
 
         inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.float().view(-1, 1)], dim=1)
+        inputs = inputs.view(1, inputs.size(0), inputs.size(1))
         outputs, hidden = self.node_lstm(inputs, hidden)
         departure = self.departure(outputs)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
