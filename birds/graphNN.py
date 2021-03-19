@@ -303,6 +303,7 @@ class BirdFlowRecurrent(MessagePassing):
         self.fix_boundary = fix_boundary
         self.multinight = multinight
         self.use_wind = use_wind
+        self.n_hidden = n_hidden
 
 
     def forward(self, data, teacher_forcing=0.0):
