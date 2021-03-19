@@ -365,15 +365,12 @@ class BirdFlowRecurrent(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, coords_i, coords_j, env_j, edge_attr, embedding_j):
+    def message(self, x_j, coords_i, coords_j, env_j, edge_attr):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        if embedding_j is None:
-            features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
-        else:
-            features = torch.cat([coords_i, coords_j, env_j, edge_attr, embedding_j], dim=1)
+        features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
         flow = self.edgeflow(features)
 
         self.flows.append(flow)
@@ -399,7 +396,7 @@ class BirdFlowRecurrent(MessagePassing):
 
 class BirdDynamics(MessagePassing):
 
-    def __init__(self, msg_n_in=16, node_n_in=8, n_out=1, n_hidden=16, timesteps=6, embedding=0, model='linear',
+    def __init__(self, msg_n_in=16, node_n_in=8, n_out=1, n_hidden=16, timesteps=6, model='linear',
                  seed=12345, multinight=False, use_wind=True, dropout_p=0):
         super(BirdDynamics, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
