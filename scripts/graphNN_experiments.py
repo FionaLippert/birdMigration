@@ -47,6 +47,7 @@ parser.add_argument('--weighted_loss', action='store_true', default=False, help=
 parser.add_argument('--no_wind', action='store_true', default=False, help='do not use wind features in models')
 parser.add_argument('--use_black_box', action='store_true', default=False, help='use black box NN without interpretation of messages')
 parser.add_argument('--use_black_box_rec', action='store_true', default=False, help='use recurrent black box NN without interpretation of messages')
+parser.add_argument('--recurrent', action='store_true', default=False, help='use recurrent bird flow model')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -101,11 +102,14 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         elif args.use_black_box_rec:
             model = BirdRecurrent1(n_hidden=args.hidden_dim, timesteps=timesteps,
                                 seed=r, multinight=args.multinight, use_wind=(not args.no_wind), dropout_p=dropout_p)
+        elif args.recurrent:
+            model = BirdFlowRecurrent(timesteps, hidden_dim=args.hidden_dim, model=model_type,
+                                    seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
+                                    use_wind=(not args.no_wind), dropout_p=dropout_p)
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
                                  use_wind=(not args.no_wind), dropout_p=dropout_p)
-            use_conservation = conservation
 
         if repeats == 1:
             name = make_name(timesteps, model_type, conservation, recurrent, embedding, norm,

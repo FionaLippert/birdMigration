@@ -262,7 +262,7 @@ class BirdFlowTime(MessagePassing):
 
 class BirdFlowRecurrent(MessagePassing):
 
-    def __init__(self, num_nodes, timesteps, hidden_dim=16, model='linear',
+    def __init__(self, timesteps, hidden_dim=16, model='linear',
                  seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0.5):
         super(BirdFlowRecurrent, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
