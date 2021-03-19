@@ -85,8 +85,9 @@ for r in df.radar.unique():
     print(r)
     ridx = df.radar == r
     dfr = df[ridx]
-    print(dfr.isna().size)
+    print(dfr.size, dfr.isna().size)
     dfr = dfr.dropna()
+    print(dfr.size)
     gam = fit_baseGAM(dfr['birds'] / bird_scale,
                       dfr['dayofyear'],
                       dfr['solarpos'],
