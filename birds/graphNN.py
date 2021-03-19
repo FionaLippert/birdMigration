@@ -365,7 +365,7 @@ class BirdFlowRecurrent(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, coords_i, coords_j, env_j, norm_j, edge_attr, embedding_j):
+    def message(self, x_j, coords_i, coords_j, env_j, edge_attr, embedding_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
