@@ -46,6 +46,7 @@ parser.add_argument('--weighted_loss', action='store_true', default=False, help=
                                 'to bird densities to promote better fits for high migration events')
 parser.add_argument('--no_wind', action='store_true', default=False, help='do not use wind features in models')
 parser.add_argument('--use_black_box', action='store_true', default=False, help='use black box NN without interpretation of messages')
+parser.add_argument('--use_black_box_rec', action='store_true', default=False, help='use recurrent black box NN without interpretation of messages')
 args = parser.parse_args()
 
 args.cuda = (not args.cpu and torch.cuda.is_available())
@@ -97,6 +98,9 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         elif args.use_black_box:
             model = BirdDynamics(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
                                  seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
+        elif args.use_black_box_rec:
+            model = BirdRecurrent1(n_hidden=args.hidden_dim, timesteps=timesteps,
+                                seed=r, multinight=args.multinight, use_wind=(not args.no_wind), dropout_p=dropout_p)
         else:
             model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
@@ -127,15 +131,15 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         else:
             tf = args.teacher_forcing
         for epoch in range(epochs):
-            if args.use_black_box:
+            if args.use_black_box or args.use_black_box_rec:
                 loss = train_dynamics(model, train_loader, optimizer, loss_func, args.cuda, teacher_forcing=tf)
             else:
                 loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, args.cuda,
-                         use_conservation, departure=False, teacher_forcing=tf)
+                         conservation, departure=False, teacher_forcing=tf)
             print(f'epoch {epoch + 1}: loss = {loss / len(train_data)}')
             if departure:
                 loss = train_fluxes(model, train_loader, optimizer, boundaries, loss_func, args.cuda,
-                             use_conservation, departure=departure, teacher_forcing=tf)
+                             conservation, departure=departure, teacher_forcing=tf)
                 print(f'epoch {epoch + 1}: loss with departure = {loss / len(train_data)}')
             training_curve[epoch] = loss / len(train_data)
 
@@ -270,9 +274,9 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     fig, ax = plt.subplots()
     loss_all = {m : [] for m in model_types}
     for midx, model in enumerate(models):
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                print(name, param.data)
+        # for name, param in model.named_parameters():
+        #     if param.requires_grad:
+        #         print(name, param.data)
 
         model.timesteps = timesteps
 
@@ -281,7 +285,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
                 test_fluxes(model, test_loader, timesteps, loss_func, args.cuda,
                      get_outfluxes=False, bird_scale=bird_scale).mean(0)
             )
-        elif args.use_black_box:
+        elif args.use_black_box or args.use_black_box_rec:
             loss_all[short_names[midx]].append(
                 test_dynamics(model, test_loader, timesteps, loss_func, args.cuda, bird_scale).mean(0)
             )
@@ -562,7 +566,10 @@ bird_scale = 2000
 
 if args.action =='train':
 
-    model_types = ['linear+sigmoid', 'mlp'] #, 'standard_mlp']
+    if args.use_black_box_rec:
+        model_types = ['RGNN']
+    else:
+        model_types = ['linear+sigmoid', 'mlp'] #, 'standard_mlp']
     cons_settings = [False] # [True, False]
     if args.use_dropout:
         dropout_settings = [0, .25, .5]
@@ -579,8 +586,12 @@ if args.action =='train':
 
 if args.action == 'test':
 
-    model_types = ['linear+sigmoid', 'mlp']#, 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
-    model_labels = ['G_linear+sigmoid', 'G_mlp']#, 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
+    if args.use_black_box_rec:
+        model_types = ['RGNN']
+        model_labels = model_types
+    else:
+        model_types = ['linear+sigmoid', 'mlp']#, 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
+        model_labels = ['G_linear+sigmoid', 'G_mlp']#, 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
     cons = args.conservation
     rec = True
     emb = 0

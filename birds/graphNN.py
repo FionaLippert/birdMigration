@@ -19,268 +19,11 @@ from matplotlib import pyplot as plt
 import itertools as it
 from datetime import datetime as dt
 
-from birds import spatial, datahandling, era5interface, abm
-
-class RadarData(InMemoryDataset):
-
-    def __init__(self, root, split, year, season='fall', timesteps=1,
-                 data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100, env_cells=True,
-                 start=None, end=None, transform=None, pre_transform=None):
-
-        self.split = split
-        self.season = season
-        self.year = year
-        self.timesteps = timesteps
-        self.data_source = data_source
-        self.start = start
-        self.end = end
-        self.bird_scale = bird_scale
-        self.env_points = env_points # number of environment variable samples per radar cell
-        self.use_buffers = use_buffers
-        self.env_cells = env_cells
-        self.random_seed = 1234
-
-        if use_buffers:
-            self.processed_dirname = f'measurements=radar_buffers_split={split}'
-        else:
-            self.processed_dirname = 'measurements=voronoi_cells'
-            self.processed_dirname = 'test'
-
-        super(RadarData, self).__init__(root, transform, pre_transform)
-
-        self.data, self.slices = torch.load(self.processed_paths[0])
-
-        with open(osp.join(self.processed_dir, self.info_file_name), 'rb') as f:
-            self.info = pickle.load(f)
-
-    @property
-    def raw_file_names(self):
-        return []
-
-    @property
-    def raw_dir(self):
-        return osp.join(self.root, 'raw')
-
-    @property
-    def processed_dir(self):
-        return osp.join(self.root, 'processed', self.processed_dirname, self.data_source, self.season, self.year)
-
-    @property
-    def processed_file_names(self):
-        return [f'data_timesteps={self.timesteps}.pt']
-
-    @property
-    def info_file_name(self):
-        return f'info_timesteps={self.timesteps}.pkl'
-
-    def download(self):
-        pass
-
-    def process(self):
-
-        print('load graph structure')
-
-        if self.year in ['2015', '2016', '2017']:
-            radars = datahandling.load_radars(osp.join(self.raw_dir, 'radar', self.season, self.year))
-            print('radars available', len(radars))
-        else:
-            print(osp.join(self.raw_dir, 'radar', self.season, '2017'))
-            radars = datahandling.load_radars(osp.join(self.raw_dir, 'radar', self.season, '2017'))
-            print('radars not available', len(radars))
-
-        # solarpos, _, _ = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season,
-        #                                           self.year,
-        #                                           'solarpos')
-
-        # construct graph
-        space = spatial.Spatial(radars)
-        cells, G = space.voronoi()
-        G = nx.DiGraph(space.subgraph('type', 'measured'))  # graph without sink nodes
-        edges = torch.tensor(list(G.edges()), dtype=torch.long)
-        edge_index = edges.t().contiguous()
-
-
-        if self.data_source == 'radar':
-            print('load radar data')
-            data, _, t_range = datahandling.load_season(osp.join(self.raw_dir, 'radar'), self.season, self.year, 'vid', mask_days=False)
-
-        elif self.data_source == 'abm':
-            print('load abm data')
-            abm_dir = osp.join(self.raw_dir, 'abm')
-            data, abm_time = abm.load_season(abm_dir, self.season, self.year, cells)
-            if self.use_buffers:
-                radar_buffers = gpd.GeoDataFrame(geometry=space.pts_local.buffer(25_000))
-                buffer_data, _ = abm.load_season(abm_dir, self.season, self.year, radar_buffers)
-
-            # adjust time range of sun data to abm time range
-            t_range = abm_time.tz_convert('UTC').tz_localize(None)#[:-1] # remove time zone info
-
-
-        solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq)).tz_localize('UTC')
-        solarpos = [solarposition.get_solarposition(solar_t_range, lat, lon).elevation for lon, lat in
-                    radars.keys()]
-        solarpos = np.stack(solarpos, axis=0)
-        solarpos_change = solarpos[:, :-1] - solarpos[:, 1:]
-        solarpos = solarpos[:, :-1]
-        solarpos[solarpos >= -6] = np.nan  # mask nights
-
-
-        print('load wind data')
-        if self.env_cells:
-            wind = era5interface.compute_cell_avg(
-                os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
-                cells.to_crs('epsg:4326').geometry, self.env_points, t_range, vars=['u', 'v'], seed=self.random_seed)
-        else:
-            wind = era5interface.extract_points(os.path.join(self.raw_dir, 'env', self.season, self.year, 'pressure_level_850.nc'),
-                                            radars.keys(), t_range, vars=['u', 'v'])
-
-
-        check = np.isfinite(solarpos).all(axis=0) # day/night mask
-        dft = pd.DataFrame({'check': np.append(np.logical_and(check[:-1], check[1:]), False),
-                            'tidx': range(len(t_range))}, index=t_range)
-
-
-        print('do further processing')
-
-        # group into nights
-        groups = [list(g) for k, g in it.groupby(enumerate(dft.check), key=lambda x: x[-1])]
-        nights = [[item[0] for item in g] for g in groups if g[0][1]] # and len(g) > self.timesteps]
-
-        def reshape(data, nights, mask):
-            reshaped = [timeslice(data, night[0], mask) for night in nights[:-1]]
-            reshaped = [d for d in reshaped if d.size > 0] # only use sequences that are fully available
-            reshaped = np.stack(reshaped, axis=-1)
-            return reshaped
-
-        def timeslice(data, start_night, mask):
-            data_night = data[:, start_night:]
-            # remove hours during the day
-            data_night = data_night[:, mask[start_night:]]
-            if data_night.shape[1] > self.timesteps:
-                #data_night = data_night[:, 1:self.timesteps + 1] # for radar data shift by 1 ts might be needed
-                data_night = data_night[:, :self.timesteps+1]
-            else:
-                # timesteps is larger than the number of data points left after this night and next nights
-                # data_night = np.pad(data_night[:, 1:], ((0, 0), (0, 1+self.timesteps-data_night.shape[1])),
-                #                     constant_values=0)
-                # data_night = np.pad(data_night, ((0, 0), (0, self.timesteps - data_night.shape[1])),
-                #                     constant_values=0)
-                data_night = np.empty(0)
-            return data_night
-
-
-        # def reshape(data, nights):
-        #     return np.stack([data[:, night[1:self.timesteps + 1]] for night in nights], axis=-1)
-
-
-        data = reshape(data, nights, dft.check)
-        if self.use_buffers:
-            buffer_data = reshape(buffer_data, nights, dft.check)
-        solarpos = reshape(solarpos, nights, dft.check)
-        solarpos_change = reshape(solarpos_change, nights, dft.check)
-        wind = {key: reshape(val, nights, dft.check) for key, val in wind.items()}
-
-        wind = {'speed': np.sqrt(np.square(wind['u']) + np.square(wind['v'])),
-                'direction': (abm.uv2deg(wind['u'], wind['v']) + 360) % 360
-                }
-
-
-        def normalize(features, min=None, max=None):
-            if min is None:
-                min = np.min(features)
-            if max is None:
-                max = np.max(features)
-            if type(features) is not np.ndarray:
-                features = np.array(features)
-            return (features - min) / (max - min)
-
-        areas = cells.geometry.area.to_numpy()
-        if self.use_buffers:
-            buffer_areas = radar_buffers.area.to_numpy()
-
-        # compute total number of birds within each cell around radar
-        if self.data_source == 'radar':
-            birds_per_cell = data * areas[:, None, None]
-        else:
-            birds_per_cell = data
-            if self.use_buffers:
-                birds_per_cell_from_buffer = (buffer_data / buffer_areas[:, None, None]) * areas[:, None, None]
-
-        # normalize node data
-        print('normalize radar data')
-        birds_per_cell = birds_per_cell / self.bird_scale
-        if self.use_buffers:
-            birds_per_cell_from_buffer = birds_per_cell_from_buffer / self.bird_scale
-        print('normalize solarpos')
-        solarpos = normalize(solarpos)
-        solarpos_change = normalize((solarpos_change))
-
-        print('normalize coords')
-        xcoords = normalize(cells.x)
-        ycoords = normalize(cells.y)
-        print('normalize areas')
-        areas = normalize(areas)
-        print('normalize wind')
-        wind = {key: normalize(val) for key, val in wind.items()}
-
-        # compute distances and angles between radars
-        distances = normalize([distance(cells.x.iloc[j], cells.y.iloc[j],
-                                        cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0)
-        angles = normalize([angle(cells.x.iloc[j], cells.y.iloc[j],
-                                  cells.x.iloc[i], cells.y.iloc[i]) for j, i in G.edges], min=0, max=360)
-
-        # input quantity
-        if self.use_buffers:
-            x = birds_per_cell_from_buffer
-        else:
-            x = birds_per_cell
-
-        # target quantity
-        if self.use_buffers and self.split == 'train':
-            y = birds_per_cell_from_buffer
-        else:
-            y = birds_per_cell
-
-        data_list = [Data(x=torch.tensor(x[:, :, t], dtype=torch.float),
-                          y=torch.tensor(y[:, :, t], dtype=torch.float),
-                          coords=torch.stack([
-                              torch.tensor(xcoords, dtype=torch.float),
-                              torch.tensor(ycoords, dtype=torch.float)
-                          ], dim=1),
-                          areas=torch.tensor(areas, dtype=torch.float),
-                          env=torch.stack([
-                              *[torch.tensor(w[..., t], dtype=torch.float) for w in wind.values()],
-                              torch.tensor(solarpos[..., t], dtype=torch.float),
-                              torch.tensor(solarpos_change[..., t], dtype=torch.float)
-                          ], dim=1),
-                          edge_index=edge_index,
-                          edge_attr=torch.stack([
-                              torch.tensor(distances, dtype=torch.float),
-                              torch.tensor(angles, dtype=torch.float)
-                          ], dim=1))
-                     for t in range(data.shape[-1])]
-
-        # write data to disk
-        os.makedirs(self.processed_dir, exist_ok=True)
-
-        info = {'radars': list(radars.values()),
-                 'timepoints': t_range,
-                 'time_mask': dft.check,
-                 'nights': nights,
-                 'bird_scale': self.bird_scale,
-                 'boundaries': cells['boundary'].to_dict()}
-
-        with open(osp.join(self.processed_dir, self.info_file_name), 'wb') as f:
-            pickle.dump(info, f)
-
-        data, slices = self.collate(data_list)
-        torch.save((data, slices), self.processed_paths[0])
-
 
 class LSTM(torch.nn.Module):
 
     def __init__(self, in_channels, hidden_channels, out_channels):
-        super(MLP, self).__init__()
+        super(LSTM, self).__init__()
 
         self.lstm = torch.nn.LSTM(in_channels, hidden_channels)
         self.hidden2birds = torch.nn.Linear(hidden_channels, out_channels)
@@ -516,6 +259,143 @@ class BirdFlowTime(MessagePassing):
         return pred
 
 
+
+class BirdFlowRecurrent(MessagePassing):
+
+    def __init__(self, num_nodes, timesteps, hidden_dim=16, model='linear',
+                 seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0.5):
+        super(BirdFlowRecurrent, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
+
+        torch.manual_seed(seed)
+
+        edges_n_in = 10
+        if not use_wind:
+            edges_n_in -= 2
+        n_hidden = hidden_dim #16 #2*in_channels #int(in_channels / 2)
+        n_out = 1
+
+        nodes_n_in = 8
+        if not use_wind:
+            nodes_n_in -= 2
+
+        if model == 'linear':
+            self.edgeflow = torch.nn.Linear(edges_n_in, n_out)
+        elif model == 'linear+sigmoid':
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, n_out),
+                                                torch.nn.Sigmoid())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
+                                                 torch.nn.Sigmoid())
+        else:
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, n_hidden),
+                                                torch.nn.Dropout(p=dropout_p),
+                                                torch.nn.ReLU(),
+                                                torch.nn.Linear(n_hidden, n_out),
+                                                torch.nn.Sigmoid())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_hidden),
+                                                 torch.nn.Dropout(p=dropout_p),
+                                                 torch.nn.ReLU(),
+                                                 torch.nn.Linear(n_hidden, n_out),
+                                                 torch.nn.tanh())
+
+        self.node_lstm = nn.LSTM(nodes_n_in, n_hidden)
+
+        self.timesteps = timesteps
+        self.fix_boundary = fix_boundary
+        self.multinight = multinight
+        self.use_wind = use_wind
+
+
+    def forward(self, data, teacher_forcing=0.0):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        # measurement at t=0
+        x = data.x[..., 0].view(-1, 1)
+
+        # birds on the ground at t=0
+        ground = torch.zeros_like(x)
+
+        # initialize hidden variables
+        hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden))
+        if x.is_cuda:
+            hidden = hidden.cuda()
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+
+        y_hat = []
+        y_hat.append(x)
+
+        self.flows = []
+        self.abs_flows = []
+        for t in range(self.timesteps):
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                x = data.x[..., t].view(-1, 1)
+
+
+            env = data.env[..., t]
+            if not self.use_wind:
+                env = env[:, 2:]
+            x = self.propagate(edge_index, x=x, coords=coords, env=env, hidden=hidden,
+                               edge_attr=edge_attr, ground=ground,
+                               local_dusk=data.local_dusk[:, t])
+
+            if len(self.fix_boundary) > 0:
+                # use ground truth for boundary nodes
+                x[self.fix_boundary, 0] = data.y[self.fix_boundary, t]
+
+            if self.multinight:
+                # for locations where it is dawn: save birds to ground and set birds in the air to zero
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+                else:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+                x = x * data.local_night[:, t+1].view(-1, 1)
+
+                # for locations where it is dusk: set birds on ground to zero
+                ground = ground * ~data.local_dusk[:, t].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_j, coords_i, coords_j, env_j, norm_j, edge_attr, embedding_j):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        if embedding_j is None:
+            features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
+        else:
+            features = torch.cat([coords_i, coords_j, env_j, edge_attr, embedding_j], dim=1)
+        flow = self.edgeflow(features)
+
+        self.flows.append(flow)
+
+        abs_flow = flow * x_j
+        self.abs_flows.append(abs_flow)
+
+        return abs_flow
+
+
+    def update(self, aggr_out, coords, env, ground, local_dusk, hidden):
+        # return aggregation (sum) of inflows computed by message()
+        # add departure prediction if local_dusk flag is True
+
+        inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.view(-1, 1)], dim=1)
+        outputs, hidden = self.node_lstm(inputs, hidden)
+        departure = self.departure(outputs)
+        #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
+        pred = aggr_out + departure
+
+        return pred, hidden
+
+
 class BirdDynamics(MessagePassing):
 
     def __init__(self, msg_n_in=16, node_n_in=8, n_out=1, n_hidden=16, timesteps=6, embedding=0, model='linear',
@@ -601,7 +481,7 @@ class BirdDynamics(MessagePassing):
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
                 else:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-                x = x * ~data.local_night[:, t].view(-1, 1)
+                x = x * data.local_night[:, t+1].view(-1, 1)
 
                 # TODO for radar data, birds can stay on the ground or depart later in the night, so
                 #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
@@ -637,11 +517,11 @@ class BirdDynamics(MessagePassing):
 
 
 
-class BirdLSTM(MessagePassing):
+class BirdRecurrent1(MessagePassing):
 
-    def __init__(self, msg_n_in=16, node_n_in=7, n_out=1, n_hidden=16, timesteps=6,
+    def __init__(self, msg_n_in=17, node_n_in=8, n_out=1, n_hidden=16, timesteps=6,
                  seed=12345, multinight=False, use_wind=True, dropout_p=0):
-        super(BirdLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
+        super(BirdRecurrent1, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
 
@@ -663,7 +543,7 @@ class BirdLSTM(MessagePassing):
 
         self.out_fc1 = nn.Linear(n_hidden, n_hidden)
         self.out_fc2 = nn.Linear(n_hidden, n_hidden)
-        self.out_fc3 = nn.Linear(n_hidden, node_n_in)
+        self.out_fc3 = nn.Linear(n_hidden, n_out)
 
 
         self.timesteps = timesteps
@@ -680,6 +560,10 @@ class BirdLSTM(MessagePassing):
         # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
 
+        # birds on ground at t=0
+        ground = torch.zeros_like(x)
+
+        # initialize hidden variables
         hidden = Variable(torch.zeros(data.x.size(0),  self.n_hidden))
         if x.is_cuda:
             hidden = hidden.cuda()
@@ -702,7 +586,8 @@ class BirdLSTM(MessagePassing):
                 env = env[:, 2:]
 
             x, hidden = self.propagate(edge_index, x=x, coords=coords, env=env, ground=ground, hidden=hidden,
-                                       dusk=data.local_dusk[:, t], edge_attr=edge_attr, embedding=embedding)
+                                       dusk=data.local_dusk[:, t], edge_attr=edge_attr,
+                                       local_night=data.local_night[:, t])
 
 
             if self.multinight:
@@ -712,7 +597,7 @@ class BirdLSTM(MessagePassing):
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
                 else:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-                x = x * ~data.local_night[:, t].view(-1, 1)
+                x = x * data.local_night[:, t+1].view(-1, 1)
 
                 # TODO for radar data, birds can stay on the ground or depart later in the night, so
                 #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
@@ -725,25 +610,26 @@ class BirdLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
+    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, local_night_j, edge_attr):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
+        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j,
+                              local_night_j.view(-1, 1), edge_attr], dim=1)
         msg = self.msg_nn(features)
 
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, dusk, hidden):
+    def update(self, aggr_out, x, coords, env, dusk, ground, hidden):
 
-        inputs = torch.cat([dusk.view(-1, 1).float(), coords, env], dim=1)
+        inputs = torch.cat([ground.view(-1, 1), dusk.view(-1, 1).float(), coords, env], dim=1)
 
         # GRU-style gated aggregation
-        r = F.sigmoid(self.input_r(inputs) + self.hidden_r(aggr_out))
-        i = F.sigmoid(self.input_i(inputs) + self.hidden_i(aggr_out))
-        n = F.tanh(self.input_n(inputs) + r * self.hidden_h(aggr_out))
+        r = torch.sigmoid(self.input_r(inputs) + self.hidden_r(aggr_out))
+        i = torch.sigmoid(self.input_i(inputs) + self.hidden_i(aggr_out))
+        n = torch.tanh(self.input_n(inputs) + r * self.hidden_h(aggr_out))
         hidden = (1 - i) * n + i * hidden
 
         # Output MLP
