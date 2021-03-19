@@ -317,7 +317,7 @@ class BirdFlowRecurrent(MessagePassing):
         ground = torch.zeros_like(x)
 
         # initialize hidden variables
-        hidden = Variable(1, torch.zeros(data.x.size(0), self.n_hidden))
+        hidden = Variable(torch.zeros(1, data.x.size(0), self.n_hidden))
         if x.is_cuda:
             hidden = hidden.cuda()
 
