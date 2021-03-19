@@ -385,7 +385,7 @@ class BirdFlowRecurrent(MessagePassing):
         # return aggregation (sum) of inflows computed by message()
         # add departure prediction if local_dusk flag is True
 
-        inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.view(-1, 1)], dim=1)
+        inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.float().view(-1, 1)], dim=1)
         outputs, hidden = self.node_lstm(inputs, hidden)
         departure = self.departure(outputs)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
