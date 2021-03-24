@@ -564,7 +564,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
         ax.scatter(dti[tidx], pred_gbt.mean(0), s=30, facecolors='none', edgecolor=line[0].get_color(),
                    label=f'GBT', alpha=0.4)
 
-        ax.plot(dti[tidx], gt * bird_scale, label='ground truth', c='gray', alpha=0.8)
+        ax.plot(dti[tidx], gt.cpu() * bird_scale, label='ground truth', c='gray', alpha=0.8)
 
         #plt.xticks(range(tidx.size), time[tidx], rotation=45, ha='right');
 
