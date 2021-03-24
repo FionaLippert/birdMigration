@@ -384,11 +384,10 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
     naive_losses = []
     def naive(t, nidx):
-        daytime_mask = local_nights[:, tidx[t, nidx]]
-        return data.x[:, 0] * daytime_mask * bird_scale
+        daytime_mask = local_nights.cpu()[:, tidx[t, nidx]]
+        return data.x[:, 0].cpu() * daytime_mask * bird_scale
 
     for nidx, data in enumerate(test_loader):
-        data.cpu()
         naive_losses.append(torch.tensor(
             [loss_func(naive(t, nidx), data.y[:, t] * bird_scale, data.local_night[:, t]) for t in range(timesteps + 1)]))
     naive_losses = torch.stack(naive_losses, dim=0).detach().numpy()
