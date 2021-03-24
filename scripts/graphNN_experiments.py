@@ -65,7 +65,7 @@ if args.data_source == 'radar':
     train_years = ['2016', '2017']
     test_year = '2015'
     val_year = test_year
-    bird_scale = 1e6
+    bird_scale = 1e7
 else:
     train_years = ['2016', '2017', '2018']
     val_year = '2019'
@@ -129,7 +129,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             #             timesteps, recurrent, seed=r)
             model = NodeMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers)
         elif model_type == 'standard_lstm':
-            model = LSTM(8*train_data[0].num_nodes, args.hidden_dim, train_data[0].num_nodes, timesteps, seed=r)
+            model = NodeLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r)
         elif args.use_black_box:
             model = BirdDynamics(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
                                  seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
@@ -641,7 +641,7 @@ elif args.use_dcrnn:
     model_types = ['DCRNN']
     model_labels = model_types
 else:
-    model_types = ['standard_mlp', 'standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
+    model_types = ['standard_lstm', 'standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
     model_labels = model_types #['G_linear+sigmoid', 'G_mlp']  # , 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
 
 if args.action =='train':

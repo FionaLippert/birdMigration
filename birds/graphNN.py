@@ -45,8 +45,8 @@ class LSTM(torch.nn.Module):
     def forward(self, data, teacher_forcing=0):
 
         x = data.x[:, 0]
-        states = torch.zeros(1, self.hidden_channels)
-        hidden = torch.zeros(1, self.hidden_channels)
+        states = torch.zeros(1, self.hidden_channels).to(x.device)
+        hidden = torch.zeros(1, self.hidden_channels).to(x.device)
         y_hat = [x]
         for t in range(self.timesteps):
             r = torch.rand(1)
@@ -93,8 +93,6 @@ class MLP(torch.nn.Module):
         self.dropout_p = dropout_p
 
     def forward(self, data):
-
-        x = data.x[..., 0]
 
         y_hat = []
         for t in range(self.timesteps + 1):
@@ -179,6 +177,68 @@ class NodeMLP(MessagePassing):
         x = x.sigmoid()
 
         return x
+
+
+class NodeLSTM(MessagePassing):
+
+    def __init__(self, node_n_in=7, n_hidden=16, n_out=1, timesteps=6, n_layers=1, dropout_p=0, seed=1234):
+        super(NodeLSTM, self).__init__(aggr='add', node_dim=0)
+
+        torch.manual_seed(seed)
+
+        self.lstm = torch.nn.LSTMCell(node_n_in, n_hidden)
+        self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
+                                                torch.nn.Sigmoid())
+
+        self.timesteps = timesteps
+        self.dropout_p = dropout_p
+        self.n_hidden = n_hidden
+
+
+    def forward(self, data, teacher_forcing=0):
+
+        x = data.x[:, 0].view(-1, 1)
+
+        # initialize lstm variables
+        hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
+        states = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
+
+        y_hat = [x]
+
+        for t in range(self.timesteps):
+
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                x = data.x[..., t].view(-1, 1)
+
+            env = data.env[..., t]
+            x, states, hidden = self.propagate(data.edge_index, x=x, coords=data.coords, env=env,
+                                               states=states, hidden=hidden, edge_attr=data.edge_attr)
+
+            # for locations where it is night: set birds in the air to zero
+            x = x * data.local_night[:, t+1].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, edge_attr):
+        # set all messages to 0 --> no spatial dependencies
+        n_edges = edge_attr.size(0)
+        msg = torch.zeros(n_edges).to(edge_attr.device)
+        return msg
+
+
+    def update(self, aggr_out, coords, env, states, hidden, x):
+
+        inputs = torch.cat([x, coords, env], dim=1)
+        states, hidden = self.lstm(inputs, (states, hidden))
+        pred = self.hidden2birds(states)
+
+        return pred, states, hidden
+
 
 class Departure(torch.nn.Module):
     # model the bird density departing within one radar cell based on cell properties and environmental conditions
