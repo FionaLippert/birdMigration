@@ -122,7 +122,7 @@ class MLP(torch.nn.Module):
 
 class NodeMLP(MessagePassing):
 
-    def __init__(self, node_n_in=6, n_hidden=16, n_out=1, timesteps=6, n_layers=2, dropout_p=0, seed=1234):
+    def __init__(self, node_n_in=7, n_hidden=16, n_out=1, timesteps=6, n_layers=2, dropout_p=0, seed=1234):
         super(NodeMLP, self).__init__(aggr='add', node_dim=0)
 
         torch.manual_seed(seed)
@@ -142,7 +142,8 @@ class NodeMLP(MessagePassing):
 
         for t in range(self.timesteps + 1):
 
-            x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t], edge_attr=data.edge_attr)
+            x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t],
+                               areas=data.areas, edge_attr=data.edge_attr)
 
             # for locations where it is night: set birds in the air to zero
             x = x * data.local_night[:, t].view(-1, 1)
@@ -160,11 +161,10 @@ class NodeMLP(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, coords, env):
+    def update(self, aggr_out, coords, env, areas):
         # use only location-specific features to predict migration intensities
-        features = torch.cat([coords, env], dim=1)
+        features = torch.cat([coords, env, areas.view(-1,1)], dim=1)
         x = self.lin_in(features)
-        x = x.sigmoid()
         x = x.relu()
         x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
 
@@ -181,7 +181,7 @@ class NodeMLP(MessagePassing):
 
 class NodeLSTM(MessagePassing):
 
-    def __init__(self, node_n_in=7, n_hidden=16, n_out=1, timesteps=6, n_layers=1, dropout_p=0, seed=1234):
+    def __init__(self, node_n_in=8, n_hidden=16, n_out=1, timesteps=6, n_layers=1, dropout_p=0, seed=1234):
         super(NodeLSTM, self).__init__(aggr='add', node_dim=0)
 
         torch.manual_seed(seed)
@@ -212,7 +212,7 @@ class NodeLSTM(MessagePassing):
                 x = data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
-            x, states, hidden = self.propagate(data.edge_index, x=x, coords=data.coords, env=env,
+            x, states, hidden = self.propagate(data.edge_index, x=x, coords=data.coords, env=env, areas=data.areas,
                                                states=states, hidden=hidden, edge_attr=data.edge_attr)
 
             # for locations where it is night: set birds in the air to zero
@@ -231,9 +231,9 @@ class NodeLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, coords, env, states, hidden, x):
+    def update(self, aggr_out, coords, env, states, hidden, x, areas):
 
-        inputs = torch.cat([x, coords, env], dim=1)
+        inputs = torch.cat([x, coords, env, areas.view(-1, 1)], dim=1)
         states, hidden = self.lstm(inputs, (states, hidden))
         pred = self.hidden2birds(states)
 
