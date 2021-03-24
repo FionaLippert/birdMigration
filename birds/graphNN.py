@@ -174,7 +174,8 @@ class NodeMLP(MessagePassing):
             x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.lin_out(x)
-        x = x.sigmoid()
+        #x = x.sigmoid()
+        x = x.relu()
 
         return x
 
@@ -188,7 +189,7 @@ class NodeLSTM(MessagePassing):
 
         self.lstm = torch.nn.LSTMCell(node_n_in, n_hidden)
         self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
-                                                torch.nn.Sigmoid())
+                                                torch.nn.Tanh())
 
         self.timesteps = timesteps
         self.dropout_p = dropout_p
@@ -236,7 +237,7 @@ class NodeLSTM(MessagePassing):
 
         inputs = torch.cat([coords, env, areas.view(-1, 1)], dim=1)
         states, hidden = self.lstm(inputs, (states, hidden))
-        pred = self.hidden2birds(states)
+        pred = x + self.hidden2birds(states)
 
         return pred, states, hidden
 
