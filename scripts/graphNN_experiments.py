@@ -85,10 +85,11 @@ def MSE_weighted(output, gt, local_nights, p=0.75):
 def MSE_multinight(output, gt, local_nights):
     # ignore daytime data points
     errors = (output - gt)**2
-    mse = torch.sum(errors) / torch.sum(local_nights)
-    mse = mse.detach().numpy()
-    mse[np.isinf(mse)] = np.nan
-    return torch.tensor(mse)
+    mse = torch.mean(errors[local_nights])
+    #mse = torch.sum(errors) / torch.sum(local_nights)
+    #mse = mse.detach().numpy()
+    #mse[np.isinf(mse)] = np.nan
+    return mse
 
 
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
