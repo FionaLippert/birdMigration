@@ -308,7 +308,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if args.data_source == 'radar':
         split = int(len(test_loader) * test_val_split)
-        test_loader = test_loader[:split]
+        test_loader = list(test_loader)[:split]
 
     nights = test_data.info['nights']
     local_nights = test_data.info['local_nights']
@@ -368,9 +368,9 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         ax.fill_between(range(timesteps+1), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
                         color=line[0].get_color())
 
-    gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
-                                       test_data.info['radars'], timesteps, test_data.info['time_mask'], loss_func)
-    ax.plot(range(timesteps+1), gam_losses, label=f'GAM')
+    #gam_losses, _ = load_gam_predictions(gam_csv, test_loader, test_data.info['nights'], test_data.info['timepoints'],
+    #                                   test_data.info['radars'], timesteps, test_data.info['time_mask'], loss_func)
+    #ax.plot(range(timesteps+1), gam_losses, label=f'GAM')
 
     gbt_losses = []
     mask = np.stack([local_nights[:, tidx[:, nidx]] for nidx in range(tidx.shape[1])], axis=-1)
@@ -428,7 +428,7 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     if args.data_source == 'radar':
         split = int(len(dataloader) * test_val_split)
-        dataloader = dataloader[:split]
+        dataloader = list(dataloader)[:split]
 
     models = [load_model(name) for name in model_names]
 
@@ -501,8 +501,8 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
     time = np.array(dataset.info['timepoints'])
     with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
         pickle.dump(nights, f)
-    df_gam = pd.read_csv(gam_csv)
-    df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
+    #df_gam = pd.read_csv(gam_csv)
+    #df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
     dti = pd.DatetimeIndex(time) #, tz='UTC')
 
     gbt_models = []
@@ -515,7 +515,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     if args.data_source == 'radar':
         split = int(len(dataloader) * test_val_split)
-        dataloader = dataloader[:split]
+        dataloader = list(dataloader)[:split]
 
     models = [load_model(name) for name in model_names]
 
@@ -526,7 +526,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
         pred = np.stack(pred, axis=0)
         #pred_gam = np.zeros(len(seq_tidx[:, nidx]))
         pred_gbt = np.zeros((args.repeats, len(seq_tidx[:, nidx])))
-        df_gam_idx = df_gam[df_gam.radar.str.contains(radar)]
+        #df_gam_idx = df_gam[df_gam.radar.str.contains(radar)]
 
         data = list(dataloader)[nidx]
 
@@ -540,7 +540,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
             #pred[midx][nights[nidx][:timesteps+1]] = y
             pred[midx] = y
 
-        pred_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[seq_tidx[:, nidx]])].gam_pred.to_numpy()
+        #pred_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[seq_tidx[:, nidx]])].gam_pred.to_numpy()
         for r in range(args.repeats):
             pred_gbt[r] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
 
@@ -556,9 +556,9 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
             ax.scatter(dti[tidx], mean_pred, s=30, facecolors='none', edgecolor=line[0].get_color(),
                        label=f'{model_type}', alpha=0.4)
 
-        line = ax.plot(dti[tidx], pred_gam, ls='--', alpha=0.4)
-        ax.scatter(dti[tidx], pred_gam, s=30, facecolors='none', edgecolor=line[0].get_color(),
-                   label=f'GAM', alpha=0.4)
+        #line = ax.plot(dti[tidx], pred_gam, ls='--', alpha=0.4)
+        #ax.scatter(dti[tidx], pred_gam, s=30, facecolors='none', edgecolor=line[0].get_color(),
+        #           label=f'GAM', alpha=0.4)
 
         line = ax.errorbar(dti[tidx], pred_gbt.mean(0), pred_gbt.std(0), ls='--', alpha=0.4)
         ax.scatter(dti[tidx], pred_gbt.mean(0), s=30, facecolors='none', edgecolor=line[0].get_color(),
@@ -589,7 +589,7 @@ def predictions(timesteps, model_names, model_types, output_dir,
     dataloader = DataLoader(dataset, batch_size=1)
     if args.data_source == 'radar':
         split = int(len(dataloader) * test_val_split)
-        dataloader = dataloader[:split]
+        dataloader = list(dataloader)[:split]
 
     models = [load_model(name) for name in model_names]
     dfs = []
