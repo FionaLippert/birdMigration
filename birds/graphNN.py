@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from torch_geometric.nn import MessagePassing
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj
+from torch_geometric_temporal.nn.recurrent import DCRNN
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import networkx as nx
@@ -21,53 +22,163 @@ from datetime import datetime as dt
 
 
 class LSTM(torch.nn.Module):
-
-    def __init__(self, in_channels, hidden_channels, out_channels):
+    """
+   Standard LSTM taking all observed/predicted bird densities and environmental features as input to LSTM
+   Args:
+       in_channels (int): number of input features (node features x number of nodes)
+       hidden_channels (int): number of units per hidden layer
+       out_channels (int): number of nodes x number of outputs per node
+       timesteps (int): length of forecasting horizon
+   """
+    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, seed=1234):
         super(LSTM, self).__init__()
 
-        self.lstm = torch.nn.LSTM(in_channels, hidden_channels)
-        self.hidden2birds = torch.nn.Linear(hidden_channels, out_channels)
+        torch.manual_seed(seed)
+
+        self.lstm = torch.nn.LSTMCell(in_channels, hidden_channels)
+        self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(hidden_channels, out_channels),
+                                                torch.nn.Sigmoid())
+        self.timesteps = timesteps
+        self.hidden_channels = hidden_channels
 
 
-    def forward(self, data):
+    def forward(self, data, teacher_forcing=0):
 
-        x = data.x[..., 0].view(-1, 1)
+        x = data.x[:, 0]
+        states = torch.zeros(1, self.hidden_channels)
+        hidden = torch.zeros(1, self.hidden_channels)
+        y_hat = [x]
+        for t in range(self.timesteps):
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                x = data.x[:, t]
 
-        # for details how to implement LSTM see
-        # https://machinelearningmastery.com/multi-step-time-series-forecasting-long-short-term-memory-networks-python/
-        return x
+
+            # use both bird prediction/observation and environmental features as input to LSTM
+            inputs = torch.cat([data.coords.flatten(),
+                                data.env[..., t+1].flatten(),
+                                data.local_dusk[:, t].float().flatten(),
+                                x], dim=0).view(1, -1)
+            states, hidden = self.lstm(inputs, (states, hidden))
+
+            x = self.hidden2birds(states).view(-1)
+
+            # for locations where it is night: set birds in the air to zero
+            x = x * data.local_night[:, t+1]
+
+            y_hat.append(x)
+
+        return torch.stack(y_hat, dim=1)
 
 
 class MLP(torch.nn.Module):
-
-    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, recurrent, seed=12345):
+    """
+    Standard MLP mapping concatenated features of all nodes at time t to migration intensities
+    of all nodes at time t
+    Args:
+        in_channels (int): number of input features (node features x number of nodes)
+        hidden_channels (int): number of units per hidden layer
+        out_channels (int): number of nodes x number of outputs per node
+        timesteps (int): length of forecasting horizon
+    """
+    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, n_layers=1, dropout_p=0.5, seed=12345):
         super(MLP, self).__init__()
 
         torch.manual_seed(seed)
 
-        self.lin1 = torch.nn.Linear(in_channels, hidden_channels)
-        self.lin2 = torch.nn.Linear(hidden_channels, out_channels)
+        self.lin_in = torch.nn.Linear(in_channels, hidden_channels)
+        self.lin_hidden = [torch.nn.Linear(hidden_channels, hidden_channels) for _ in range(n_layers - 1)]
+        self.lin_out = torch.nn.Linear(hidden_channels, out_channels)
         self.timesteps = timesteps
-        self.recurrent = recurrent
+        self.dropout_p = dropout_p
 
     def forward(self, data):
 
         x = data.x[..., 0]
 
         y_hat = []
-        for t in range(self.timesteps):
-            if not self.recurrent:
-                x = data.x[..., t]
+        for t in range(self.timesteps + 1):
 
-            features = torch.cat([x.flatten(), data.coords.flatten(), data.env[..., t].flatten()], dim=0)
-            x = self.lin1(features)
-            x = x.relu()
-            #x = torch.nn.functional.dropout(x, p=0.5, training=self.training)
-            x = self.lin2(x)
+            features = torch.cat([data.coords.flatten(),
+                                  data.env[..., t].flatten()], dim=0)
+            x = self.lin_in(features)
             x = x.sigmoid()
+            x = x.relu()
+            x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+
+            for l in self.lin_hidden:
+                x = l(x)
+                x = x.relu()
+                x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+
+            x = self.lin_out(x)
+            x = x.sigmoid()
+
+            # for locations where it is night: set birds in the air to zero
+            x = x * data.local_night[:, t]
+
             y_hat.append(x)
 
         return torch.stack(y_hat, dim=1)
+
+
+class NodeMLP(MessagePassing):
+
+    def __init__(self, node_n_in=6, n_hidden=16, n_out=1, timesteps=6, n_layers=2, dropout_p=0, seed=1234):
+        super(NodeMLP, self).__init__(aggr='add', node_dim=0)
+
+        torch.manual_seed(seed)
+
+        self.lin_in = torch.nn.Linear(node_n_in, n_hidden)
+        self.lin_hidden = [torch.nn.Linear(n_hidden, n_hidden) for _ in range(n_layers - 1)]
+        self.lin_out = torch.nn.Linear(n_hidden, n_out)
+
+        self.timesteps = timesteps
+        self.dropout_p = dropout_p
+        self.n_hidden = n_hidden
+
+
+    def forward(self, data):
+
+        y_hat = []
+
+        for t in range(self.timesteps + 1):
+
+            x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t], edge_attr=data.edge_attr)
+
+            # for locations where it is night: set birds in the air to zero
+            x = x * data.local_night[:, t].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, edge_attr):
+        # set all messages to 0 --> no spatial dependencies
+        n_edges = edge_attr.size(0)
+        msg = torch.zeros(n_edges)
+        return msg
+
+
+    def update(self, aggr_out, coords, env):
+        # use only location-specific features to predict migration intensities
+        features = torch.cat([coords, env], dim=1)
+        x = self.lin_in(features)
+        x = x.sigmoid()
+        x = x.relu()
+        x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+
+        for l in self.lin_hidden:
+            x = l(x)
+            x = x.relu()
+            x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+
+        x = self.lin_out(x)
+        x = x.sigmoid()
+
+        return x
 
 class Departure(torch.nn.Module):
     # model the bird density departing within one radar cell based on cell properties and environmental conditions
@@ -87,6 +198,36 @@ class Departure(torch.nn.Module):
     def forward(self, data):
         features = torch.cat([data.coords, data.areas.view(-1, 1), data.env[..., 0]], dim=1)
         return self.model(features)
+
+class RecurrentGCN(torch.nn.Module):
+    def __init__(self, timesteps, node_features, n_hidden=32, n_out=1, K=1):
+        # doesn't take external features into account
+        super(RecurrentGCN, self).__init__()
+        self.recurrent = DCRNN(7, n_hidden, K, bias=True)
+        self.linear = torch.nn.Linear(n_hidden, n_out)
+        self.timesteps = timesteps
+
+    def forward(self, data, teacher_forcing=0):
+        x = data.x[:, 0].view(-1, 1)
+        predictions = [x]
+        for t in range(self.timesteps):
+            # TODO try concatenating input features and prection x to also use weather info etc
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                x = data.x[:, t].view(-1, 1)
+
+            input = torch.cat([x, data.env[..., t], data.coords], dim=1)
+            x = self.recurrent(input, data.edge_index, data.edge_weight.float())
+            x = F.relu(x)
+            x = self.linear(x)
+
+            # for locations where it is night: set birds in the air to zero
+            x = x * data.local_night[:, t+1].view(-1, 1)
+
+            predictions.append(x)
+
+        predictions = torch.cat(predictions, dim=-1)
+        return predictions
 
 
 class BirdFlowTime(MessagePassing):
@@ -314,11 +455,11 @@ class BirdFlowRecurrent(MessagePassing):
         ground = torch.zeros_like(x)
 
         # initialize lstm variables
-        hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden))
-        states = Variable(torch.zeros(data.x.size(0), self.n_hidden))
-        if x.is_cuda:
-            hidden = hidden.cuda()
-            states = states.cuda()
+        hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
+        states = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
+        # if x.is_cuda:
+        #     hidden = hidden.cuda()
+        #     states = states.cuda()
 
         coords = data.coords
         edge_index = data.edge_index
@@ -683,9 +824,9 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
             target_fluxes = torch.ones(outfluxes.shape)
             if cuda: target_fluxes = target_fluxes.to('cuda')
             constraints = torch.mean((outfluxes - target_fluxes)**2)
-            loss = loss_func(output, gt) + 0.01 * constraints
+            loss = loss_func(output, gt, data.local_night) + 0.01 * constraints
         else:
-            loss = loss_func(output, gt)
+            loss = loss_func(output, gt, data.local_night)
         loss.backward()
         #loss_all += data.num_graphs * loss.item()
         loss_all += data.num_graphs * loss
@@ -701,10 +842,13 @@ def train_dynamics(model, train_loader, optimizer, loss_func, cuda,
     for data in train_loader:
         if cuda: data = data.to('cuda')
         optimizer.zero_grad()
-        output = model(data, teacher_forcing) #.view(-1)
+        if teacher_forcing < 0:
+            output = model(data)
+        else:
+            output = model(data, teacher_forcing)
         gt = data.y
 
-        loss = loss_func(output, gt)
+        loss = loss_func(output, gt, data.local_night)
         loss.backward()
         loss_all += data.num_graphs * loss
         optimizer.step()
@@ -765,7 +909,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
                 outfluxes[tidx] = outfluxes[tidx].cpu()
                 outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps + 1)]))
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t]) for t in range(timesteps + 1)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 
@@ -784,8 +928,7 @@ def test_dynamics(model, test_loader, timesteps, loss_func, cuda, bird_scale=200
         if cuda: data = data.to('cuda')
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
-
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t]) for t in range(timesteps + 1)]))
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t]) for t in range(timesteps + 1)]))
 
     return torch.stack(loss_all)
 

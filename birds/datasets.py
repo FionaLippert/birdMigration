@@ -166,7 +166,7 @@ def timeslice(data, start_night, mask, timesteps):
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, root, split, year, season='fall', timesteps=1,
+    def __init__(self, root, split, year, season='fall', timesteps=1, combine_featues=False,
                  data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100,
                  radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=False,
                  start=None, end=None, transform=None, pre_transform=None):
@@ -185,11 +185,14 @@ class RadarData(InMemoryDataset):
         self.multinight = multinight
         self.use_buffers = use_buffers and data_source == 'abm'
         self.random_seed = 1234
+        self.combine_features = combine_featues
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers_split={split}'
         else:
             self.processed_dirname = f'measurements=voronoi_cells'
+        if self.combine_features:
+            self.processed_dirname = f'{self.processed_dirname}_combined_features'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -332,24 +335,44 @@ class RadarData(InMemoryDataset):
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
         local_night = reshape(nighttime, nights, mask, self.timesteps)
 
+        edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
+
+        R, T, N = inputs.shape
 
         # create graph data objects per night
-        data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
-                          y=torch.tensor(targets[:, :, nidx], dtype=torch.float),
-                          coords=torch.tensor(coords, dtype=torch.float),
-                          areas=torch.tensor(areas, dtype=torch.float),
-                          env=torch.tensor(env[..., nidx], dtype=torch.float),
-                          edge_index=edge_index,
-                          edge_attr=torch.stack([
-                              torch.tensor(distances, dtype=torch.float),
-                              torch.tensor(angles, dtype=torch.float)
-                          ], dim=1),
-                          tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                          # global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
-                          local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
-                          local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
-                          local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
-                     for nidx in range(inputs.shape[-1])]
+        if self.combine_features:
+            data_list = [Data(x=torch.stack([
+                                torch.tensor(inputs[:, :, nidx]),
+                                *[torch.tensor(env[:, fidx, :, nidx]) for fidx in range(env.shape[1])],
+                                torch.tensor(local_night[:, :, nidx]),
+                                torch.tensor(local_dusk[:, :, nidx]),
+                                torch.tensor(local_dawn[:, :, nidx]),
+                                torch.stack([torch.tensor(coords[:, 0]) for _ in range(T)], dim=1),
+                                torch.stack([torch.tensor(coords[:, 1]) for _ in range(T)], dim=1),
+                                torch.stack([torch.tensor(areas) for _ in range(T)], dim=1)
+                                ], dim=1),
+                              y=torch.tensor(targets[:, :, nidx]),
+                              edge_index=edge_index,
+                              edge_weight=torch.tensor(edge_weights))
+                        for nidx in range(N)]
+        else:
+            data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
+                              y=torch.tensor(targets[:, :, nidx], dtype=torch.float),
+                              coords=torch.tensor(coords, dtype=torch.float),
+                              areas=torch.tensor(areas, dtype=torch.float),
+                              env=torch.tensor(env[..., nidx], dtype=torch.float),
+                              edge_index=edge_index,
+                              edge_attr=torch.stack([
+                                  torch.tensor(distances, dtype=torch.float),
+                                  torch.tensor(angles, dtype=torch.float)
+                              ], dim=1),
+                              edge_weight=torch.tensor(edge_weights, dtype=torch.double),
+                              tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
+                              # global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
+                              local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
+                              local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
+                              local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
+                         for nidx in range(N)]
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
