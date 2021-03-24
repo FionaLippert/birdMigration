@@ -92,6 +92,15 @@ def MSE_multinight(output, gt, local_nights):
     #mse[np.isinf(mse)] = np.nan
     return mse
 
+def MSE(output, gt, local_nights):
+    # ignore daytime data points
+    errors = (output - gt)**2
+    mse = torch.mean(errors)
+    #mse = torch.sum(errors) / torch.sum(local_nights)
+    #mse = mse.detach().numpy()
+    #mse[np.isinf(mse)] = np.nan
+    return mse
+
 
 def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
                  repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False, dropout_p=0):
@@ -162,6 +171,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             loss_func = MSE_weighted
         else:
             loss_func = MSE_multinight #torch.nn.MSELoss()
+            loss_func = MSE
 
         training_curve = np.zeros(epochs)
         val_curve = np.zeros(epochs)
