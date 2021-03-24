@@ -158,7 +158,7 @@ class NodeMLP(MessagePassing):
     def message(self, edge_attr):
         # set all messages to 0 --> no spatial dependencies
         n_edges = edge_attr.size(0)
-        msg = torch.zeros(n_edges)
+        msg = torch.zeros(n_edges).to(edge_attr.device)
         return msg
 
 
@@ -452,7 +452,7 @@ class BirdFlowRecurrent(MessagePassing):
         x = data.x[..., 0].view(-1, 1)
 
         # birds on the ground at t=0
-        ground = torch.zeros_like(x)
+        ground = torch.zeros_like(x).to(x.device)
 
         # initialize lstm variables
         hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
