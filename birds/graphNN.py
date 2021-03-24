@@ -146,7 +146,7 @@ class NodeMLP(MessagePassing):
                                areas=data.areas, edge_attr=data.edge_attr)
 
             # for locations where it is night: set birds in the air to zero
-            x = x * data.local_night[:, t].view(-1, 1)
+            #x = x * data.local_night[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -181,7 +181,7 @@ class NodeMLP(MessagePassing):
 
 class NodeLSTM(MessagePassing):
 
-    def __init__(self, node_n_in=8, n_hidden=16, n_out=1, timesteps=6, n_layers=1, dropout_p=0, seed=1234):
+    def __init__(self, node_n_in=7, n_hidden=16, n_out=1, timesteps=6, n_layers=1, dropout_p=0, seed=1234):
         super(NodeLSTM, self).__init__(aggr='add', node_dim=0)
 
         torch.manual_seed(seed)
@@ -201,7 +201,8 @@ class NodeLSTM(MessagePassing):
 
         # initialize lstm variables
         hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
-        states = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
+        #states = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
+        states = torch.cat([x] * self.n_hidden, dim=1)
 
         y_hat = [x]
 
@@ -216,7 +217,7 @@ class NodeLSTM(MessagePassing):
                                                states=states, hidden=hidden, edge_attr=data.edge_attr)
 
             # for locations where it is night: set birds in the air to zero
-            x = x * data.local_night[:, t+1].view(-1, 1)
+            #x = x * data.local_night[:, t+1].view(-1, 1)
 
             y_hat.append(x)
 
@@ -233,7 +234,7 @@ class NodeLSTM(MessagePassing):
 
     def update(self, aggr_out, coords, env, states, hidden, x, areas):
 
-        inputs = torch.cat([x, coords, env, areas.view(-1, 1)], dim=1)
+        inputs = torch.cat([coords, env, areas.view(-1, 1)], dim=1)
         states, hidden = self.lstm(inputs, (states, hidden))
         pred = self.hidden2birds(states)
 
