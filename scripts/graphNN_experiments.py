@@ -85,9 +85,7 @@ def MSE_weighted(output, gt, local_nights, p=0.75):
 def MSE_multinight(output, gt, local_nights):
     # ignore daytime data points
     errors = (output - gt)**2
-    print(errors)
     mse = torch.mean(errors[local_nights])
-    print(mse)
     #mse = torch.sum(errors) / torch.sum(local_nights)
     #mse = mse.detach().numpy()
     #mse[np.isinf(mse)] = np.nan
