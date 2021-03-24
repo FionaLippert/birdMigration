@@ -186,6 +186,7 @@ class RadarData(InMemoryDataset):
         self.use_buffers = use_buffers and data_source == 'abm'
         self.random_seed = 1234
         self.combine_features = combine_featues
+        self.slice = slice
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers_split={split}'

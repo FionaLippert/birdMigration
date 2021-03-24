@@ -112,8 +112,13 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
                                   use_buffers=args.use_buffers, multinight=args.multinight)
     val_loader = DataLoader(val_data, batch_size=1)
     if args.data_source == 'radar':
-        split = int(len(val_loader) * test_val_split)
-        val_loader = val_loader[split:]
+        val_start = int(len(val_loader) * test_val_split)
+    else:
+        val_start = 0
+    val_stop = len(val_loader)
+
+    val_loader = list(val_loader)[val_start:val_stop]
+
 
 
     for r in range(repeats):
@@ -181,10 +186,11 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
 
             model.eval()
             if args.use_black_box or args.use_black_box_rec or args.use_dcrnn:
-                val_loss = test_dynamics(model, val_loader, timesteps, loss_func, args.cuda, bird_scale=1)
+                val_loss = test_dynamics(model, val_loader, timesteps, loss_func, args.cuda, bird_scale=1) #,
+                                         #start_idx=val_start, stop_idx=val_stop)
             else:
                 val_loss = test_fluxes(model, val_loader, timesteps, loss_func, args.cuda,
-                                   get_outfluxes=False, bird_scale=1)
+                                   get_outfluxes=False, bird_scale=1) #, start_idx=val_start, stop_idx=val_stop)
             val_loss = val_loss[torch.isfinite(val_loss)].mean()
             val_curve[epoch] = val_loss
             print(f'epoch {epoch + 1}: val loss = {val_loss}')
