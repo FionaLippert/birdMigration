@@ -61,9 +61,17 @@ os.makedirs(model_dir, exist_ok=True)
 gam_csv = osp.join(root, 'seasonal_trends', f'gam_summary_{args.data_source}.csv')
 
 season = 'fall'
-train_years = ['2016', '2017', '2018']
-val_year = '2019'
-test_year = '2015'
+if args.data_source == 'radar':
+    train_years = ['2016', '2017']
+    test_year = '2015'
+    val_year = test_year
+else:
+    train_years = ['2016', '2017', '2018']
+    val_year = '2019'
+    test_year = '2015'
+
+    val_year = test_year
+test_val_split = 0.8
 
 def persistence(last_ob, timesteps):
     # always return last observed value
@@ -103,6 +111,10 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
                                   bird_scale=bird_scale,
                                   use_buffers=args.use_buffers, multinight=args.multinight)
     val_loader = DataLoader(val_data, batch_size=1)
+    if args.data_source == 'radar':
+        split = int(len(val_loader) * test_val_split)
+        val_loader = val_loader[split:]
+
 
     for r in range(repeats):
         if model_type == 'standard_mlp':
@@ -286,6 +298,9 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     test_data = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
                           use_buffers=args.use_buffers, multinight=args.multinight)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
+    if args.data_source == 'radar':
+        split = int(len(test_loader) * test_val_split)
+        test_loader = test_loader[:split]
 
     nights = test_data.info['nights']
     local_nights = test_data.info['local_nights']
@@ -403,6 +418,9 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
                                                       args.data_source, bird_scale, args.multinight)
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    if args.data_source == 'radar':
+        split = int(len(dataloader) * test_val_split)
+        dataloader = dataloader[:split]
 
     models = [load_model(name) for name in model_names]
 
@@ -487,6 +505,9 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
                                                       args.data_source, bird_scale, args.multinight)
 
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+    if args.data_source == 'radar':
+        split = int(len(dataloader) * test_val_split)
+        dataloader = dataloader[:split]
 
     models = [load_model(name) for name in model_names]
 
@@ -558,6 +579,10 @@ def predictions(timesteps, model_names, model_types, output_dir,
         pickle.dump(nights, f)
 
     dataloader = DataLoader(dataset, batch_size=1)
+    if args.data_source == 'radar':
+        split = int(len(dataloader) * test_val_split)
+        dataloader = dataloader[:split]
+
     models = [load_model(name) for name in model_names]
     dfs = []
     for idx, radar in enumerate(dataset.info['radars']):
