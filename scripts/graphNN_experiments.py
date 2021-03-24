@@ -389,7 +389,7 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
 
     for nidx, data in enumerate(test_loader):
         naive_losses.append(torch.tensor(
-            [loss_func(naive(t, nidx), data.y[:, t] * bird_scale, data.local_night[:, t]) for t in range(timesteps + 1)]))
+            [loss_func(naive(t, nidx), data.y[:, t].cpu() * bird_scale, data.local_night[:, t].cpu()) for t in range(timesteps + 1)]))
     naive_losses = torch.stack(naive_losses, dim=0).detach().numpy()
     naive_losses = np.nan_to_num(naive_losses, posinf=0).sum(0) / np.isfinite(naive_losses).sum(0)
     naive_losses = np.sqrt(np.nan_to_num(naive_losses, posinf=0))
