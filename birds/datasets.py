@@ -246,6 +246,8 @@ class RadarData(InMemoryDataset):
         print('number of nans: ', dynamic_feature_df.birds.isna().sum())
         print('max bird measurement', dynamic_feature_df.birds.max())
 
+        dynamic_feature_df.birds.fillna(0, inplace=True)
+
         # extract edges from graph
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()

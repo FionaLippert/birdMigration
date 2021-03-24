@@ -847,7 +847,6 @@ def train_dynamics(model, train_loader, optimizer, loss_func, cuda,
         else:
             output = model(data, teacher_forcing)
         gt = data.y
-        print(gt)
 
         loss = loss_func(output, gt, data.local_night)
         loss.backward()

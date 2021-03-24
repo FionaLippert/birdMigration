@@ -65,12 +65,13 @@ if args.data_source == 'radar':
     train_years = ['2016', '2017']
     test_year = '2015'
     val_year = test_year
+    bird_scale = 1e6
 else:
     train_years = ['2016', '2017', '2018']
     val_year = '2019'
     test_year = '2015'
+    bird_scale = 2000
 
-    val_year = test_year
 test_val_split = 0.8
 
 def persistence(last_ob, timesteps):
@@ -632,7 +633,6 @@ norm = False
 repeats = args.repeats #1
 departure = False #True #True #True
 
-bird_scale = 2000
 
 if args.use_black_box_rec:
     model_types = ['RGNN']
