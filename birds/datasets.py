@@ -243,6 +243,9 @@ class RadarData(InMemoryDataset):
         voronoi = gpd.read_file(osp.join(self.preprocessed_dir, 'voronoi.shp'))
         G = nx.read_gpickle(osp.join(self.preprocessed_dir, 'delaunay.gpickle'))
 
+        print('number of nans: ', dynamic_feature_df.birds.isna().sum())
+        print('max bird measurement', dynamic_feature_df.birds.max())
+
         # extract edges from graph
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()
