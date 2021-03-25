@@ -38,7 +38,7 @@ class Environment:
 
     def get_sun(self, tidx, lon, lat):
         # compute solar position
-        tidx = min(tidx, len(self.time))
+        tidx = min(tidx, len(self.time)-1)
         time = self.time[tidx]
         sun = float(solarposition.get_solarposition(time, lat, lon).elevation)
         return sun
