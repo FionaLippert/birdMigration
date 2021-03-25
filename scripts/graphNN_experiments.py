@@ -136,9 +136,9 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         if model_type == 'standard_mlp':
             # model = MLP(6*train_data[0].num_nodes, args.hidden_dim, train_data[0].num_nodes,
             #             timesteps, recurrent, seed=r)
-            model = NodeMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers)
+            model = NodeMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif model_type == 'standard_lstm':
-            model = NodeLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r)
+            model = NodeLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, dropout_p=dropout_p)
         elif args.use_black_box:
             model = BirdDynamics(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
                                  seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
@@ -687,8 +687,8 @@ if args.action == 'test':
     short_names = [type for type, r in it.product(model_labels, range(repeats))]
 
     output_path = osp.join(root, 'model_performance', args.experiment,
-                           f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={args.ts_test}',
-                            'test_errors.png')
+            f'conservation={cons}_recurrent={rec}_embedding={emb}_timesteps={args.ts_test}_dropout={args.dropout_p}',
+            'test_errors.png')
     os.makedirs(osp.dirname(output_path), exist_ok=True)
 
 

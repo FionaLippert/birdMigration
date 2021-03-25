@@ -146,7 +146,7 @@ class NodeMLP(MessagePassing):
                                areas=data.areas, edge_attr=data.edge_attr)
 
             # for locations where it is night: set birds in the air to zero
-            #x = x * data.local_night[:, t].view(-1, 1)
+            x = x * data.local_night[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -174,8 +174,8 @@ class NodeMLP(MessagePassing):
             x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.lin_out(x)
-        #x = x.sigmoid()
-        x = x.relu()
+        x = x.sigmoid()
+        #x = x.relu()
 
         return x
 
@@ -218,7 +218,7 @@ class NodeLSTM(MessagePassing):
                                                states=states, hidden=hidden, edge_attr=data.edge_attr)
 
             # for locations where it is night: set birds in the air to zero
-            #x = x * data.local_night[:, t+1].view(-1, 1)
+            x = x * data.local_night[:, t+1].view(-1, 1)
 
             y_hat.append(x)
 
@@ -237,6 +237,7 @@ class NodeLSTM(MessagePassing):
 
         inputs = torch.cat([coords, env, areas.view(-1, 1)], dim=1)
         states, hidden = self.lstm(inputs, (states, hidden))
+        states = torch.nn.functional.dropout(states, p=self.dropout_p, training=self.training)
         pred = x + self.hidden2birds(states)
 
         return pred, states, hidden
