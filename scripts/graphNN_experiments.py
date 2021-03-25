@@ -244,7 +244,7 @@ def make_name(timesteps, model_type, conservation=True, recurrent=True, embeddin
            f'epochs={epochs}_recurrent={recurrent}_norm={norm}.pt'
     else:
         name = f'GNN_{model_type}_ts={timesteps}_embedding={embedding}_conservation={conservation}_' \
-               f'epochs={epochs}_recurrent={recurrent}_norm={norm}_dropout={dropout}.pt'
+               f'epochs={epochs}_recurrent={recurrent}_norm={norm}_dropout={int(dropout*100)}.pt'
     return name
 
 def load_model(name):
@@ -658,7 +658,7 @@ if args.action =='train':
 
     cons_settings = [False] # [True, False]
     if args.use_dropout:
-        dropout_settings = [0, .25, .5]
+        dropout_settings = [.25, .5]
     else:
         dropout_settings = [0]
     rec_settings = [True] #, False]
