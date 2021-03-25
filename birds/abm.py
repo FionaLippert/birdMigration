@@ -47,7 +47,7 @@ class Bird:
     def __init__(self, id, lat, lon, env, start_day,
                  endogenous_heading=215, pref_dir_std=5,
                  air_speed=10, compensation=0.5, energy_tol=0,
-                 departure_window=1, allow_landing=True):
+                 departure_window=1):
 
         # bird and system properties
         self.id = id
@@ -59,7 +59,6 @@ class Bird:
         self.compensation = compensation
         self.energy_tol = energy_tol # if <= 0 no headwinds are tolerated
         self.departure_window = departure_window # number of timesteps after dusk within which birds can depart
-        self.allow_landing = allow_landing
 
         # initialize simulation
         self.reset(lat, lon)
@@ -267,6 +266,7 @@ class Simulation:
             energy_tol = self.rng.normal(self.settings['energy_tol_mean'], self.settings['energy_tol_std'])
             self.birds.append(Bird(id, lat, lon, self.env, start_day,
                                    compensation=self.settings['compensation'],
+                                   departure_window=self.settings['departure_window'],
                                    energy_tol=energy_tol))
 
     def sample_pos(self):
