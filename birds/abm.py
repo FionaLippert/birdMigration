@@ -31,20 +31,23 @@ class Environment:
 
     def get_wind(self, tidx, lon, lat, pref_dir):
         # load wind data at (lon, lat) using linear interpolation
-        wind_t = self.wind.isel(time=tidx).interp(longitude=lon, latitude=lat, method='linear')
+        wind_t = self.wind.isel(time=tidx).interp(longitude=lon, latitude=lat, method='cubic')
         wind_speed = float(np.sqrt(wind_t.u**2 + wind_t.v**2))
         wind_dir = np.deg2rad((float(uv2deg(wind_t.u, wind_t.v)) - pref_dir + 360) % 360)
         return wind_speed, wind_dir
 
     def get_sun(self, tidx, lon, lat):
         # compute solar position
+        tidx = max(tidx, len(self.time))
         time = self.time[tidx]
         sun = float(solarposition.get_solarposition(time, lat, lon).elevation)
         return sun
 
 class Bird:
     def __init__(self, id, lat, lon, env, start_day,
-                 endogenous_heading=215, pref_dir_std=5, air_speed=10, compensation=0.5, energy_tol=0):
+                 endogenous_heading=215, pref_dir_std=5,
+                 air_speed=10, compensation=0.5, energy_tol=0,
+                 departure_window=1, allow_landing=True):
 
         # bird and system properties
         self.id = id
@@ -55,6 +58,8 @@ class Bird:
         self.air_speed = air_speed # in m/s
         self.compensation = compensation
         self.energy_tol = energy_tol # if <= 0 no headwinds are tolerated
+        self.departure_window = departure_window # number of timesteps after dusk within which birds can depart
+        self.allow_landing = allow_landing
 
         # initialize simulation
         self.reset(lat, lon)
@@ -65,7 +70,7 @@ class Bird:
         self.tidx = 0
         self.migrating = False
         self.ground_speed = 0
-        self.previous = 'day'
+        self.night_count = 0
         self.dir_north = 0
         self.sample_pref_dir()
 
@@ -87,21 +92,27 @@ class Bird:
                 self.compute_drift(wind_speed, wind_dir)
                 self.compute_ground_speed(wind_speed, wind_dir)
 
-                if self.previous == 'day':
-                    # check if weather conditions are good enough for departure
-                    self.compute_energy()
-                    if self.check_departure(wind_speed, wind_dir):
-                        self.state = 1
+                # check if weather conditions are good enough to start/continue migrating
+                self.compute_energy()
+                fly = self.check_departure(wind_speed, wind_dir)
+                if self.night_count < self.departure_window and self.state == 0 and fly:
+                    # take-off
+                    self.state = 1
+                elif self.state == 1 and not fly:
+                    # land because wind conditions are not suitable anymore
+                    self.state = 0
+                    # determine new preferred migration direction for next departure
+                    self.sample_pref_dir()
 
-                self.previous = 'night'
+                self.night_count += 1
 
             else:
-                self.previous = 'day'
                 if self.state == 1:
                     # land because end of the night has been reached
                     self.state = 0
                     # determine new preferred migration direction for next departure
                     self.sample_pref_dir()
+                self.night_count = 0
 
         else:
             # left simulated region
@@ -141,8 +152,10 @@ class Bird:
             self.energy = self.air_speed / (self.ground_speed * np.cos(self.drift)) - 1
 
     def check_night(self):
-        sun = self.env.get_sun(self.tidx, self.pos.longitude, self.pos.latitude)
-        return sun < -6
+        # check if hour falls into the night, or includes dusk or dawn
+        sun_start = self.env.get_sun(self.tidx, self.pos.longitude, self.pos.latitude)
+        sun_end = self.env.get_sun(self.tidx+1, self.pos.longitude, self.pos.latitude)
+        return sun_start < -6 or sun_end < -6
 
     def check_departure(self, wind_speed, wind_dir):
         # decision for departure/landing

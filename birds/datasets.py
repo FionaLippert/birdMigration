@@ -55,8 +55,9 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         buffer_data = buffer_data / radar_buffers.area_km2.to_numpy()[:, None] # rescale to birds per km^2
         buffer_data = buffer_data * voronoi.area_km2.to_numpy()[:, None] # rescale to birds per voronoi cell
 
-    print('load sun data')
+    # time range for solar positions to be able to infer dusk and dawn
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
+    #solar_t_range = solar_t_range.insert(0, t_range[0] - pd.Timedelta(t_range.freq))
 
     print('load env data')
     env = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
@@ -76,13 +77,14 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
         # time related variables for radar ridx
         solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
-        night = solarpos < -6
+        night = np.logical_or(solarpos[:-1] < -6, solarpos[1:] < -6)
         df['solarpos_dt'] = solarpos[:-1] - solarpos[1:]
         df['solarpos'] = solarpos[:-1]
-        df['night'] = night[:-1]
-        df['dusk'] = np.logical_and(~night[:-1], night[1:])  # switching from day to night
-        df['dawn'] = np.logical_and(night[:-1], ~night[1:])  # switching from night to day
+        df['night'] = night
+        df['dusk'] = np.logical_and(solarpos[:-1] >=6, solarpos[1:] < 6)  # switching from day to night
+        df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >=6)  # switching from night to day
         df['datetime'] = t_range
+        df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
         df['tidx'] = np.arange(t_range.size)
 
         # environmental variables for radar ridx
@@ -275,6 +277,7 @@ class RadarData(InMemoryDataset):
         coord_cols = ['x', 'y']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
+        dayofyear = pd.DatetimeIndex(time).dayofyear.values
         tidx = np.arange(len(time))
 
         # normalize static features
@@ -336,10 +339,14 @@ class RadarData(InMemoryDataset):
         targets = reshape(targets, nights, mask, self.timesteps)
         env = reshape(env, nights, mask, self.timesteps)
         tidx = reshape(tidx, nights, mask, self.timesteps)
-        # global_dusk = reshape(global_dusk, nights, mask, self.timesteps)
+        dayofyear = reshape(dayofyear, nights, mask, self.timesteps)
         local_dusk = reshape(dusk, nights, mask, self.timesteps)
         local_dawn = reshape(dawn, nights, mask, self.timesteps)
         local_night = reshape(nighttime, nights, mask, self.timesteps)
+
+        # set bird densities during the day to zero
+        inputs = inputs * local_night
+        targets = targets * local_night
 
         edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
 
@@ -374,7 +381,7 @@ class RadarData(InMemoryDataset):
                               ], dim=1),
                               edge_weight=torch.tensor(edge_weights, dtype=torch.double),
                               tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                              # global_dusk=torch.tensor(global_dusk[:, nidx], dtype=torch.bool),
+                              day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.long),
                               local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
                               local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
                               local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
