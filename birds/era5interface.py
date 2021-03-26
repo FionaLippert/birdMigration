@@ -101,7 +101,7 @@ def extract_points(data_path, lonlat_list, t_range, vars):
             var_data = []
             for lonlat in lonlat_list:
                 # Extract time-series data at given point (interpolate between available grid points)
-                data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='splinef2d')
+                data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
                 var_data.append(data_point.sel(time=t_range).data.flatten())
             weather[var] = np.stack(var_data)
 
@@ -136,7 +136,7 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
                 for i in range(n_points):
                     lon, lat = sample_point_from_polygon(poly, seed=seed)
                     # Extract time-series data at given point (interpolate between available grid points)
-                    interp = ds.interp(longitude=lon, latitude=lat, method='splinef2d')
+                    interp = ds.interp(longitude=lon, latitude=lat, method='linear')
                     interp = interp.sel(time=t_range).data.flatten()
                     var_data_poly.append(interp)
                 var_data.append(np.nanmean(np.stack(var_data_poly, axis=0), axis=0))
