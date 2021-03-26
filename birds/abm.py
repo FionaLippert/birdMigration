@@ -31,7 +31,7 @@ class Environment:
 
     def get_wind(self, tidx, lon, lat, pref_dir):
         # load wind data at (lon, lat) using linear interpolation
-        wind_t = self.wind.isel(time=tidx).interp(longitude=lon, latitude=lat, method='cubic')
+        wind_t = self.wind.isel(time=tidx).interp(longitude=lon, latitude=lat, method='linear')
         wind_speed = float(np.sqrt(wind_t.u**2 + wind_t.v**2))
         wind_dir = np.deg2rad((float(uv2deg(wind_t.u, wind_t.v)) - pref_dir + 360) % 360)
         return wind_speed, wind_dir
