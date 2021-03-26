@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 import itertools as it
 import os
 import os.path as osp
+import warnings
 import pickle5 as pickle
 import pandas as pd
 import torch
@@ -136,9 +137,9 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
         if model_type == 'standard_mlp':
             # model = MLP(6*train_data[0].num_nodes, args.hidden_dim, train_data[0].num_nodes,
             #             timesteps, recurrent, seed=r)
-            model = NodeMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
+            model = LocalMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif model_type == 'standard_lstm':
-            model = NodeLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
+            model = LocalLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif args.use_black_box:
             model = BirdDynamicsGraphLSTM(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
                                  seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
@@ -147,6 +148,7 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
                                 seed=r, multinight=args.multinight, use_wind=(not args.no_wind), dropout_p=dropout_p)
         elif args.use_dcrnn:
             model = RecurrentGCN(timesteps, node_features=10)
+
         elif args.recurrent:
             model = BirdFlowGraphLSTM(timesteps, hidden_dim=args.hidden_dim, model=model_type,
                                     seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
@@ -277,8 +279,9 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
         Z = data.local_night.sum(0)
         mse.append(loss[:, nidx, :].sum(0) / Z)
     mse = np.stack(mse, axis=1)
-    mse = np.nan_to_num(mse, posinf=0).sum(1) / np.isfinite(mse).sum(1)
-    mse = np.nan_to_num(mse, posinf=0)
+    with warnings.catch_warnings():
+        mse = np.nan_to_num(mse, posinf=0).sum(1) / np.isfinite(mse).sum(1)
+        mse = np.nan_to_num(mse, posinf=0)
     gam_losses = np.sqrt(mse)
 
     return gam_losses, pred_gam
@@ -299,7 +302,8 @@ def gbt_rmse(bird_scale, multinight, mask, seed=1234):
         mask_t = np.concatenate([mask[nidx, t, :] for nidx in range(X.shape[0])])
         y_hat = y_hat * mask_t
         loss = np.square(gt - y_hat)
-        mse = np.nan_to_num(np.sum(loss) / np.sum(mask_t), posinf=0)
+        with warnings.catch_warnings():
+            mse = np.nan_to_num(np.sum(loss) / np.sum(mask_t), posinf=0)
         rmse.append(np.sqrt(mse))
     return rmse
 
@@ -348,32 +352,35 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         #         print(name, param.data)
 
         model.timesteps = timesteps
-
-        if 'standard' in short_names[midx]:
-            loss_all[short_names[midx]].append(
-                np.nanmean(test_dynamics(model, test_loader, timesteps, loss_func,
-                                         args.cuda, bird_scale=bird_scale).detach().numpy(), axis=0)
-            )
-        elif args.use_black_box or args.use_black_box_rec or args.use_dcrnn:
-            loss_all[short_names[midx]].append(
-                np.nanmean(test_dynamics(model, test_loader, timesteps, loss_func,
-                                         args.cuda, bird_scale).detach().numpy(), axis=0)
-            )
-        else:
-            l, outfluxes, outfluxes_abs = test_fluxes(model, test_loader, timesteps, loss_func, args.cuda,
-                                bird_scale=bird_scale, departure=departure)
-            loss_all[short_names[midx]].append(np.nanmean(l.detach().numpy(), axis=0))
-            with open(osp.join(osp.dirname(output_path), f'outfluxes_{short_names[midx]}.pickle'), 'wb') as f:
-                pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
-            with open(osp.join(osp.dirname(output_path), f'outfluxes_abs_{short_names[midx]}.pickle'), 'wb') as f:
-                pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action='ignore', message='Mean of empty slice')
+            if 'standard' in short_names[midx]:
+                loss_all[short_names[midx]].append(
+                    np.nanmean(test_dynamics(model, test_loader, timesteps, loss_func,
+                                             args.cuda, bird_scale=bird_scale).detach().numpy(), axis=0)
+                )
+            elif args.use_black_box or args.use_black_box_rec or args.use_dcrnn:
+                loss_all[short_names[midx]].append(
+                    np.nanmean(test_dynamics(model, test_loader, timesteps, loss_func,
+                                             args.cuda, bird_scale).detach().numpy(), axis=0)
+                )
+            else:
+                l, outfluxes, outfluxes_abs = test_fluxes(model, test_loader, timesteps, loss_func, args.cuda,
+                                    bird_scale=bird_scale, departure=departure)
+                loss_all[short_names[midx]].append(np.nanmean(l.detach().numpy(), axis=0))
+                with open(osp.join(osp.dirname(output_path), f'outfluxes_{short_names[midx]}.pickle'), 'wb') as f:
+                    pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
+                with open(osp.join(osp.dirname(output_path), f'outfluxes_abs_{short_names[midx]}.pickle'), 'wb') as f:
+                    pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
 
 
 
     for type in model_types:
         losses = np.sqrt(np.stack(loss_all[type]))
-        mean_loss = np.nan_to_num(np.nanmean(losses, axis=0))
-        std_loss = np.nan_to_num(np.nanstd(losses, axis=0))
+        with warnings.catch_warnings():
+            warnings.filterwarnings(action='ignore', message='Mean of empty slice')
+            mean_loss = np.nan_to_num(np.nanmean(losses, axis=0))
+            std_loss = np.nan_to_num(np.nanstd(losses, axis=0))
         line = ax.plot(range(timesteps+1), mean_loss, label=f'{type}')
         ax.fill_between(range(timesteps+1), mean_loss - std_loss, mean_loss + std_loss, alpha=0.2,
                         color=line[0].get_color())
@@ -401,7 +408,8 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
         naive_losses.append(torch.tensor(
             [loss_func(naive(t, nidx), data.y[:, t].cpu() * bird_scale, data.local_night[:, t].cpu()) for t in range(timesteps + 1)]))
     naive_losses = torch.stack(naive_losses, dim=0).detach().numpy()
-    naive_losses = np.nan_to_num(naive_losses, posinf=0).sum(0) / np.isfinite(naive_losses).sum(0)
+    with warnings.catch_warnings():
+        naive_losses = np.nan_to_num(naive_losses, posinf=0).sum(0) / np.isfinite(naive_losses).sum(0)
     naive_losses = np.sqrt(np.nan_to_num(naive_losses, posinf=0))
     ax.plot(range(timesteps+1), naive_losses, label=f'constant night')
 
@@ -552,7 +560,7 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
 
         #pred_gam = df_gam_idx[df_gam_idx.datetime.isin(dti[seq_tidx[:, nidx]])].gam_pred.to_numpy()
         for r in range(args.repeats):
-            pred_gbt[r] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale
+            pred_gbt[r] = gbt_models[r].predict(X_gbt[nidx, :, idx, :]) * bird_scale * local_nights[idx, :]
 
         tidx = seq_tidx[:, nidx]
         fig, ax = plt.subplots(figsize=(20, 4))
@@ -651,7 +659,7 @@ elif args.use_dcrnn:
     model_types = ['DCRNN']
     model_labels = model_types
 else:
-    model_types = ['standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
+    model_types = ['standard_mlp', 'standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
     model_labels = model_types #['G_linear+sigmoid', 'G_mlp']  # , 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
 
 if args.action =='train':
