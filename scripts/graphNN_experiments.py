@@ -651,7 +651,7 @@ elif args.use_dcrnn:
     model_types = ['DCRNN']
     model_labels = model_types
 else:
-    model_types = ['standard_mlp', 'standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
+    model_types = ['standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
     model_labels = model_types #['G_linear+sigmoid', 'G_mlp']  # , 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
 
 if args.action =='train':

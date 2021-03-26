@@ -238,7 +238,9 @@ class NodeLSTM(MessagePassing):
 
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
         inputs = self.fc_in(inputs).relu()
+        inputs = inputs.unsqueeze(0) # add additional dimension
         out, hidden = self.lstm(inputs, hidden)
+        out = out[0, ...]
         delta = self.fc_out(out).tanh()
         pred = x + delta
 
@@ -551,7 +553,9 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
         inputs = self.to_hidden(inputs)
+        inputs = inputs.unsqueeze(0)
         out, hidden = self.node_lstm(inputs, hidden)
+        out = out[0, ...]
         delta = self.from_hidden(out)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = aggr_out + delta
@@ -672,8 +676,10 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         # predict departure/landing
         # TODO include x in inputs?
         inputs = torch.cat([coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        inputs = inputs.unsqueeze(0)
         inputs = self.to_hidden(inputs)
         out, hidden = self.node_lstm(inputs, hidden)
+        out = out[0, ...]
         delta = self.from_hidden(out)
 
         # TODO use flows directly instead of adding to previous x?
