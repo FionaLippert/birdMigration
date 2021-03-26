@@ -176,11 +176,11 @@ class LocalMLP(MessagePassing):
         # use only location-specific features to predict migration intensities
         features = torch.cat([coords, env, areas.view(-1,1)], dim=1)
         x = self.fc_in(features).relu()
-        x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+        x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
             x = l(x).relu()
-            x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.fc_out(x)
         x = x.sigmoid()
@@ -252,6 +252,8 @@ class LocalLSTM(MessagePassing):
         inputs = self.fc_in(inputs).relu()
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
+        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
         for l in range(1, self.n_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
