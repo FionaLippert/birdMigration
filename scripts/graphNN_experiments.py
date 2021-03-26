@@ -138,21 +138,21 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
             #             timesteps, recurrent, seed=r)
             model = NodeMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif model_type == 'standard_lstm':
-            model = NodeLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, dropout_p=dropout_p)
+            model = NodeLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif args.use_black_box:
-            model = BirdDynamics(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
+            model = BirdDynamicsGraphLSTM(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
                                  seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
         elif args.use_black_box_rec:
-            model = BirdRecurrent1(n_hidden=args.hidden_dim, timesteps=timesteps,
+            model = BirdDynamicsGraphGRU(n_hidden=args.hidden_dim, timesteps=timesteps,
                                 seed=r, multinight=args.multinight, use_wind=(not args.no_wind), dropout_p=dropout_p)
         elif args.use_dcrnn:
             model = RecurrentGCN(timesteps, node_features=10)
         elif args.recurrent:
-            model = BirdFlowRecurrent(timesteps, hidden_dim=args.hidden_dim, model=model_type,
+            model = BirdFlowGraphLSTM(timesteps, hidden_dim=args.hidden_dim, model=model_type,
                                     seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
                                     use_wind=(not args.no_wind), dropout_p=dropout_p)
         else:
-            model = BirdFlowTime(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
+            model = BirdFlowGNN(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
                                  use_wind=(not args.no_wind), dropout_p=dropout_p)
 
