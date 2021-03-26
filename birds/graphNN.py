@@ -188,6 +188,8 @@ class NodeLSTM(MessagePassing):
         torch.manual_seed(seed)
 
         self.lstm = torch.nn.LSTMCell(node_n_in, n_hidden)
+        self.birds2hidden = torch.nn.Sequential(torch.nn.Linear(1, n_hidden),
+                                                torch.nn.Tanh())
         self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
                                                 torch.nn.Tanh())
 
@@ -203,7 +205,8 @@ class NodeLSTM(MessagePassing):
         # initialize lstm variables
         hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
         #states = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
-        states = torch.cat([x] * self.n_hidden, dim=1)
+        #states = torch.cat([x] * self.n_hidden, dim=1)
+        states = self.birds2hidden(x)
 
         y_hat = [x]
 

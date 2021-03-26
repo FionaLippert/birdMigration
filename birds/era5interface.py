@@ -136,7 +136,6 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
                 for i in range(n_points):
                     lon, lat = sample_point_from_polygon(poly, seed=seed)
                     # Extract time-series data at given point (interpolate between available grid points)
-                    ds_t
                     interp = ds.interp(longitude=lon, latitude=lat, method='splinef2d')
                     interp = interp.sel(time=t_range).data.flatten()
                     var_data_poly.append(interp)

@@ -658,7 +658,7 @@ if args.action =='train':
 
     cons_settings = [False] # [True, False]
     if args.use_dropout:
-        dropout_settings = [.25, .5]
+        dropout_settings = [0, .25, .5]
     else:
         dropout_settings = [0]
     rec_settings = [True] #, False]
