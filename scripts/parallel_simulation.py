@@ -95,6 +95,7 @@ for p in processes:
 # Collect results and combine them into numpy arrays
 files = glob.glob(osp.join(output_path, '*.pkl'))
 traj, states = [], []
+print(files)
 for file in files:
     with open(file, 'rb') as f:
         result = pickle.load(f)
