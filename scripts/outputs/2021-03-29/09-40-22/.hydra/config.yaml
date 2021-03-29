@@ -1,0 +1,8 @@
+root: /home/fiona/birdMigration
+season: fall
+seed: 1234
+repeats: 1
+datasource: abm
+action: training
+model: gbt
+experiment: test

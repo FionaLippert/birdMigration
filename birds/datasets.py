@@ -168,12 +168,11 @@ def timeslice(data, start_night, mask, timesteps):
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, root, split, year, season='fall', timesteps=1, combine_featues=False,
+    def __init__(self, root, year, season='fall', timesteps=1, combine_featues=False,
                  data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100,
-                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=False,
+                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=True,
                  start=None, end=None, transform=None, pre_transform=None):
 
-        self.split = split
         self.season = season
         self.year = year
         self.timesteps = timesteps
@@ -191,7 +190,7 @@ class RadarData(InMemoryDataset):
         self.slice = slice
 
         if self.use_buffers:
-            self.processed_dirname = f'measurements=from_buffers_split={split}'
+            self.processed_dirname = f'measurements=from_buffers'
         else:
             self.processed_dirname = f'measurements=voronoi_cells'
         if self.combine_features:
@@ -272,7 +271,7 @@ class RadarData(InMemoryDataset):
 
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
-        target_col = 'birds_from_buffer' if self.use_buffers and self.split == 'train' else 'birds'
+        target_col = input_col
         env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt']
         coord_cols = ['x', 'y']
 
@@ -392,7 +391,6 @@ class RadarData(InMemoryDataset):
 
         info = {'radars': voronoi.radar.values,
                  'timepoints': time,
-                 'time_mask': mask,
                  'tidx': tidx,
                  'nights': nights,
                  'local_nights': nighttime,

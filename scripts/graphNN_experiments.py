@@ -73,7 +73,10 @@ else:
     test_year = '2015'
     bird_scale = 2000
 
+data_source = args.data_soure
+
 test_val_split = 0.8
+random_seed = 1234
 
 def persistence(last_ob, timesteps):
     # always return last observed value
@@ -102,64 +105,54 @@ def MSE(output, gt, local_nights):
     #mse[np.isinf(mse)] = np.nan
     return mse
 
+def val_test_split(dataloader, val_ratio, random_seed):
+    rng = np.random.default_rng(random_seed)
+    N = len(dataloader)
+    n_val = int(N * val_ratio)
+    val_idx = rng.choice(range(N), n_val, replace=False)
+    val_loader = list(dataloader)[val_idx]
+    test_loader = list(dataloader[~val_idx])
 
-def run_training(timesteps, model_type, conservation=True, recurrent=True, embedding=0, norm=False, epochs=100,
-                 repeats=1, data_source='radar', output_dir=model_dir, bird_scale=2000, departure=False, dropout_p=0):
+    return val_loader, test_loader
 
-    train_data = [datasets.RadarData(root, 'train', year, season, timesteps,
-                                     data_source=data_source, use_buffers=args.use_buffers,
-                                     bird_scale=bird_scale, multinight=args.multinight) for year in train_years]
 
-    boundaries = train_data[0].info['boundaries']
+
+def run_training(train_loader, val_loader, boundaries, model_type, conservation=True, recurrent=True,
+                 embedding=0, norm=False, epochs=100,
+                 repeats=1, output_dir=model_dir, bird_scale=2000, departure=False, dropout_p=0):
+
     if args.fix_boundary:
         fix_boundary = [ridx for ridx, b in boundaries.items() if b]
     else:
         fix_boundary = []
 
-    train_data = torch.utils.data.ConcatDataset(train_data)
-    train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
-
-    val_data = datasets.RadarData(root, 'test', val_year, season, timesteps, data_source=data_source,
-                                  bird_scale=bird_scale,
-                                  use_buffers=args.use_buffers, multinight=args.multinight)
-    val_loader = DataLoader(val_data, batch_size=1)
-    if args.data_source == 'radar':
-        val_start = int(len(val_loader) * test_val_split)
-    else:
-        val_start = 0
-    val_stop = len(val_loader)
-
-    val_loader = list(val_loader)[val_start:val_stop]
-
-
-
     for r in range(repeats):
         if model_type == 'standard_mlp':
             # model = MLP(6*train_data[0].num_nodes, args.hidden_dim, train_data[0].num_nodes,
             #             timesteps, recurrent, seed=r)
-            model = LocalMLP(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
+            model = LocalMLP(n_hidden=args.hidden_dim, timesteps=args.ts_train, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif model_type == 'standard_lstm':
-            model = LocalLSTM(n_hidden=args.hidden_dim, timesteps=timesteps, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
+            model = LocalLSTM(n_hidden=args.hidden_dim, timesteps=args.ts_train, seed=r, n_layers=args.n_layers, dropout_p=dropout_p)
         elif args.use_black_box:
-            model = BirdDynamicsGraphLSTM(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type,
+            model = BirdDynamicsGraphLSTM(train_data[0].num_nodes, args.ts_train, args.hidden_dim, embedding, model_type,
                                  seed=r, use_wind=(not args.no_wind), dropout_p=dropout_p, multinight=args.multinight)
         elif args.use_black_box_rec:
-            model = BirdDynamicsGraphGRU(n_hidden=args.hidden_dim, timesteps=timesteps,
+            model = BirdDynamicsGraphGRU(n_hidden=args.hidden_dim, timesteps=args.ts_train,
                                 seed=r, multinight=args.multinight, use_wind=(not args.no_wind), dropout_p=dropout_p)
         elif args.use_dcrnn:
-            model = RecurrentGCN(timesteps, node_features=10)
+            model = RecurrentGCN(args.ts_train, node_features=10)
 
         elif args.recurrent:
-            model = BirdFlowGraphLSTM(timesteps, hidden_dim=args.hidden_dim, model=model_type,
+            model = BirdFlowGraphLSTM(args.ts_train, hidden_dim=args.hidden_dim, model=model_type,
                                     seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
                                     use_wind=(not args.no_wind), dropout_p=dropout_p)
         else:
-            model = BirdFlowGNN(train_data[0].num_nodes, timesteps, args.hidden_dim, embedding, model_type, norm,
+            model = BirdFlowGNN(train_data[0].num_nodes, args.ts_train, args.hidden_dim, embedding, model_type, norm,
                                  use_departure=departure, seed=r, fix_boundary=fix_boundary, multinight=args.multinight,
                                  use_wind=(not args.no_wind), dropout_p=dropout_p)
 
         if repeats == 1:
-            name = make_name(timesteps, model_type, conservation, recurrent, embedding, norm,
+            name = make_name(args.ts_train, model_type, conservation, recurrent, embedding, norm,
                              epochs, dropout=dropout_p)
         else:
             name = make_name_repeat(timesteps, model_type, conservation, recurrent, embedding, norm,
@@ -200,10 +193,10 @@ def run_training(timesteps, model_type, conservation=True, recurrent=True, embed
 
             model.eval()
             if args.use_black_box or args.use_black_box_rec or args.use_dcrnn:
-                val_loss = test_dynamics(model, val_loader, timesteps, loss_func, args.cuda, bird_scale=1) #,
+                val_loss = test_dynamics(model, val_loader, args.ts_train, loss_func, args.cuda, bird_scale=1) #,
                                          #start_idx=val_start, stop_idx=val_stop)
             else:
-                val_loss = test_fluxes(model, val_loader, timesteps, loss_func, args.cuda,
+                val_loss = test_fluxes(model, val_loader, args.ts_train, loss_func, args.cuda,
                                    get_outfluxes=False, bird_scale=1) #, start_idx=val_start, stop_idx=val_stop)
             val_loss = val_loss[torch.isfinite(val_loss)].mean()
             val_curve[epoch] = val_loss
@@ -309,35 +302,10 @@ def gbt_rmse(bird_scale, multinight, mask, seed=1234):
 
 
 
-def plot_test_errors(timesteps, model_names, short_names, model_types, output_path,
-                     data_source='radar', bird_scale=2000, departure=False):
+def plot_test_errors(test_loader, local_nights, tidx, nights, model_names, short_names, model_types, output_path,
+                     bird_scale=2000, departure=False):
 
-    #output_dir = osp.join(root, 'model_performance', f'experiment_{datetime.now()}')
-    #os.makedirs(output_dir, exist_ok=True)
-
-    #name = make_name(timesteps, embedding, model_type, recurrent, conservation, norm, epochs)
-
-    test_data = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                          use_buffers=args.use_buffers, multinight=args.multinight)
-    test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
-    if args.data_source == 'radar':
-        split = int(len(test_loader) * test_val_split)
-        test_loader = list(test_loader)[:split]
-
-    nights = test_data.info['nights']
-    local_nights = test_data.info['local_nights']
-    tidx = test_data.info['tidx']
-    radar_index = {idx: name for idx, name in enumerate(test_data.info['radars'])}
-
-    with open(osp.join(osp.dirname(output_path), 'nights.pickle'), 'wb') as f:
-        pickle.dump(nights, f)
-    with open(osp.join(osp.dirname(output_path), 'seq_tidx.pickle'), 'wb') as f:
-        pickle.dump(tidx, f)
-    with open(osp.join(osp.dirname(output_path), 'local_nights.pickle'), 'wb') as f:
-        pickle.dump(local_nights, f)
-    with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
-        pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
-
+    timesteps = args.ts_test
     models = [load_model(name) for name in model_names]
     for i, n in enumerate(short_names):
         print(f'model: {n}, num params: {sum(p.numel() for p in models[i].parameters() if p.requires_grad)}')
@@ -422,16 +390,9 @@ def plot_test_errors(timesteps, model_names, short_names, model_types, output_pa
     plt.close(fig)
 
 
-def plot_predictions(timesteps, model_names, short_names, model_types, output_dir, tidx=None,
+def plot_predictions(timesteps, local_nights, seq_tidx, time, radars, model_names, short_names, model_types, output_dir, tidx=None,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                        use_buffers=args.use_buffers, multinight=args.multinight)
-    nights = dataset.info['nights']
-    seq_tidx = dataset.info['tidx']
-    time = np.array(dataset.info['timepoints'])
-    with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
-        pickle.dump(nights, f)
     df_gam = pd.read_csv(gam_csv)
     df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
     dti = pd.DatetimeIndex(time) #, tz='UTC')
@@ -443,10 +404,6 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
     X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
                                                       args.data_source, bird_scale, args.multinight)
 
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    if args.data_source == 'radar':
-        split = int(len(dataloader) * test_val_split)
-        dataloader = list(dataloader)[:split]
 
     models = [load_model(name) for name in model_names]
 
@@ -508,17 +465,11 @@ def plot_predictions(timesteps, model_names, short_names, model_types, output_di
         plt.close(fig)
 
 
-def plot_predictions_1seq(timesteps, model_names, short_names, model_types, output_dir, nidx=0,
+def plot_predictions_1seq(dataloader, time, radars, model_names, short_names, model_types, output_dir, nidx=0,
                      data_source='radar', repeats=1, bird_scale=2000, departure=False):
 
-    dataset = datasets.RadarData(root, 'test', test_year, season, timesteps, data_source=data_source, bird_scale=bird_scale,
-                        use_buffers=args.use_buffers, multinight=args.multinight)
-    nights = dataset.info['nights']
-    local_nights = dataset.info['local_nights']
-    seq_tidx = dataset.info['tidx']
-    time = np.array(dataset.info['timepoints'])
-    with open(osp.join(output_dir, 'nights.pickle'), 'wb') as f:
-        pickle.dump(nights, f)
+    timesteps = args.ts_test
+
     #df_gam = pd.read_csv(gam_csv)
     #df_gam.datetime = pd.DatetimeIndex(df_gam.datetime)
     dti = pd.DatetimeIndex(time) #, tz='UTC')
@@ -530,14 +481,10 @@ def plot_predictions_1seq(timesteps, model_names, short_names, model_types, outp
     X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
                                                       args.data_source, bird_scale, args.multinight)
 
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
-    if args.data_source == 'radar':
-        split = int(len(dataloader) * test_val_split)
-        dataloader = list(dataloader)[:split]
 
     models = [load_model(name) for name in model_names]
 
-    for idx, radar in enumerate(dataset.info['radars']):
+    for idx, radar in enumerate(radars):
         pred = []
         for _ in models:
             pred.append(np.zeros(len(seq_tidx[:, nidx]))) # * np.nan)
@@ -662,6 +609,8 @@ else:
     model_types = ['standard_mlp', 'standard_lstm'] #['linear+sigmoid', 'mlp']  # , 'mlp']#'linear+sigmoid', 'mlp']#, 'standard_mlp']
     model_labels = model_types #['G_linear+sigmoid', 'G_mlp']  # , 'G_mlp'] #'G_linear+sigmoid', 'G_mlp']#, 'standard_mlp']
 
+
+
 if args.action =='train':
 
     cons_settings = [False] # [True, False]
@@ -674,8 +623,24 @@ if args.action =='train':
 
     all_settings = it.product(model_types, cons_settings, rec_settings, emb_settings, dropout_settings)
 
+    # load training and validation datasets
+    train_data = [datasets.RadarData(root, year, season, args.ts_train,
+                                     data_source=data_source, use_buffers=args.use_buffers,
+                                     bird_scale=bird_scale, multinight=args.multinight) for year in train_years]
+    boundaries = train_data[0].info['boundaries']
+    train_data = torch.utils.data.ConcatDataset(train_data)
+    train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
+
+    val_data = datasets.RadarData(root, val_year, season, args.ts_train, data_source=data_source,
+                                       bird_scale=bird_scale,
+                                       use_buffers=args.use_buffers, multinight=args.multinight)
+    val_loader = DataLoader(val_data, batch_size=1)
+    if data_source == 'radar':
+        val_loader, _ = val_test_split(val_loader, test_val_split, random_seed)
+
+
     for type, cons, rec, emb, dropout in all_settings:
-        run_training(args.ts_train, type, cons, rec, emb, epochs=epochs, data_source=args.data_source, repeats=repeats,
+        run_training(train_loader, val_loader, boundaries, type, cons, rec, emb, epochs=epochs, repeats=repeats,
                      bird_scale=bird_scale, departure=departure, dropout_p=dropout)
 
 if args.action == 'test':
@@ -699,18 +664,42 @@ if args.action == 'test':
             'test_errors.png')
     os.makedirs(osp.dirname(output_path), exist_ok=True)
 
+    # load test dataset
+    test_data = datasets.RadarData(root, test_year, season, args.ts_test, data_source=data_source,
+                                  bird_scale=bird_scale,
+                                  use_buffers=args.use_buffers, multinight=args.multinight)
+    test_loader = DataLoader(test_data, batch_size=1)
+    if data_source == 'radar':
+        _, test_loader = val_test_split(test_loader, test_val_split, random_seed)
 
-    plot_test_errors(args.ts_test, model_names, short_names, model_labels, output_path, data_source=args.data_source,
+    seq_tidx = test_data.info['tidx']
+    nights = test_data.info['nights']
+    time = np.array(test_data.info['timepoints'])
+    local_nights = test_data.info['local_nights']
+    radars = test_data.info['radars']
+    radar_index = {idx: name for idx, name in enumerate(radars)}
+
+    with open(osp.join(osp.dirname(output_path), 'nights.pickle'), 'wb') as f:
+        pickle.dump(nights, f)
+    with open(osp.join(osp.dirname(output_path), 'seq_tidx.pickle'), 'wb') as f:
+        pickle.dump(seq_tidx, f)
+    with open(osp.join(osp.dirname(output_path), 'local_nights.pickle'), 'wb') as f:
+        pickle.dump(local_nights, f)
+    with open(osp.join(osp.dirname(output_path), f'radar_index.pickle'), 'wb') as f:
+        pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
+
+
+    plot_test_errors(test_loader, local_nights, seq_tidx, nights, model_names, short_names, model_labels, output_path,
                      bird_scale=bird_scale, departure=departure)
     if args.save_predictions:
-        predictions(args.ts_train, model_names, model_types, osp.dirname(output_path),
-                data_source=args.data_source, repeats=repeats, bird_scale=bird_scale, departure=departure)
+        predictions(test_loader, model_names, model_types, osp.dirname(output_path),
+                repeats=repeats, bird_scale=bird_scale, departure=departure)
 
     if args.plot_predictions:
         # plot_predictions(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
         #              data_source=args.data_source, repeats=repeats, tidx=range(4*24, 11*24),
         #                  departure=departure, bird_scale=bird_scale) #, tidx=range(18*24, 32*24))
 
-        plot_predictions_1seq(args.ts_test, model_names, short_names, model_labels, osp.dirname(output_path),
-                         data_source=args.data_source, repeats=repeats, nidx=6,
+        plot_predictions_1seq(test_loader, time, radars, model_names, short_names, model_labels, osp.dirname(output_path),
+                         repeats=repeats, nidx=6,
                          departure=departure, bird_scale=bird_scale)  # , tidx=range(18*24, 32*24))
