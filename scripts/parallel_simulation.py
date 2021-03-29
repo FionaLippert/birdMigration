@@ -109,7 +109,7 @@ time = result['time']
 # write to disk
 np.save(osp.join(output_path, 'traj.npy'), traj)
 np.save(osp.join(output_path, 'states.npy'), states)
-with open(osp.join(output_path, 'time.txt'), 'wb') as f:
+with open(osp.join(output_path, 'time.pkl'), 'wb') as f:
     pickle.dump(time, f)
 
 
