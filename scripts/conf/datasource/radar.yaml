@@ -1,0 +1,11 @@
+# @package _group_
+name: radar
+training_years:
+  - 2016
+  - 2017
+validation_year: 2015
+test_year: 2015
+test_val_split: 0.8
+
+use_buffers: True
+bird_scale: 1e7

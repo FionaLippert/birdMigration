@@ -1,0 +1,21 @@
+# @package _group_
+name: GBT
+hyperparameters:
+  n_estimators:
+    default: 50
+    search_space:
+      - 50
+      - 100
+      - 150
+  lr:
+    default: 0.01
+    search_space:
+      - 0.001
+      - 0.01
+      - 0.1
+  max_depth:
+    default: 5
+    search_space:
+      - 3
+      - 5
+      - 7

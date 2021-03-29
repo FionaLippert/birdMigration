@@ -133,18 +133,20 @@ class MLP(torch.nn.Module):
 
 class LocalMLP(MessagePassing):
 
-    def __init__(self, node_n_in=7, n_hidden=16, n_out=1, timesteps=6, n_layers=2, dropout_p=0, seed=1234):
+    def __init__(self, **kwargs):
         super(LocalMLP, self).__init__(aggr='add', node_dim=0)
 
-        torch.manual_seed(seed)
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_in = kwargs.get('n_in', 7)
+        self.n_layers = kwargs.get('n_layers', 1)
 
-        self.fc_in = torch.nn.Linear(node_n_in, n_hidden)
-        self.fc_hidden = [torch.nn.Linear(n_hidden, n_hidden) for _ in range(n_layers - 1)]
-        self.fc_out = torch.nn.Linear(n_hidden, n_out)
+        torch.manual_seed(kwargs.get('seed', 1234))
 
-        self.timesteps = timesteps
-        self.dropout_p = dropout_p
-        self.n_hidden = n_hidden
+        self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.fc_hidden = [torch.nn.Linear(self.n_hidden, self.n_hidden) for _ in range(self.n_layers - 1)]
+        self.fc_out = torch.nn.Linear(self.n_hidden, 1)
 
 
     def forward(self, data):
@@ -891,18 +893,19 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
 
     return loss_all
 
-def train_dynamics(model, train_loader, optimizer, loss_func, cuda,
-                 teacher_forcing=1.0):
+def train_dynamics(model, train_loader, optimizer, loss_func, cuda, **kwargs):
     if cuda: model.cuda()
     model.train()
     loss_all = 0
     for data in train_loader:
         if cuda: data = data.to('cuda')
         optimizer.zero_grad()
-        if teacher_forcing < 0:
-            output = model(data)
+
+        if 'teacher_forcing' in kwargs:
+            output = model(data, kwargs['teacher_forcing'])
         else:
-            output = model(data, teacher_forcing)
+            output = model(data)
+
         gt = data.y
 
         loss = loss_func(output, gt, data.local_night)

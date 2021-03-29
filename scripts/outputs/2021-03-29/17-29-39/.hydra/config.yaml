@@ -1,0 +1,45 @@
+experiment: test
+settings:
+  root: /home/fiona/birdMigration
+  season: fall
+  seed: 1234
+  repeats: 1
+  cuda: true
+datasource:
+  name: abm
+  training_years:
+  - 2016
+  - 2017
+  - 2018
+  validation_year: 2019
+  test_year: 2015
+  use_buffers: false
+  bird_scale: 2000
+action:
+  timesteps: 40
+  name: training
+  grid_search: true
+model:
+  name: LocalMLP
+  hyperparameters:
+    n_hidden:
+      default: 16
+      search_space:
+      - 8
+    n_layers:
+      default: 2
+      search_space:
+      - 1
+    dropout_p:
+      default: 0.25
+      search_space:
+      - 0.0
+    lr:
+      default: 0.001
+      search_space:
+      - 0.1
+    lr_decay:
+      default: 50
+      search_space:
+      - 50
+  epochs: 2

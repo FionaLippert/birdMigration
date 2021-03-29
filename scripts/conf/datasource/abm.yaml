@@ -1,0 +1,11 @@
+# @package _group_
+name: abm
+training_years:
+  - 2016
+  - 2017
+  - 2018
+validation_year: 2019
+test_year: 2015
+
+use_buffers: False
+bird_scale: 2000

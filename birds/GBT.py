@@ -1,15 +1,12 @@
 from sklearn.ensemble import GradientBoostingRegressor
-from birds.graphNN import *
-from birds import datasets
-from torch_geometric.data import DataLoader
+import numpy as np
 
 
-def prepare_data(split, root, year, season, timesteps, data_source, bird_scale, multinight):
-    dataset = datasets.RadarData(root, split, year, season, timesteps, data_source=data_source,
-                                 bird_scale=bird_scale, multinight=multinight)
-    #dataloader = DataLoader(dataset, batch_size=1)
+def prepare_data(dataset, timesteps, return_mask=False):
+
     X = []
     y = []
+    mask = []
     for seq in dataset:
         for t in range(timesteps+1):
             features = np.concatenate([seq.coords.detach().numpy(),
@@ -17,13 +14,17 @@ def prepare_data(split, root, year, season, timesteps, data_source, bird_scale, 
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X.append(features)
             y.append(seq.y[:, t])
+            mask.append(seq.local_night[:, t])
     X = np.concatenate(X, axis=0)
     y = np.concatenate(y, axis=0)
-    return X, y
+    mask = np.concatenate(mask, axis=0)
+    if return_mask:
+        return X, y, mask
+    else:
+        return X, y
 
-def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_scale, multinight):
-    dataset = datasets.RadarData(root, split, year, season, timesteps, data_source=data_source,
-                                 bird_scale=bird_scale, multinight=multinight)
+def prepare_data_nights(dataset, timesteps):
+
     X = []
     y = []
     for seq in dataset:
@@ -42,42 +43,43 @@ def prepare_data_nights(split, root, year, season, timesteps, data_source, bird_
     y = np.concatenate(y, axis=1)  # shape (timesteps, samples)
     return X, y
 
-def prepare_data_nights_and_radars(split, root, year, season, timesteps, data_source, bird_scale, multinight):
-    dataset = datasets.RadarData(root, split, year, season, timesteps, data_source=data_source,
-                                 bird_scale=bird_scale, multinight=multinight)
+def prepare_data_nights_and_radars(dataset, timesteps, return_mask=False):
+
     X = []
     y = []
+    mask = []
     for seq in dataset:
         X_night = []
         y_night = []
+        mask_night = []
         for t in range(timesteps+1):
             features = np.concatenate([seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X_night.append(features)
             y_night.append(seq.y[:, t])
+            mask_night.append(seq.local_night[:, t])
         X.append(np.stack(X_night, axis=0)) # shape (timesteps, nodes, features)
         y.append(np.stack(y_night, axis=0)) # shape (timesteps, nodes)
+        mask.append(np.stack(mask_night, axis=0))  # shape (timesteps, nodes)
 
     X = np.stack(X, axis=0) # shape (nights, timesteps, nodes, features)
     y = np.stack(y, axis=0) # shape (nights, timesteps, nodes)
-    return X, y
+    mask = np.stack(mask, axis=0)  # shape (nights, timesteps, nodes)
+    if return_mask:
+        return X, y, mask
+    else:
+        return X, y
 
-def fit_GBT(root, years, season, timesteps, data_source, bird_scale, multinight=False, seed=1234):
-    X = []
-    y = []
-    for year in years:
-        X_year, y_year = prepare_data('train', root, year, season, timesteps, data_source, bird_scale, multinight)
-        X.append(X_year)
-        y.append(y_year)
-    X = np.concatenate(X, axis=0)
-    y = np.concatenate(y, axis=0)
-    reg = GradientBoostingRegressor(random_state=seed, n_estimators=100, learning_rate=0.05,
-                                    max_depth=5, tol=0.00001, n_iter_no_change=200)
-    reg.fit(X, y)
-    return reg
 
-def predict_GBT(gbt, root, year, season, timesteps, data_source, bird_scale, multinight=False):
-    X, y = prepare_data('test', root, year, season, timesteps, data_source, bird_scale, multinight)
+def fit_GBT(X, y, n_estimators=100, lr=0.05, max_depth=5, seed=1234):
+
+    gbt = GradientBoostingRegressor(random_state=seed, n_estimators=n_estimators, learning_rate=lr,
+                                    max_depth=max_depth, tol=0.000001, n_iter_no_change=500)
+    gbt.fit(X, y)
+    return gbt
+
+def predict_GBT(gbt, dataset, timesteps):
+    X, y = prepare_data(dataset, timesteps)
     y_hat = gbt.predict(X)
     return y, y_hat
