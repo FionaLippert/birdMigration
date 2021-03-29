@@ -109,7 +109,8 @@ time = result['time']
 # write to disk
 np.save(osp.join(output_path, 'traj.npy'), traj)
 np.save(osp.join(output_path, 'states.npy'), states)
-time.tofile(osp.join(output_path, 'time.txt'))
+with open(osp.join(output_path, 'time.txt'), 'wb') as f:
+    pickle.dump(time, f)
 
 
 time_elapsed = datetime.now() - start_time
