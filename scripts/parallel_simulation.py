@@ -10,6 +10,8 @@ import sys
 from shapely.geometry import Polygon, Point
 from shapely.ops import cascaded_union
 import geopandas as gpd
+import glob
+import pickle5 as pickle
 
 #sys.path.insert(1, osp.join(sys.path[0], '../modules'))
 from birds import datahandling
@@ -89,6 +91,25 @@ for p in range(num_processes):
 for p in processes:
     if p.poll() is None:
         p.wait()
+
+# Collect results and combine them into numpy arrays
+files = glob.glob(osp.join(output_path, '*.pkl'))
+traj, states = [], []
+for file in files:
+    with open(file, 'rb') as f:
+        result = pickle.load(f)
+    traj.append(result['trajectories'])
+    states.append(result['states'])
+
+traj = np.concatenate(traj, axis=1)
+states = np.concatenate(states, axis=1)
+time = result['time']
+
+# write to disk
+np.save(osp.join(output_path, 'traj.npy', traj))
+np.save(osp.join(output_path, 'states.npy', states))
+time.tofile(osp.join(output_path, 'time.txt'))
+
 
 time_elapsed = datetime.now() - start_time
 with open(logfile, 'a+') as f:
