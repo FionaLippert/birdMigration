@@ -107,8 +107,8 @@ states = np.concatenate(states, axis=1)
 time = result['time']
 
 # write to disk
-np.save(osp.join(output_path, 'traj.npy', traj))
-np.save(osp.join(output_path, 'states.npy', states))
+np.save(osp.join(output_path, 'traj.npy'), traj)
+np.save(osp.join(output_path, 'states.npy'), states)
 time.tofile(osp.join(output_path, 'time.txt'))
 
 
