@@ -31,7 +31,7 @@ def train(cfg: DictConfig):
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
 
-    cuda = (cfg.settings.cuda and torch.cuda.is_available())
+    device = 'cuda:0' if (cfg.settings.cuda and torch.cuda.is_available()) else 'cpu'
 
     # directory to which outputs will be written
     output_dir = osp.join(cfg.settings.root, 'results', ds, cfg.action.name, cfg.model.name, cfg.experiment)
@@ -83,12 +83,12 @@ def train(cfg: DictConfig):
             scheduler = lr_scheduler.StepLR(optimizer, step_size=hp_settings['lr_decay'])
 
             for epoch in range(epochs):
-                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, cuda)
+                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device)
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
-                val_loss = test_dynamics(model, val_loader, ts, utils.MSE, cuda, bird_scale=1)
+                val_loss = test_dynamics(model, val_loader, ts, utils.MSE, device, bird_scale=1)
                 val_loss = val_loss[torch.isfinite(val_loss)].mean() # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')

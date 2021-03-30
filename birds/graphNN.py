@@ -911,12 +911,12 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
 
     return loss_all
 
-def train_dynamics(model, train_loader, optimizer, loss_func, cuda, **kwargs):
-    if cuda: model.cuda()
+def train_dynamics(model, train_loader, optimizer, loss_func, device, **kwargs):
+    model.to(device)
     model.train()
     loss_all = 0
     for data in train_loader:
-        if cuda: data = data.to('cuda')
+        data = data.to(device)
         optimizer.zero_grad()
 
         if 'teacher_forcing' in kwargs:
