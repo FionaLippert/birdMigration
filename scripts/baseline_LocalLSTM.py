@@ -15,9 +15,9 @@ import ruamel.yaml
 from matplotlib import pyplot as plt
 
 
-#@hydra.main(config_path="conf", config_name="config")
+# @hydra.main(config_path="conf", config_name="config")
 def train(cfg: DictConfig):
-    assert cfg.model.name == 'LocalMLP'
+    assert cfg.model.name == 'LocalLSTM'
     assert cfg.action.name == 'training'
 
     data_root = osp.join(cfg.settings.root, 'data')
@@ -60,7 +60,6 @@ def train(cfg: DictConfig):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, seed)
 
-
     best_val_loss = np.inf
     best_hp_settings = None
     for vals in hp_space:
@@ -76,35 +75,37 @@ def train(cfg: DictConfig):
         val_curves = np.ones((repeats, epochs)) * np.nan
         for r in range(repeats):
             print(f'train model [trial {r}]')
-            model = LocalMLP(**hp_settings, timesteps=ts, seed=(seed+r))
+            model = LocalLSTM(**hp_settings, timesteps=ts, seed=(seed + r))
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
             scheduler = lr_scheduler.StepLR(optimizer, step_size=hp_settings['lr_decay'])
 
+            tf = 1.0 # initial teacher forcing
             for epoch in range(epochs):
-                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, cuda)
+                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, cuda, teacher_forcing=tf)
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
                 val_loss = test_dynamics(model, val_loader, ts, utils.MSE, cuda, bird_scale=1)
-                val_loss = val_loss[torch.isfinite(val_loss)].mean() # TODO isfinite needed?
+                val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
 
-                if epoch > 0 and np.abs(val_curves[r, epoch] - val_curves[r, epoch-1]) < cfg.action.tolerance:
+                if val_loss < val_losses[r]:
+                    # save best model so far
+                    torch.save(model.cpu(), osp.join(sub_dir, f'model_{r}.pkl'))
+                    val_losses[r] = val_loss
+
+                if epoch > 0 and np.abs(val_curves[r, epoch] - val_curves[r, epoch - 1]) < cfg.action.tolerance:
                     # stop early
                     print(f'Stopped after epoch {epoch + 1}, because improvement was smaller than tolerance', file=log)
                     break
 
+                scheduler.step()
+                tf = tf * hp_settings['teacher_forcing_gamma']
 
-            if val_loss < val_losses[r]:
-                # save best model so far
-                torch.save(model.cpu(), osp.join(sub_dir, f'model_{r}.pkl'))
-                val_losses[r] = val_loss
-
-            scheduler.step()
 
         if val_losses.mean() < best_val_loss:
             best_val_loss = val_losses.mean()
@@ -134,7 +135,6 @@ def train(cfg: DictConfig):
         plt.legend()
         fig.savefig(osp.join(sub_dir, f'training_validation_curves.png'), bbox_inches='tight')
 
-
     print('saving best settings as default', file=log)
     # use ruamel.yaml to not overwrite comments in the original yaml
     yaml = ruamel.yaml.YAML()
@@ -145,7 +145,6 @@ def train(cfg: DictConfig):
         model_config['hyperparameters'][key]['default'] = val
     with open(fp, 'w') as f:
         yaml.dump(model_config, f)
-
 
     # save complete config to output dir
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:

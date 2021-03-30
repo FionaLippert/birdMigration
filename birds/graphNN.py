@@ -192,19 +192,29 @@ class LocalMLP(MessagePassing):
 
 class LocalLSTM(MessagePassing):
 
-    def __init__(self, node_n_in=8, n_hidden=16, n_out=1, timesteps=6, n_layers=1, dropout_p=0, seed=1234):
+    def __init__(self, **kwargs):
         super(LocalLSTM, self).__init__(aggr='add', node_dim=0)
 
-        torch.manual_seed(seed)
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_in = kwargs.get('n_in', 8)
+        self.n_layers = kwargs.get('n_layers', 1)
+        self.predict_delta = kwargs.get('predict_delta', True)
 
-        self.fc_in = torch.nn.Linear(node_n_in, n_hidden)
-        self.lstm_layers = [torch.nn.LSTMCell(n_hidden, n_hidden) for l in range(n_layers)]
-        self.fc_out = torch.nn.Linear(n_hidden, n_out)
+        torch.manual_seed(kwargs.get('seed', 1234))
 
-        self.timesteps = timesteps
-        self.dropout_p = dropout_p
-        self.n_hidden = n_hidden
-        self.n_layers = n_layers
+        #self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.mlp_in = torch.nn.Sequential(torch.nn.Linear(self.n_in, self.n_hidden),
+                                          torch.nn.Dropout(p=self.dropout_p),
+                                          torch.nn.ReLU(),
+                                          torch.nn.Linear(self.n_hidden, self.n_hidden))
+        self.lstm_layers = [torch.nn.LSTMCell(self.n_hidden, self.n_hidden) for l in range(self.n_layers)]
+        #self.fc_out = torch.nn.Linear(self.n_hidden, self.n_out)
+        self.mlp_out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                          torch.nn.Dropout(p=self.dropout_p),
+                                          torch.nn.ReLU(),
+                                          torch.nn.Linear(self.n_hidden, self.n_out))
 
 
     def forward(self, data, teacher_forcing=0):
@@ -251,7 +261,8 @@ class LocalLSTM(MessagePassing):
     def update(self, aggr_out, coords, env, h_t, c_t, x, areas):
 
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
-        inputs = self.fc_in(inputs).relu()
+        #inputs = self.fc_in(inputs).relu()
+        inputs = self.mlp_in(inputs).relu()
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
@@ -259,10 +270,15 @@ class LocalLSTM(MessagePassing):
         for l in range(1, self.n_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
-        delta = self.fc_out(h_t[-1]).tanh()
-        pred = x + delta
+        #delta = self.fc_out(h_t[-1]).tanh()
 
-        return pred, h_t, c_t
+        if self.predict_delta:
+            delta = self.mlp_out(h_t[-1]).tanh()
+            x = x + delta
+        else:
+            x = self.mlp_out(h_t[-1]).sigmoid()
+
+        return x, h_t, c_t
 
 
 class RecurrentGCN(torch.nn.Module):

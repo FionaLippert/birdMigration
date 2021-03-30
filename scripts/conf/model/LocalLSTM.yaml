@@ -1,5 +1,5 @@
 # @package _group_
-name: LocalMLP
+name: LocalLSTM
 hyperparameters:
   n_hidden:
     default: 16
@@ -29,4 +29,15 @@ hyperparameters:
     default: 50
     search_space:
     - 50
+  teacher_forcing_gamma:
+    default: 0.9
+    search_space:
+      - 0.9
+      - 0.8
+      - 0.7
+  predict_delta:
+    default: True
+    search_space:
+      - True
+      - False
 epochs: 100

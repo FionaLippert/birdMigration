@@ -68,7 +68,7 @@ def train(cfg: DictConfig):
         val_losses = np.zeros(repeats)
         for r in range(repeats):
             print(f'train model [trial {r}]')
-            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(seed+r))
+            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(seed+r), tol=cfg.action.tolerance)
 
             with open(osp.join(sub_dir, f'model_{r}.pkl'), 'wb') as f:
                 pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
