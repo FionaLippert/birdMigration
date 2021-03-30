@@ -17,7 +17,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GBT'
     assert cfg.action.name == 'training'
 
-    data_root = osp.join(cfg.settings.root, 'data')
+    data_root = osp.join(cfg.root, 'data')
     ts = cfg.model.timesteps
     hps = cfg.model.hyperparameters
 
@@ -78,7 +78,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print('saving best settings as default', file=log)
     # use ruamel.yaml to not overwrite comments in the original yaml
     yaml = ruamel.yaml.YAML()
-    fp = osp.join(cfg.settings.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
+    fp = osp.join(cfg.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
     with open(fp, 'r') as f:
         model_config = yaml.load(f)
     for key, val in best_hp_settings.items():
