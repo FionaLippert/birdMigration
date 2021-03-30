@@ -18,7 +18,7 @@ def run(cfg: DictConfig):
     try:
         if cfg.model.name == 'GBT':
             baseline_GBT.run(cfg, output_dir, log)
-        elif cfg.model.name in ['localMLP', 'LocalLSTM']:
+        elif cfg.model.name in ['LocalMLP', 'LocalLSTM']:
             baseline_LocalNNs.run(cfg, output_dir, log)
 
     except Exception:
