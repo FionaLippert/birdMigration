@@ -264,6 +264,8 @@ class LocalLSTM(MessagePassing):
         #inputs = self.fc_in(inputs).relu()
         inputs = self.mlp_in(inputs).relu()
 
+        print(inputs.device, h_t[0].device, c_t[0].device)
+
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
         c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
