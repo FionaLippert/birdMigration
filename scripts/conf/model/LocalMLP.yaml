@@ -30,3 +30,4 @@ hyperparameters:
     search_space:
     - 50
 epochs: 50
+timesteps: 16

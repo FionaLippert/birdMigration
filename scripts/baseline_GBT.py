@@ -18,13 +18,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.action.name == 'training'
 
     data_root = osp.join(cfg.settings.root, 'data')
-    seed = cfg.settings.seed
-    repeats = cfg.settings.repeats
-    season = cfg.settings.season
-    ts = cfg.action.timesteps
-    ds = cfg.datasource.name
-    use_buffers = cfg.datasource.use_buffers
-    bird_scale = cfg.datasource.bird_scale
+    ts = cfg.model.timesteps
     hps = cfg.model.hyperparameters
 
     # hyperparameters to use
@@ -35,16 +29,17 @@ def train(cfg: DictConfig, output_dir: str, log):
     param_names = [key for key in cfg.model.hyperparameters]
 
     # load datasets
-    train_data = [datasets.RadarData(data_root, str(year), season, ts,
-                                     data_source=ds, use_buffers=use_buffers,
-                                     bird_scale=bird_scale) for year in cfg.datasource.training_years]
+    train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
+                                     data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
+                                     bird_scale=cfg.datasource.bird_scale) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
 
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), season, ts,
-                                  data_source=ds, use_buffers=use_buffers, bird_scale=bird_scale)
+    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
+                                  data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
+                                  bird_scale=cfg.datasource.bird_scale)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, seed)
+        val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
 
 
@@ -58,10 +53,10 @@ def train(cfg: DictConfig, output_dir: str, log):
         sub_dir = osp.join(output_dir, json.dumps(hp_settings))
         os.makedirs(sub_dir, exist_ok=True)
 
-        val_losses = np.zeros(repeats)
-        for r in range(repeats):
+        val_losses = np.zeros(cfg.repeats)
+        for r in range(cfg.repeats):
             print(f'train model [trial {r}]')
-            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(seed+r), tol=cfg.action.tolerance)
+            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(cfg.seed+r), tol=cfg.action.tolerance)
 
             with open(osp.join(sub_dir, f'model_{r}.pkl'), 'wb') as f:
                 pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)

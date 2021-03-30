@@ -39,3 +39,4 @@ hyperparameters:
       - True
       - False
 epochs: 50
+timesteps: 40

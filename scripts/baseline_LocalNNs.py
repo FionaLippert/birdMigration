@@ -28,7 +28,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.action.timesteps
+    ts = cfg.model.timesteps
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
 
@@ -169,7 +169,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.action.timesteps,
+                                   cfg.season, cfg.model.timesteps,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    bird_scale=cfg.datasource.bird_scale)
@@ -186,6 +186,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+        model.timesteps = cfg.model.timesteps
 
         model.to(device)
         model.eval()
