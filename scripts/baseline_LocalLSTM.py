@@ -83,6 +83,7 @@ def train(cfg: DictConfig):
 
             tf = 1.0 # initial teacher forcing
             for epoch in range(epochs):
+                print(f'cuda = {cuda}')
                 loss = train_dynamics(model, train_loader, optimizer, utils.MSE, cuda, teacher_forcing=tf)
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
