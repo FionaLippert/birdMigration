@@ -4,18 +4,21 @@ hyperparameters:
   n_estimators:
     default: 50
     search_space:
-      - 50
-      - 100
-      - 150
+    - 50
+    - 100
+    - 150
   lr:
-    default: 0.01
+    default: 0.1
     search_space:
-      - 0.001
-      - 0.01
-      - 0.1
+    - 0.001
+    - 0.01
+    - 0.1
+    - 0.2
+    - 0.3
   max_depth:
-    default: 5
+    default: 7
     search_space:
-      - 3
-      - 5
-      - 7
+    - 3
+    - 5
+    - 7
+    - 9
