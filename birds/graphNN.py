@@ -36,7 +36,7 @@ class LSTM(torch.nn.Module):
         torch.manual_seed(seed)
 
         self.fc_in = torch.nn.Linear(in_channels, hidden_channels)
-        self.lstm_layers = [torch.nn.LSTMCell(hidden_channels, hidden_channels) for l in range(n_layers)]
+        self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(hidden_channels, hidden_channels) for l in range(n_layers)])
         self.fc_out = torch.nn.Linear(hidden_channels, out_channels)
 
         self.timesteps = timesteps
@@ -99,7 +99,7 @@ class MLP(torch.nn.Module):
         torch.manual_seed(seed)
 
         self.fc_in = torch.nn.Linear(in_channels, hidden_channels)
-        self.fc_hidden = [torch.nn.Linear(hidden_channels, hidden_channels) for _ in range(n_layers - 1)]
+        self.fc_hidden = nn.ModuleList([torch.nn.Linear(hidden_channels, hidden_channels) for _ in range(n_layers - 1)])
         self.fc_out = torch.nn.Linear(hidden_channels, out_channels)
         self.timesteps = timesteps
         self.dropout_p = dropout_p
@@ -145,7 +145,8 @@ class LocalMLP(MessagePassing):
         torch.manual_seed(kwargs.get('seed', 1234))
 
         self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
-        self.fc_hidden = [torch.nn.Linear(self.n_hidden, self.n_hidden) for _ in range(self.n_layers - 1)]
+        self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                        for _ in range(self.n_layers - 1)])
         self.fc_out = torch.nn.Linear(self.n_hidden, 1)
 
 
@@ -209,7 +210,8 @@ class LocalLSTM(MessagePassing):
                                           torch.nn.Dropout(p=self.dropout_p),
                                           torch.nn.ReLU(),
                                           torch.nn.Linear(self.n_hidden, self.n_hidden))
-        self.lstm_layers = [torch.nn.LSTMCell(self.n_hidden, self.n_hidden) for l in range(self.n_layers)]
+        self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(self.n_hidden, self.n_hidden)
+                                          for _ in range(self.n_layers)])
         #self.fc_out = torch.nn.Linear(self.n_hidden, self.n_out)
         self.mlp_out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                           torch.nn.Dropout(p=self.dropout_p),
@@ -263,8 +265,6 @@ class LocalLSTM(MessagePassing):
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
         #inputs = self.fc_in(inputs).relu()
         inputs = self.mlp_in(inputs).relu()
-
-        print(inputs.device, h_t[0].device, c_t[0].device)
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
@@ -495,7 +495,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         self.to_hidden = torch.nn.Sequential(torch.nn.Linear(nodes_n_in, n_hidden),
                                              torch.nn.ReLU())
-        self.lstm_layers = [nn.LSTMCell(n_hidden, n_hidden) for l in range(n_layers)]
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(n_hidden, n_hidden) for l in range(n_layers)])
         self.from_hidden = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
                                              torch.nn.Tanh())
 
@@ -636,7 +636,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                                                  torch.nn.Tanh())
 
 
-        self.lstm_layers = [nn.LSTMCell(node_n_in, n_hidden) for l in range(n_layers)]
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(node_n_in, n_hidden) for _ in range(n_layers)])
         self.to_hidden = torch.nn.Sequential(torch.nn.Linear(node_n_in, n_hidden),
                                              torch.nn.ReLU())
         self.from_hidden = torch.nn.Sequential(torch.nn.Linear(node_n_in, n_hidden),
