@@ -32,12 +32,10 @@ hyperparameters:
   teacher_forcing_gamma:
     default: 0.9
     search_space:
-      - 0.9
-      - 0.8
-      - 0.7
+    - 0.9
   predict_delta:
     default: True
     search_space:
       - True
       - False
-epochs: 100
+epochs: 50

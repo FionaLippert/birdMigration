@@ -150,7 +150,7 @@ class LocalMLP(MessagePassing):
         self.fc_out = torch.nn.Linear(self.n_hidden, 1)
 
 
-    def forward(self, data):
+    def forward(self, data, **kwargs):
 
         y_hat = []
 
@@ -219,7 +219,9 @@ class LocalLSTM(MessagePassing):
                                           torch.nn.Linear(self.n_hidden, 1))
 
 
-    def forward(self, data, teacher_forcing=0):
+    def forward(self, data, **kwargs):
+
+        teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         x = data.x[:, 0].view(-1, 1)
 

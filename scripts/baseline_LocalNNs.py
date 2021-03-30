@@ -15,20 +15,20 @@ import ruamel.yaml
 from matplotlib import pyplot as plt
 import pandas as pd
 
+# map model name to implementation
+MODEL_MAPPING = {'LocalLSTM': LocalLSTM,
+                 'LocalMLP': LocalMLP}
+
 
 # @hydra.main(config_path="conf", config_name="config")
 def train(cfg: DictConfig, output_dir: str, log):
-    assert cfg.model.name == 'LocalLSTM'
+    assert cfg.model.name in MODEL_MAPPING
     assert cfg.action.name == 'training'
 
+    Model = MODEL_MAPPING[cfg.model.name]
+
     data_root = osp.join(cfg.root, 'data')
-    seed = cfg.seed
-    repeats = cfg.repeats
-    season = cfg.season
     ts = cfg.action.timesteps
-    ds = cfg.datasource.name
-    use_buffers = cfg.datasource.use_buffers
-    bird_scale = cfg.datasource.bird_scale
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
 
@@ -43,17 +43,18 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 
     # load datasets
-    train_data = [datasets.RadarData(data_root, str(year), season, ts,
-                                     data_source=ds, use_buffers=use_buffers,
-                                     bird_scale=bird_scale) for year in cfg.datasource.training_years]
+    train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
+                                     data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
+                                     bird_scale=cfg.datasource.bird_scale) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), season, ts,
-                                  data_source=ds, use_buffers=use_buffers, bird_scale=bird_scale)
+    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
+                                  data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
+                                  bird_scale=cfg.datasource.bird_scale)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, seed)
+        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, cfg.seed)
 
     best_val_loss = np.inf
     best_hp_settings = None
@@ -65,18 +66,18 @@ def train(cfg: DictConfig, output_dir: str, log):
         sub_dir = osp.join(output_dir, json.dumps(hp_settings))
         os.makedirs(sub_dir, exist_ok=True)
 
-        val_losses = np.ones(repeats) * np.inf
-        training_curves = np.ones((repeats, epochs)) * np.nan
-        val_curves = np.ones((repeats, epochs)) * np.nan
-        for r in range(repeats):
+        val_losses = np.ones(cfg.repeats) * np.inf
+        training_curves = np.ones((cfg.repeats, epochs)) * np.nan
+        val_curves = np.ones((cfg.repeats, epochs)) * np.nan
+        for r in range(cfg.repeats):
             print(f'train model [trial {r}]')
-            model = LocalLSTM(**hp_settings, timesteps=ts, seed=(seed + r))
+            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r))
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
             scheduler = lr_scheduler.StepLR(optimizer, step_size=hp_settings['lr_decay'])
 
-            tf = 1.0 # initial teacher forcing
+            tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
                 loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device, teacher_forcing=tf)
                 training_curves[r, epoch] = loss / len(train_data)
@@ -115,6 +116,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         # save training and validation curves
         np.save(osp.join(sub_dir, 'training_curves.npy'), training_curves)
         np.save(osp.join(sub_dir, 'validation_curves.npy'), val_curves)
+        np.save(osp.join(sub_dir, 'validation_losses.npy'), val_losses)
 
         # plotting
         fig, ax = plt.subplots()
@@ -149,7 +151,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 
 def test(cfg: DictConfig, output_dir: str, log):
-    assert cfg.model.name == 'LocalLSTM'
+    assert cfg.model.name in MODEL_MAPPING
     assert cfg.action.name == 'testing'
 
     data_root = osp.join(cfg.root, 'data')
@@ -181,7 +183,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    gt, prediction, radar, seqID, tidx, datetime, trial = [], [], [], [], [], [], []
+    gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
@@ -193,10 +195,12 @@ def test(cfg: DictConfig, output_dir: str, log):
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
             y = data.y.cpu() * cfg.datasource.bird_scale
             _tidx = data.tidx.cpu()
+            local_night = data.local_night.cpu()
 
             for ridx, name in radar_index.items():
                 gt.append(y[ridx, :])
                 prediction.append(y_hat[ridx, :])
+                night.append(local_night[ridx, :])
                 radar.append([name] * y.shape[1])
                 seqID.append([nidx] * y.shape[1])
                 tidx.append(_tidx)
@@ -207,6 +211,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     df = pd.DataFrame(dict(
         gt=torch.cat(gt).detach().numpy(),
         prediction = torch.cat(prediction).detach().numpy(),
+        night=torch.cat(night),
         radar = np.concatenate(radar),
         seqID = np.concatenate(seqID),
         tidx = np.concatenate(tidx),
@@ -218,13 +223,10 @@ def test(cfg: DictConfig, output_dir: str, log):
     print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
     log.flush()
 
+
 def run(cfg: DictConfig, output_dir: str, log):
     if cfg.action.name == 'training':
         train(cfg, output_dir, log)
     elif cfg.action.name == 'testing':
         test(cfg, output_dir, log)
 
-
-
-if __name__ == "__main__":
-    train()

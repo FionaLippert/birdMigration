@@ -3,7 +3,7 @@ import hydra
 import os.path as osp
 import os
 import traceback
-import baseline_GBT, baseline_LocalMLP, baseline_LocalLSTM
+import baseline_GBT, baseline_LocalNNs
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -18,10 +18,9 @@ def run(cfg: DictConfig):
     try:
         if cfg.model.name == 'GBT':
             baseline_GBT.run(cfg, output_dir, log)
-        elif cfg.model.name == 'LocalMLP':
-            baseline_LocalMLP.run(cfg, output_dir, log)
-        elif cfg.model.name == 'LocalLSTM':
-            baseline_LocalLSTM.run(cfg, output_dir, log)
+        elif cfg.model.name in ['localMLP', 'LocalLSTM']:
+            baseline_LocalNNs.run(cfg, output_dir, log)
+
     except Exception:
         print(traceback.format_exc(), file=log)
 
