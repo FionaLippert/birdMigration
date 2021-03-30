@@ -214,7 +214,7 @@ class LocalLSTM(MessagePassing):
         self.mlp_out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                           torch.nn.Dropout(p=self.dropout_p),
                                           torch.nn.ReLU(),
-                                          torch.nn.Linear(self.n_hidden, self.n_out))
+                                          torch.nn.Linear(self.n_hidden, 1))
 
 
     def forward(self, data, teacher_forcing=0):
