@@ -13,7 +13,7 @@ import ruamel.yaml
 
 
 #@hydra.main(config_path="conf", config_name="config")
-def train(cfg: DictConfig):
+def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GBT'
     assert cfg.action.name == 'training'
 
@@ -26,13 +26,6 @@ def train(cfg: DictConfig):
     use_buffers = cfg.datasource.use_buffers
     bird_scale = cfg.datasource.bird_scale
     hps = cfg.model.hyperparameters
-
-    # directory to which outputs will be written
-    output_dir = osp.join(cfg.settings.root, 'results', ds, cfg.action.name, cfg.model.name, cfg.experiment)
-    os.makedirs(output_dir, exist_ok=True)
-
-    log_file = os.path.join(output_dir, 'log.txt')
-    log = open(log_file, 'w')
 
     # hyperparameters to use
     if cfg.action.grid_search:
@@ -104,7 +97,12 @@ def train(cfg: DictConfig):
         OmegaConf.save(config=cfg, f=f)
 
     log.flush()
-    log.close()
+
+def run(cfg: DictConfig, output_dir: str, log):
+    if cfg.action.name == 'training':
+        train(cfg, output_dir, log)
+    # elif cfg.action.name == 'testing':
+    #     test(cfg, output_dir, log)
 
 
 if __name__ == "__main__":

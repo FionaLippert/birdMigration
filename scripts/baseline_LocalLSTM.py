@@ -13,17 +13,18 @@ import json
 import numpy as np
 import ruamel.yaml
 from matplotlib import pyplot as plt
+import pandas as pd
 
 
 # @hydra.main(config_path="conf", config_name="config")
-def train(cfg: DictConfig):
+def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'LocalLSTM'
     assert cfg.action.name == 'training'
 
-    data_root = osp.join(cfg.settings.root, 'data')
-    seed = cfg.settings.seed
-    repeats = cfg.settings.repeats
-    season = cfg.settings.season
+    data_root = osp.join(cfg.root, 'data')
+    seed = cfg.seed
+    repeats = cfg.repeats
+    season = cfg.season
     ts = cfg.action.timesteps
     ds = cfg.datasource.name
     use_buffers = cfg.datasource.use_buffers
@@ -31,14 +32,7 @@ def train(cfg: DictConfig):
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
 
-    device = 'cuda:0' if (cfg.settings.cuda and torch.cuda.is_available()) else 'cpu'
-
-    # directory to which outputs will be written
-    output_dir = osp.join(cfg.settings.root, 'results', ds, cfg.action.name, cfg.model.name, cfg.experiment)
-    os.makedirs(output_dir, exist_ok=True)
-
-    log_file = os.path.join(output_dir, 'log.txt')
-    log = open(log_file, 'w')
+    device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
 
     # hyperparameters to use
     if cfg.action.grid_search:
@@ -46,6 +40,7 @@ def train(cfg: DictConfig):
     else:
         hp_space = [[settings.default for settings in hps.values()]]
     param_names = [key for key in cfg.model.hyperparameters]
+
 
     # load datasets
     train_data = [datasets.RadarData(data_root, str(year), season, ts,
@@ -138,7 +133,7 @@ def train(cfg: DictConfig):
     print('saving best settings as default', file=log)
     # use ruamel.yaml to not overwrite comments in the original yaml
     yaml = ruamel.yaml.YAML()
-    fp = osp.join(cfg.settings.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
+    fp = osp.join(cfg.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
     with open(fp, 'r') as f:
         model_config = yaml.load(f)
     for key, val in best_hp_settings.items():
@@ -151,7 +146,83 @@ def train(cfg: DictConfig):
         OmegaConf.save(config=cfg, f=f)
 
     log.flush()
-    log.close()
+
+
+def test(cfg: DictConfig, output_dir: str, log):
+    assert cfg.model.name == 'LocalLSTM'
+    assert cfg.action.name == 'testing'
+
+    data_root = osp.join(cfg.root, 'data')
+    device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
+
+    hp_settings = {key: settings.default for key, settings in cfg.model.hyperparameters.items()}
+
+    # directory to which outputs will be written
+    output_dir = osp.join(output_dir, json.dumps(hp_settings))
+    os.makedirs(output_dir, exist_ok=True)
+
+    # directory from which model is loaded
+    model_dir = osp.join(cfg.settings.root, 'results', cfg.datasource.name, 'training',
+                         cfg.model.name, cfg.experiment, json.dumps(hp_settings))
+
+    # load test data
+    test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
+                                   cfg.season, cfg.action.timesteps,
+                                   data_source=cfg.datasource.name,
+                                   use_buffers=cfg.datasource.use_buffers,
+                                   bird_scale=cfg.datasource.bird_scale)
+    test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
+    if cfg.datasource.validation_year == cfg.datasource.test_year:
+        _, test_loader = utils.val_test_split(test_loader, cfg.datasource.test_val_split, cfg.seed)
+
+    # load additional data
+    time = test_data.info['timepoints']
+    radars = test_data.info['radars']
+    radar_index = {idx: name for idx, name in enumerate(radars)}
+
+    # load models and predict
+    gt = [], prediction = [], radar = [], seqID = [], tidx = [], datetime = [], trial=[]
+    for r in range(cfg.repeats):
+        model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+
+        model.to(device)
+        model.eval()
+
+        for nidx, data in enumerate(test_loader):
+            y = data.y * cfg.datasource.bird_scale
+            data = data.to(device)
+            y_hat = model(data).cpu() * cfg.datasource.bird_scale
+
+            for ridx, name in radar_index.items():
+                gt.append(y[ridx, :])
+                prediction.append(y_hat[ridx, :])
+                radar.append([name] * y.shape[1])
+                seqID.append([nidx] * y.shape[1])
+                tidx.append(data.tidx)
+                datetime.append(time[data.tidx])
+                trial.append([r] * y.shape[1])
+
+    # create dataframe containing all results
+    df = pd.DataFrame(dict(
+        gt=torch.cat(gt).detach().numpy(),
+        prediction = torch.cat(prediction).detach().numpy(),
+        radar = np.concatenate(radar),
+        seqID = np.concatenate(seqID),
+        tidx = np.concatenate(tidx),
+        datetime = np.concatenate(datetime),
+        trial = np.concatenate(trial)
+    ))
+    df.to_csv(osp.join(output_dir, 'results.csv'))
+
+    print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
+    log.flush()
+
+def run(cfg: DictConfig, output_dir: str, log):
+    if cfg.action.name == 'training':
+        train(cfg, output_dir, log)
+    elif cfg.action.name == 'testing':
+        test(cfg, output_dir, log)
+
 
 
 if __name__ == "__main__":

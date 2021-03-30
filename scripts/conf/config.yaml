@@ -4,9 +4,8 @@ defaults:
   - datasource: radar
   - action: training
   - model: GBT
-settings:
-  root: /home/fiona/birdMigration
-  season: fall
-  seed: 1234
-  repeats: 5
-  cuda: False
+root: /home/fiona/birdMigration
+season: fall
+seed: 1234
+repeats: 5
+cuda: False

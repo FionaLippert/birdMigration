@@ -996,19 +996,34 @@ def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=Tr
     else:
         return torch.stack(loss_all)
 
-def test_dynamics(model, test_loader, timesteps, loss_func, cuda, bird_scale=2000):
-    if cuda:
-        model.cuda()
+def test_dynamics(model, test_loader, timesteps, loss_func, device, bird_scale=2000):
+    model.to(device)
     model.eval()
     loss_all = []
 
-    for tidx, data in enumerate(test_loader):
-        if cuda: data = data.to('cuda')
+    for nidx, data in enumerate(test_loader):
+        data = data.to(device)
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t]) for t in range(timesteps + 1)]))
 
     return torch.stack(loss_all)
+
+def predict_dynamics(model, test_loader, device, bird_scale=2000):
+    model.to(device)
+    model.eval()
+    gt = []
+    pred = []
+
+    for nidx, data in enumerate(test_loader):
+        data = data.to(device)
+        gt.append(data.y * bird_scale)
+        pred.append(model(data) * bird_scale)
+
+    gt = torch.stack(gt, dim=0) # shape (nights, radars, timesteps)
+    pred = torch.stack(pred, dim=0) # shape (nights, radars, timesteps)
+
+    return gt, pred
 
 def test_departure(model, test_loader, loss_func, cuda, bird_scale=2000):
     if cuda:
