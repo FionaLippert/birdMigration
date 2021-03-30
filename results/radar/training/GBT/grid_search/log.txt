@@ -1,0 +1,33 @@
+best settings so far with settings {'n_estimators': 50, 'lr': 0.001, 'max_depth': 3}
+validation loss = 0.002260282826031426
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.001, 'max_depth': 5}
+validation loss = 0.002252115560534519
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.001, 'max_depth': 7}
+validation loss = 0.0022508285668622575
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.001, 'max_depth': 9}
+validation loss = 0.0022473055095196667
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.01, 'max_depth': 3}
+validation loss = 0.0020434822465370027
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.01, 'max_depth': 5}
+validation loss = 0.001983931708942294
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.01, 'max_depth': 7}
+validation loss = 0.0019640319914686786
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.01, 'max_depth': 9}
+validation loss = 0.0019512719206808203
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.1, 'max_depth': 3}
+validation loss = 0.0018126436127257153
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.1, 'max_depth': 5}
+validation loss = 0.001753275447535724
+---------------------
+best settings so far with settings {'n_estimators': 50, 'lr': 0.1, 'max_depth': 7}
+validation loss = 0.0017515783857761772
+---------------------
