@@ -181,7 +181,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    gt = [], prediction = [], radar = [], seqID = [], tidx = [], datetime = [], trial=[]
+    gt, prediction, radar, seqID, tidx, datetime, trial = [], [], [], [], [], [], []
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
