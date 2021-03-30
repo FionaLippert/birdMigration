@@ -189,9 +189,9 @@ def test(cfg: DictConfig, output_dir: str, log):
         model.eval()
 
         for nidx, data in enumerate(test_loader):
-            y = data.y * cfg.datasource.bird_scale
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
+            y = data.y.cpu() * cfg.datasource.bird_scale
             _tidx = data.tidx.cpu()
 
             for ridx, name in radar_index.items():
