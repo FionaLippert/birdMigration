@@ -230,8 +230,6 @@ class LocalLSTM(MessagePassing):
         h_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
         c_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
 
-        print(h_t[0].device, c_t[0].device, x.device)
-
         y_hat = [x]
 
         for t in range(self.timesteps):
@@ -265,6 +263,8 @@ class LocalLSTM(MessagePassing):
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
         #inputs = self.fc_in(inputs).relu()
         inputs = self.mlp_in(inputs).relu()
+
+        print(inputs.device, h_t[0].device, c_t[0].device)
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
