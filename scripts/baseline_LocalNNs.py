@@ -100,7 +100,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                     break
 
                 scheduler.step()
-                tf = tf * hp_settings['teacher_forcing_gamma']
+                tf = tf * hp_settings.get('teacher_forcing_gamma', 0)
 
 
         if val_losses.mean() < best_val_loss:
