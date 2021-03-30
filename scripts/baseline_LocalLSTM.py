@@ -190,6 +190,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         for nidx, data in enumerate(test_loader):
             y = data.y * cfg.datasource.bird_scale
+            _tidx = data.tidx
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
 
@@ -198,8 +199,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 prediction.append(y_hat[ridx, :])
                 radar.append([name] * y.shape[1])
                 seqID.append([nidx] * y.shape[1])
-                tidx.append(data.tidx)
-                datetime.append(time[data.tidx])
+                tidx.append(_tidx)
+                datetime.append(time[_tidx])
                 trial.append([r] * y.shape[1])
 
     # create dataframe containing all results
