@@ -162,7 +162,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     os.makedirs(output_dir, exist_ok=True)
 
     # directory from which model is loaded
-    model_dir = osp.join(cfg.settings.root, 'results', cfg.datasource.name, 'training',
+    model_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
                          cfg.model.name, cfg.experiment, json.dumps(hp_settings))
 
     # load test data
