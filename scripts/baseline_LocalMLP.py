@@ -31,7 +31,7 @@ def train(cfg: DictConfig):
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
 
-    cuda = (not cfg.settings.cuda and torch.cuda.is_available())
+    cuda = (cfg.settings.cuda and torch.cuda.is_available())
 
     # directory to which outputs will be written
     output_dir = osp.join(cfg.settings.root, 'results', ds, cfg.action.name, cfg.model.name, cfg.experiment)
