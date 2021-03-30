@@ -7,7 +7,7 @@ import baseline_GBT, baseline_LocalMLP, baseline_LocalLSTM
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
     # directory to which outputs will be written
-    output_dir = osp.join(cfg.settings.root, 'results', cfg.datasource.name, cfg.action.name,
+    output_dir = osp.join(cfg.root, 'results', cfg.datasource.name, cfg.action.name,
                           cfg.model.name, cfg.experiment)
     os.makedirs(output_dir, exist_ok=True)
 
