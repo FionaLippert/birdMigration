@@ -72,8 +72,8 @@ def train(cfg: DictConfig):
         os.makedirs(sub_dir, exist_ok=True)
 
         val_losses = np.ones(repeats) * np.inf
-        training_curves = np.zeros((repeats, epochs))
-        val_curves = np.zeros((repeats, epochs))
+        training_curves = np.ones((repeats, epochs)) * np.nan
+        val_curves = np.ones((repeats, epochs)) * np.nan
         for r in range(repeats):
             print(f'train model [trial {r}]')
             model = LocalMLP(**hp_settings, timesteps=ts, seed=(seed+r))
@@ -92,6 +92,11 @@ def train(cfg: DictConfig):
                 val_loss = val_loss[torch.isfinite(val_loss)].mean() # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
+
+                if epoch > 0 and np.abs(val_curves[r, epoch] - val_curves[r, epoch-1]) < cfg.action.tolerance:
+                    # stop early
+                    print(f'Stopped after epoch {epoch + 1}, because improvement was smaller than tolerance', file=log)
+                    break
 
 
             if val_loss < val_losses[r]:

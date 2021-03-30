@@ -22,7 +22,6 @@ hyperparameters:
   lr:
     default: 0.1
     search_space:
-      - 0.1
       - 0.01
       - 0.001
       - 0.0001

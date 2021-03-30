@@ -2,3 +2,5 @@
 timesteps: 40
 name: training
 grid_search: True
+# tolerance for early stopping of optimization
+tolerance: 1e-8
