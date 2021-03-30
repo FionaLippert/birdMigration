@@ -12,11 +12,14 @@ data/
 testdata/
 models/
 departure_models/
+results/
+output/
 *.tif
 *.png
 *.jpg
 *.h5
 *.nc
+*.pkl
 
 # pycharm stuff
 .idea/
