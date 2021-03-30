@@ -913,7 +913,7 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
 
     return loss_all
 
-def train_dynamics(model, train_loader, optimizer, loss_func, device, **kwargs):
+def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0):
     model.to(device)
     model.train()
     loss_all = 0
@@ -921,10 +921,9 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, **kwargs):
         data = data.to(device)
         optimizer.zero_grad()
 
-        if 'teacher_forcing' in kwargs:
-            output = model(data, kwargs['teacher_forcing'])
-        else:
-            output = model(data)
+        output = model(data, teacher_forcing=teacher_forcing)
+        # else:
+        #     output = model(data)
 
         gt = data.y
 
