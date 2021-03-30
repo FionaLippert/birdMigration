@@ -2,6 +2,7 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import os.path as osp
 import os
+import traceback
 import baseline_GBT, baseline_LocalMLP, baseline_LocalLSTM
 
 @hydra.main(config_path="conf", config_name="config")
@@ -21,8 +22,8 @@ def run(cfg: DictConfig):
             baseline_LocalMLP.run(cfg, output_dir, log)
         elif cfg.model.name == 'LocalLSTM':
             baseline_LocalLSTM.run(cfg, output_dir, log)
-    except Exception as e:
-        print(e, file=log)
+    except Exception:
+        print(traceback.format_exc(), file=log)
 
     log.flush()
     log.close()
