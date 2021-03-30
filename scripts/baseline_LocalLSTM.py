@@ -190,9 +190,9 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         for nidx, data in enumerate(test_loader):
             y = data.y * cfg.datasource.bird_scale
-            _tidx = data.tidx
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
+            _tidx = data.tidx.cpu()
 
             for ridx, name in radar_index.items():
                 gt.append(y[ridx, :])
