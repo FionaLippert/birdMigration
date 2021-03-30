@@ -524,8 +524,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         # if x.is_cuda:
         #     hidden = hidden.cuda()
         #     states = states.cuda()
-        h_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
-        c_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
@@ -658,8 +658,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         # hidden = Variable(torch.zeros(x.size(0), self.n_hidden)).to(x.device)
         # states = Variable(torch.zeros(x.size(0), self.n_hidden)).to(x.device)
         # hidden = None
-        h_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
-        c_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
