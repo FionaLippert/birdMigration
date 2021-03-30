@@ -916,8 +916,7 @@ def train_dynamics(model, train_loader, optimizer, loss_func, cuda, **kwargs):
     model.train()
     loss_all = 0
     for data in train_loader:
-        if cuda: data = data.to('cuda')
-        print(cuda, data.device)
+        if cuda: data = data.to(model.device)
         optimizer.zero_grad()
 
         if 'teacher_forcing' in kwargs:
