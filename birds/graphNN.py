@@ -227,8 +227,8 @@ class LocalLSTM(MessagePassing):
         # #states = torch.cat([x] * self.n_hidden, dim=1)
         # states = self.birds2hidden(x)
         # hidden = None
-        h_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
-        c_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device) for l in range(self.n_layers)]
+        h_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden).to(x.device)) for l in range(self.n_layers)]
+        c_t = [Variable(torch.zeros(data.x.size(0), self.n_hidden).to(x.device)) for l in range(self.n_layers)]
 
         y_hat = [x]
 
@@ -916,7 +916,7 @@ def train_dynamics(model, train_loader, optimizer, loss_func, cuda, **kwargs):
     model.train()
     loss_all = 0
     for data in train_loader:
-        if cuda: data = data.to(model.device)
+        if cuda: data = data.to('cuda')
         optimizer.zero_grad()
 
         if 'teacher_forcing' in kwargs:
