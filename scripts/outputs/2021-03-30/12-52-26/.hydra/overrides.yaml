@@ -1,0 +1,2 @@
+- model=LocalLSTM
+- settings.root=/home/flipper/birdMigration

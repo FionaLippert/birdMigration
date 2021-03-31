@@ -1,0 +1,5 @@
+- model=LocalLSTM
+- root=/home/flipper/birdMigration
+- cuda=True
+- action=training
+- model.timesteps=40

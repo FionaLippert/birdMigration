@@ -1,0 +1,7 @@
+- model=LocalLSTM
+- root=/home/flipper/birdMigration
+- repeats=2
+- cuda=True
+- model.epochs=10
+- action=training
+- action.grid_search=False
