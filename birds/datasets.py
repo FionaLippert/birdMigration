@@ -165,16 +165,57 @@ def timeslice(data, start_night, mask, timesteps):
         data_night = np.empty(0)
     return data_night
 
+class Normalization:
+    def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'],
+                 env_points=100, seed=1234):
+        self.root = root
+        self.data_source = data_source
+        self.season = season
+
+        all_dfs = []
+        for year in years:
+            dir = self.preprocessed_dir(year)
+            if not osp.isdir(dir):
+                # load all features and organize them into dataframes
+                os.makedirs(dir)
+                prepare_features(dir, self.raw_dir, data_source, season, str(year),
+                                 radar_years=radar_years, env_vars=env_vars,
+                                 env_points=env_points, random_seed=seed)
+
+            # load features
+            dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
+            all_dfs.append(dynamic_feature_df)
+        self.feature_df = pd.concat(all_dfs)
+
+    def normalize(self, data, key):
+        min = self.min(key)
+        max = self.max(key)
+        data = (data - min) / (max - min)
+        return data
+
+    def min(self, key):
+        return self.feature_df[key].dropna().min()
+
+    def max(self, key):
+        return self.feature_df[key].dropna().max()
+
+    def preprocessed_dir(self, year):
+        return osp.join(self.root, 'preprocessed', self.data_source, self.season, str(year))
+
+    @property
+    def raw_dir(self):
+        return osp.join(self.root, 'raw')
+
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, root, year, season='fall', timesteps=1, combine_featues=False,
-                 data_source='radar', use_buffers=False, bird_scale = 2000, env_points=100,
-                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=True,
-                 start=None, end=None, transform=None, pre_transform=None):
+    def __init__(self, root, year, season='fall', timesteps=1, combine_features=False,
+                 data_source='radar', use_buffers=False, bird_scale = 1, env_points=100,
+                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=True, seed=1234,
+                 start=None, end=None, transform=None, pre_transform=None, normalize_dynamic=True, normalization=None):
 
         self.season = season
-        self.year = year
+        self.year = str(year)
         self.timesteps = timesteps
         self.data_source = data_source
         self.start = start
@@ -185,9 +226,11 @@ class RadarData(InMemoryDataset):
         self.env_vars = env_vars
         self.multinight = multinight
         self.use_buffers = use_buffers and data_source == 'abm'
-        self.random_seed = 1234
-        self.combine_features = combine_featues
+        self.random_seed = seed
+        self.combine_features = combine_features
+        self.normalize_dynamic = normalize_dynamic
         self.slice = slice
+        self.normalization = normalization
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers'
@@ -230,6 +273,7 @@ class RadarData(InMemoryDataset):
     def download(self):
         pass
 
+
     def process(self):
 
         if not osp.isdir(self.preprocessed_dir):
@@ -259,15 +303,26 @@ class RadarData(InMemoryDataset):
         angles = normalize([angle(voronoi.lon.iloc[j], voronoi.lat.iloc[j],
                                   voronoi.lon.iloc[i], voronoi.lat.iloc[i]) for j, i in G.edges], min=0, max=360)
 
-        # normalize dynamic features
-        cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
-                                                 'dusk', 'dawn', 'datetime'])
+        # # normalize dynamic features
+        # if self.normalize_dynamic:
+        #     cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
+        #                                              'dusk', 'dawn', 'datetime'])
+        #     dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
+        #         lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
+        #     dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
+        #     if self.use_buffers:
+        #         dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
+        if self.normalization is not None:
+            cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
+                                                     'dusk', 'dawn', 'datetime'])
+            dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
+                         lambda col: (col - self.normalization.min(col.name)) /
+                                     (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
+            self.bird_scale = self.normalization.max('birds')
+            dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
+            if self.use_buffers:
+                dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
 
-        dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
-            lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
-        dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
-        if self.use_buffers:
-            dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
 
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
@@ -284,6 +339,7 @@ class RadarData(InMemoryDataset):
         static = voronoi.loc[:, cidx].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
         areas = static.area_km2.to_numpy()
         coords = static[coord_cols].to_numpy()
+        dayofyear = dayofyear / max(dayofyear)
 
         inputs = []
         targets = []
@@ -378,9 +434,9 @@ class RadarData(InMemoryDataset):
                                   torch.tensor(distances, dtype=torch.float),
                                   torch.tensor(angles, dtype=torch.float)
                               ], dim=1),
-                              edge_weight=torch.tensor(edge_weights, dtype=torch.double),
+                              edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                               tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                              day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.long),
+                              day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                               local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
                               local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
                               local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))

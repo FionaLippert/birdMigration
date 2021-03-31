@@ -28,16 +28,20 @@ def train(cfg: DictConfig, output_dir: str, log):
         hp_space = [[settings.default for settings in hps.values()]]
     param_names = [key for key in cfg.model.hyperparameters]
 
+    # initialize normalizer
+    normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
+                                           cfg.datasource.name, seed=cfg.seed)
+
     # load datasets
     train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
                                      data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                     bird_scale=cfg.datasource.bird_scale) for year in cfg.datasource.training_years]
+                                     normalization=normalization) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
                                   data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                  bird_scale=cfg.datasource.bird_scale)
+                                  normalization=normalization)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
@@ -56,7 +60,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         val_losses = np.zeros(cfg.repeats)
         for r in range(cfg.repeats):
             print(f'train model [trial {r}]')
-            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(cfg.seed+r), tol=cfg.action.tolerance)
+            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(cfg.seed+r), tol=cfg.model.tolerance)
 
             with open(osp.join(sub_dir, f'model_{r}.pkl'), 'wb') as f:
                 pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
@@ -73,6 +77,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             print('---------------------', file=log)
 
         log.flush()
+        np.save(osp.join(sub_dir, 'validation_losses.npy'), val_losses)
 
 
     print('saving best settings as default', file=log)

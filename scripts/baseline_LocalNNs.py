@@ -12,6 +12,7 @@ import os
 import json
 import numpy as np
 import ruamel.yaml
+import yaml
 from matplotlib import pyplot as plt
 import pandas as pd
 
@@ -42,19 +43,33 @@ def train(cfg: DictConfig, output_dir: str, log):
     param_names = [key for key in cfg.model.hyperparameters]
 
 
-    # load datasets
-    train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
+    # initialize normalizer
+    normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
+                                  cfg.datasource.name, seed=cfg.seed)
+
+    # load training data
+    train_data = [datasets.RadarData(data_root, year, cfg.season, ts,
                                      data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                     bird_scale=cfg.datasource.bird_scale) for year in cfg.datasource.training_years]
+                                     normalization=normalization)
+                  for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
+    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
+        OmegaConf.save(config=cfg, f=f)
+    with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
+        pickle.dump(normalization, f)
+
+    # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
                                   data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                  bird_scale=cfg.datasource.bird_scale)
+                                  normalization=normalization)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, cfg.seed)
+
+
 
     best_val_loss = np.inf
     best_hp_settings = None
@@ -93,11 +108,6 @@ def train(cfg: DictConfig, output_dir: str, log):
                     # save best model so far
                     torch.save(model.cpu(), osp.join(sub_dir, f'model_{r}.pkl'))
                     val_losses[r] = val_loss
-
-                if epoch > 0 and np.abs(val_curves[r, epoch] - val_curves[r, epoch - 1]) < cfg.action.tolerance:
-                    # stop early
-                    print(f'Stopped after epoch {epoch + 1}, because improvement was smaller than tolerance', file=log)
-                    break
 
                 scheduler.step()
                 tf = tf * hp_settings.get('teacher_forcing_gamma', 0)
@@ -164,15 +174,20 @@ def test(cfg: DictConfig, output_dir: str, log):
     os.makedirs(output_dir, exist_ok=True)
 
     # directory from which model is loaded
-    model_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
-                         cfg.model.name, cfg.experiment, json.dumps(hp_settings))
+    train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
+                         cfg.model.name, cfg.experiment)
+    model_dir = osp.join(train_dir, json.dumps(hp_settings))
+
+    # load normalizer
+    with open(osp.join(train_dir, 'normalization.pkl'), 'wb') as f:
+        normalization = pickle.load(f)
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
                                    cfg.season, cfg.model.timesteps,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
-                                   bird_scale=cfg.datasource.bird_scale)
+                                   normalization=normalization)
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_loader = utils.val_test_split(test_loader, cfg.datasource.test_val_split, cfg.seed)

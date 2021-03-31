@@ -5,7 +5,9 @@ training_years:
   - 2017
 validation_year: 2015
 test_year: 2015
-test_val_split: 0.8
+test_val_split: 0.75
 
 use_buffers: True
-bird_scale: 1e7
+# will be filled at runtime
+bird_scale: ???
+#bird_scale: 1e7

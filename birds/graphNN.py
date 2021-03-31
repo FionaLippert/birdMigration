@@ -913,6 +913,7 @@ def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, co
 
     return loss_all
 
+
 def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0):
     model.to(device)
     model.train()

@@ -1,10 +1,9 @@
 experiment: grid_search
-settings:
-  root: /home/flipper/birdMigration
-  season: fall
-  seed: 1234
-  repeats: 5
-  cuda: false
+root: /home/flipper/birdMigration
+season: fall
+seed: 1234
+repeats: 5
+cuda: false
 datasource:
   name: radar
   training_years:
@@ -16,9 +15,9 @@ datasource:
   use_buffers: true
   bird_scale: 10000000.0
 action:
-  timesteps: 40
   name: training
   grid_search: true
+  tolerance: 1.0e-08
 model:
   name: GBT
   hyperparameters:
@@ -29,14 +28,18 @@ model:
       - 100
       - 150
     lr:
-      default: 0.01
+      default: 0.1
       search_space:
       - 0.001
       - 0.01
       - 0.1
+      - 0.2
+      - 0.3
     max_depth:
-      default: 5
+      default: 7
       search_space:
       - 3
       - 5
       - 7
+      - 9
+  timesteps: 16

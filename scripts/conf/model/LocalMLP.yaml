@@ -20,7 +20,7 @@ hyperparameters:
     - 0.25
     - 0.5
   lr:
-    default: 0.1
+    default: 0.001
     search_space:
       - 0.01
       - 0.001
