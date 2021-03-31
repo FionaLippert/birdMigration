@@ -9,4 +9,3 @@ season: fall
 seed: 1234
 repeats: 5
 cuda: False
-normalize_per_year: True
