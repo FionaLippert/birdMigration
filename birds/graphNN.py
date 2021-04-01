@@ -631,7 +631,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                         for _ in range(self.n_fc_layers - 1)])
-        self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+        self.fc_edge_out = torch.nn.Linear(self.n_hidden, self.n_hidden)
 
         # self.mlp_edge = torch.nn.Sequential(torch.nn.Linear(self.n_in_edge, self.n_hidden),
         #                                     torch.nn.Dropout(p=self.dropout_p),
