@@ -665,8 +665,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         x = data.x[..., 0].view(-1, 1)
 
         # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
