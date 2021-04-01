@@ -17,8 +17,9 @@ from matplotlib import pyplot as plt
 import pandas as pd
 
 # map model name to implementation
-MODEL_MAPPING = {'LocalLSTM': LocalLSTM,
-                 'LocalMLP': LocalMLP}
+MODEL_MAPPING = {'LocalMLP': LocalMLP,
+                 'LocalLSTM': LocalLSTM,
+                 'GraphLSTM': BirdDynamicsGraphLSTM}
 
 
 # @hydra.main(config_path="conf", config_name="config")
@@ -32,6 +33,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     ts = cfg.model.timesteps
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
+    fixed_boundary = cfg.model.get('fixed_boundary', False)
 
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
 
@@ -52,6 +54,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization)
                   for year in cfg.datasource.training_years]
+    boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
@@ -87,7 +90,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         for r in range(cfg.repeats):
 
             print(f'train model [trial {r}]')
-            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r))
+            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r),
+                          fixed_boundary=boundary if fixed_boundary else [])
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
@@ -167,7 +171,9 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     data_root = osp.join(cfg.root, 'data')
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
+    fixed_boundary = cfg.model.get('fixed_boundary', False)
 
+    # load model settings
     hp_settings = {key: settings.default for key, settings in cfg.model.hyperparameters.items()}
 
     # directory to which outputs will be written
@@ -189,6 +195,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization)
+    boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_loader = utils.val_test_split(test_loader, cfg.datasource.test_val_split, cfg.seed)
@@ -202,7 +209,11 @@ def test(cfg: DictConfig, output_dir: str, log):
     gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+
+        # adjust model settings for testing
         model.timesteps = cfg.model.timesteps
+        if fixed_boundary:
+            model.fixed_boundary = boundary
 
         model.to(device)
         model.eval()

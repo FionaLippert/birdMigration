@@ -608,45 +608,53 @@ class BirdFlowGraphLSTM(MessagePassing):
 
 class BirdDynamicsGraphLSTM(MessagePassing):
 
-    def __init__(self, msg_n_in=16, node_n_in=9, n_out=1, n_hidden=16, timesteps=6, model='linear',
-                 seed=12345, multinight=False, use_wind=True, dropout_p=0, n_layers=1):
+    def __init__(self, **kwargs):
         super(BirdDynamicsGraphLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
-        torch.manual_seed(seed)
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_node_in = kwargs.get('n_node_in', 9)
+        self.n_edge_in = kwargs.get('n_edge_in', 16)
+        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
+        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.predict_delta = kwargs.get('predict_delta', True)
+        self.use_wind = kwargs.get('use_wind', True)
+        self.fixed_boundary = kwargs.get('fixed_boundary', [])
 
-        if not use_wind:
-            msg_n_in -= 2
+        torch.manual_seed(kwargs.get('seed', 1234))
 
-        if not use_wind:
-            node_n_in -= 2
+        if not self.use_wind:
+            self.n_edge_in -= 2
+            self.n_node_in -= 2
 
-        if model == 'linear':
-            self.edgeflow = torch.nn.Linear(msg_n_in, n_out)
-        elif model == 'linear+sigmoid':
-            self.msg_nn = torch.nn.Sequential(torch.nn.Linear(msg_n_in, n_hidden),
-                                                torch.nn.Sigmoid())
-            self.node_nn = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.Tanh())
-        else:
-            self.msg_nn = torch.nn.Sequential(torch.nn.Linear(msg_n_in, n_hidden),
-                                                torch.nn.ReLU(),
-                                                torch.nn.Linear(n_hidden, n_hidden),
-                                                torch.nn.Sigmoid())
-            self.node_nn = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.ReLU(),
-                                                 torch.nn.Linear(n_hidden, n_hidden),
-                                                 torch.nn.Tanh())
+        self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                        for _ in range(self.n_fc_layers - 1)])
+        self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
 
+        # self.mlp_edge = torch.nn.Sequential(torch.nn.Linear(self.n_in_edge, self.n_hidden),
+        #                                     torch.nn.Dropout(p=self.dropout_p),
+        #                                     torch.nn.ReLU(),
+        #                                     torch.nn.Linear(self.n_hidden, self.n_hidden))
 
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(node_n_in, n_hidden) for _ in range(n_layers)])
-        self.to_hidden = torch.nn.Sequential(torch.nn.Linear(node_n_in, n_hidden),
-                                             torch.nn.ReLU())
-        self.from_hidden = torch.nn.Sequential(torch.nn.Linear(node_n_in, n_hidden),
-                                             torch.nn.Tanh())
+        self.mlp_aggr = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                            torch.nn.Dropout(p=self.dropout_p),
+                                            torch.nn.ReLU(),
+                                            torch.nn.Linear(self.n_hidden, self.n_hidden))
 
-        self.timesteps = timesteps
-        self.multinight = multinight
-        self.use_wind = use_wind
+        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, 1))
+
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -657,9 +665,6 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         x = data.x[..., 0].view(-1, 1)
 
         # initialize lstm variables
-        # hidden = Variable(torch.zeros(x.size(0), self.n_hidden)).to(x.device)
-        # states = Variable(torch.zeros(x.size(0), self.n_hidden)).to(x.device)
-        # hidden = None
         h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
         c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
 
@@ -681,20 +686,12 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
                                edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas)
 
+            if len(self.fixed_boundary) > 0:
+                # use ground truth for boundary cells
+                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
 
-            if self.multinight:
-                # for locations where it is dawn: save birds to ground and set birds in the air to zero
-                # r = torch.rand(1)
-                # if r < teacher_forcing:
-                #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
-                # else:
-                #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-                x = x * data.local_night[:, t+1].view(-1, 1)
-
-                # TODO for radar data, birds can stay on the ground or depart later in the night, so
-                #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
-                # for locations where it is dusk: set birds on ground to zero
-                # ground = ground * ~data.local_dusk[:, t].view(-1, 1)
+            # for locations where it is dawn: set birds in the air to zero
+            x = x * data.local_night[:, t+1].view(-1, 1)
 
             y_hat.append(x)
 
@@ -708,28 +705,38 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         # x_j are source features with shape [E, out_channels]
 
         features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
-        msg = self.msg_nn(features)
+        #msg = self.mlp_edge(features).relu()
+
+        msg = self.fc_edge_in(features).relu()
+        msg = F.dropout(msg, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_edge_hidden:
+            msg = l(msg).relu()
+            msg = F.dropout(msg, p=self.dropout_p, training=self.training)
+
+        msg = self.fc_edge_out(msg).relu()
 
         return msg
 
 
     def update(self, aggr_out, x, coords, env, areas, dusk, h_t, c_t):
 
-        # combine messages from neighbors into single number
-        flows = self.node_nn(aggr_out)
-
         # predict departure/landing
-        # TODO include x in inputs?
-        inputs = torch.cat([coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
-        inputs = self.to_hidden(inputs)
+        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+        delta = self.hidden2delta(h_t[-1]).tanh()
 
-        delta = self.from_hidden(h_t[-1])
-
-        # TODO use flows directly instead of adding to previous x?
-        pred = x + flows + delta
+        if self.predict_delta:
+            # combine messages from neighbors into single number representing total flux
+            flux = self.mlp_aggr(aggr_out).tanh()
+            pred = x + flux + delta
+        else:
+            # combine messages from neighbors into single number representing the new bird density
+            birds = self.mlp_aggr(aggr_out).sigmoid()
+            pred = birds + delta
 
         return pred
 
