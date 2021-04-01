@@ -3,7 +3,7 @@ import hydra
 import os.path as osp
 import os
 import traceback
-import run_GBT, run_NNs
+import run_GBT, run_NNs, run_FlowNNs
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -20,6 +20,8 @@ def run(cfg: DictConfig):
             run_GBT.run(cfg, output_dir, log)
         elif cfg.model.name in ['LocalMLP', 'LocalLSTM', 'GraphLSTM']:
             run_NNs.run(cfg, output_dir, log)
+        elif cfg.model.name in ['BirdFlowGraphLSTM']:
+            run_FlowNNs.run(cfg, output_dir, log)
 
     except Exception:
         print(traceback.format_exc(), file=log)

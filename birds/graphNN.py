@@ -466,47 +466,53 @@ class BirdFlowGNN(MessagePassing):
 
 class BirdFlowGraphLSTM(MessagePassing):
 
-    def __init__(self, timesteps, hidden_dim=16, model='linear', n_layers=1,
-                 seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0.5):
+    def __init__(self, **kwargs):
         super(BirdFlowGraphLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
-        torch.manual_seed(seed)
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_node_in = kwargs.get('n_node_in', 10)
+        self.n_edge_in = kwargs.get('n_edge_in', 14)
+        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
+        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.use_wind = kwargs.get('use_wind', True)
+        self.fixed_boundary = kwargs.get('fixed_boundary', [])
 
-        edges_n_in = 10
-        if not use_wind:
-            edges_n_in -= 2
-        n_hidden = hidden_dim #16 #2*in_channels #int(in_channels / 2)
-        n_out = 1
+        torch.manual_seed(kwargs.get('seed', 1234))
 
-        nodes_n_in = 9
-        if not use_wind:
-            nodes_n_in -= 2
+        if not self.use_wind:
+            self.n_edge_in -= 2
+            self.n_node_in -= 2
 
-        if model == 'linear':
-            self.edgeflow = torch.nn.Linear(edges_n_in, n_out)
-        elif model == 'linear+sigmoid':
-            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, n_out),
+
+        if self.n_fc_layers < 1:
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(self.n_edge_in, 1),
                                                 torch.nn.Sigmoid())
 
         else:
-            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, n_hidden),
-                                                torch.nn.Dropout(p=dropout_p),
+            # self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, self.n_hidden),
+            #                                     torch.nn.Dropout(p=self.dropout_p),
+            #                                     torch.nn.ReLU(),
+            #                                     torch.nn.Linear(self.n_hidden, 1),
+            #                                     torch.nn.Sigmoid())
+            self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+            self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                                 for _ in range(self.n_fc_layers - 1)])
+            self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+
+        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                                torch.nn.Dropout(p=self.dropout_p),
                                                 torch.nn.ReLU(),
-                                                torch.nn.Linear(n_hidden, n_out),
-                                                torch.nn.Sigmoid())
+                                                torch.nn.Linear(self.n_hidden, 1))
 
-        self.to_hidden = torch.nn.Sequential(torch.nn.Linear(nodes_n_in, n_hidden),
-                                             torch.nn.ReLU())
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(n_hidden, n_hidden) for l in range(n_layers)])
-        self.from_hidden = torch.nn.Sequential(torch.nn.Linear(n_hidden, n_out),
-                                             torch.nn.Tanh())
-
-        self.timesteps = timesteps
-        self.fix_boundary = fix_boundary
-        self.multinight = multinight
-        self.use_wind = use_wind
-        self.n_hidden = n_hidden
-        self.n_layers = n_layers
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -520,14 +526,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         ground = torch.zeros_like(x).to(x.device)
 
         # initialize lstm variables
-        # hidden = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
-        # states = Variable(torch.zeros(data.x.size(0), self.n_hidden)).to(x.device)
-        # hidden = None
-        # if x.is_cuda:
-        #     hidden = hidden.cuda()
-        #     states = states.cuda()
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
@@ -550,23 +550,23 @@ class BirdFlowGraphLSTM(MessagePassing):
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env,
                                                 h_t=h_t, c_t=c_t, areas=data.areas,
                                                 edge_attr=edge_attr, ground=ground,
-                                                local_dusk=data.local_dusk[:, t])
+                                                dusk=data.local_dusk[:, t])
 
-            if len(self.fix_boundary) > 0:
+            if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
-                x[self.fix_boundary, 0] = data.y[self.fix_boundary, t]
+                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
 
-            if self.multinight:
-                # for locations where it is dawn: save birds to ground and set birds in the air to zero
-                r = torch.rand(1)
-                if r < teacher_forcing:
-                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
-                else:
-                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-                x = x * data.local_night[:, t+1].view(-1, 1)
 
-                # for locations where it is dusk: set birds on ground to zero
-                ground = ground * ~data.local_dusk[:, t].view(-1, 1)
+            # for locations where it is dawn: save birds to ground and set birds in the air to zero
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+            else:
+                ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+            x = x * data.local_night[:, t+1].view(-1, 1)
+
+            # for locations where it is dusk: set birds on ground to zero
+            ground = ground * ~data.local_dusk[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -574,13 +574,23 @@ class BirdFlowGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, coords_i, coords_j, env_j, edge_attr):
+    def message(self, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
-        flow = self.edgeflow(features)
+        features = torch.cat([coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
+        if self.n_fc_layers < 1:
+            flow = self.edgeflow(features)
+        else:
+            flow = self.fc_edge_in(features).relu()
+            flow = F.dropout(flow, p=self.dropout_p, training=self.training)
+
+            for l in self.fc_edge_hidden:
+                flow = l(flow).relu()
+                flow = F.dropout(flow, p=self.dropout_p, training=self.training)
+
+            flow = self.fc_edge_out(flow).sigmoid()
 
         self.flows.append(flow)
 
@@ -590,16 +600,17 @@ class BirdFlowGraphLSTM(MessagePassing):
         return abs_flow
 
 
-    def update(self, aggr_out, coords, env, ground, local_dusk, areas, h_t, c_t):
+    def update(self, aggr_out, x, coords, env, ground, dusk, areas, h_t, c_t):
 
-        inputs = torch.cat([coords, env, ground.view(-1, 1), local_dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
-        inputs = self.to_hidden(inputs)
+        inputs = torch.cat([x.view(-1, 1), coords, env, ground.view(-1, 1),
+                            dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        inputs = self.node2hidden(inputs).relu()
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        for l in range(1, self.n_layers):
+        for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
-        delta = self.from_hidden(h_t[-1])
+        delta = self.hidden2delta(h_t[-1]).tanh()
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = aggr_out + delta
 
@@ -886,35 +897,26 @@ def MSE(output, gt):
 
 
 
-def train_fluxes(model, train_loader, optimizer, boundaries, loss_func, cuda, conservation=True, departure=False,
+def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, conservation_constraint=0.01,
                  teacher_forcing=1.0):
-    if cuda: model.cuda()
+    model.to(device)
     model.train()
     loss_all = 0
     for data in train_loader:
-        if cuda: data = data.to('cuda')
+        data = data.to(device)
         optimizer.zero_grad()
         output = model(data, teacher_forcing) #.view(-1)
         gt = data.y
 
-        if not departure:
-            # omit t=0
-            gt = gt[:, 1:]
-            output = output[:, 1:]
+        outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
+                                    data.num_nodes, data.num_nodes, -1).sum(1)
+        outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
+        target_fluxes = torch.ones(outfluxes.shape)
+        target_fluxes = target_fluxes.to(device)
+        constraints = torch.mean((outfluxes - target_fluxes)**2)
+        loss = loss_func(output, gt, data.local_night) + conservation_constraint * constraints
 
-        if conservation:
-            outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
-                                                                                                       data.num_nodes,
-                                                                                                       -1).sum(1)
-            outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
-            target_fluxes = torch.ones(outfluxes.shape)
-            if cuda: target_fluxes = target_fluxes.to('cuda')
-            constraints = torch.mean((outfluxes - target_fluxes)**2)
-            loss = loss_func(output, gt, data.local_night) + 0.01 * constraints
-        else:
-            loss = loss_func(output, gt, data.local_night)
         loss.backward()
-        #loss_all += data.num_graphs * loss.item()
         loss_all += data.num_graphs * loss
         optimizer.step()
 
@@ -930,9 +932,6 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         optimizer.zero_grad()
 
         output = model(data, teacher_forcing=teacher_forcing)
-        # else:
-        #     output = model(data)
-
         gt = data.y
 
         loss = loss_func(output, gt, data.local_night)
@@ -961,47 +960,39 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
 
     return loss_all
 
-def test_fluxes(model, test_loader, timesteps, loss_func, cuda, get_outfluxes=True, bird_scale=2000,
-                departure=False, fix_boundary=[]):
-    if cuda:
-        model.cuda()
+def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=True, bird_scale=1, fixed_boundary=[]):
+    model.to(device)
     model.eval()
     loss_all = []
     outfluxes = {}
     outfluxes_abs = {}
     for tidx, data in enumerate(test_loader):
-        if cuda: data = data.to('cuda')
+        data = data.to(device)
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
 
-        # if not departure:
-        #     gt = gt[:, 1:]
-        #     output = output[:, 1:]
-
-        if len(fix_boundary) > 0:
+        if len(fixed_boundary) > 0:
             boundary_mask = np.ones(output.size(0))
-            boundary_mask[fix_boundary] = 0
+            boundary_mask[fixed_boundary] = 0
             output = output[boundary_mask]
             gt = gt[boundary_mask]
 
         if get_outfluxes:
-            outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(data.num_nodes,
-                                                                                                   data.num_nodes,
-                                                                                                   -1)
+            outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
+                                    data.num_nodes, data.num_nodes, -1)
             outfluxes_abs[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
-                data.num_nodes,
-                data.num_nodes,
-                -1)# .sum(1)
-            if cuda:
-                outfluxes[tidx] = outfluxes[tidx].cpu()
-                outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
+                                    data.num_nodes, data.num_nodes, -1)# .sum(1)
+
+            outfluxes[tidx] = outfluxes[tidx].cpu()
+            outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t]) for t in range(timesteps + 1)]))
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t])
+                                      for t in range(timesteps + 1)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 
     if get_outfluxes:
-        return torch.stack(loss_all), outfluxes , outfluxes_abs #, torch.stack(constraints_all)
+        return torch.stack(loss_all), outfluxes , outfluxes_abs
     else:
         return torch.stack(loss_all)
 
