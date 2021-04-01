@@ -85,6 +85,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         training_curves = np.ones((cfg.repeats, epochs)) * np.nan
         val_curves = np.ones((cfg.repeats, epochs)) * np.nan
         for r in range(cfg.repeats):
+
             print(f'train model [trial {r}]')
             model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r))
 
