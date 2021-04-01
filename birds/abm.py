@@ -79,7 +79,6 @@ class Bird:
         if self.state == 1:
             # previously flying, so compute new position
             dist = distance(meters=self.ground_speed * self.env.dt)
-            self.dir_north = self.pref_dir + np.rad2deg(self.drift)
             self.pos = dist.destination(point=self.pos, bearing=self.dir_north)
 
         if self.check_bounds():
@@ -94,9 +93,12 @@ class Bird:
                 # check if weather conditions are good enough to start/continue migrating
                 self.compute_energy()
                 fly = self.check_departure(wind_speed, wind_dir)
-                if self.night_count < self.departure_window and self.state == 0 and fly:
-                    # take-off
+                depart = self.night_count < self.departure_window and self.state == 0 and fly
+                keep_flying = self.state == 1 and fly
+                if depart or keep_flying:
                     self.state = 1
+                    # compute flight direction
+                    self.dir_north = self.pref_dir + np.rad2deg(self.drift)
                 elif self.state == 1 and not fly:
                     # land because wind conditions are not suitable anymore
                     self.state = 0

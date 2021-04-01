@@ -94,21 +94,27 @@ for p in processes:
 
 # Collect results and combine them into numpy arrays
 files = glob.glob(osp.join(output_path, '*.pkl'))
-traj, states = [], []
+traj, states, directions, speeds = [[]] * 4
 print(files)
 for file in files:
     with open(file, 'rb') as f:
         result = pickle.load(f)
     traj.append(result['trajectories'])
     states.append(result['states'])
+    directions.append(result['directions'])
+    speeds.append(result['ground_speeds'])
 
 traj = np.concatenate(traj, axis=1)
 states = np.concatenate(states, axis=1)
+directions = np.concatenate(directions, axis=1)
+speeds = np.concatenate(speeds, axis=1)
 time = result['time']
 
 # write to disk
 np.save(osp.join(output_path, 'traj.npy'), traj)
 np.save(osp.join(output_path, 'states.npy'), states)
+np.save(osp.join(output_path, 'directions.npy'), directions)
+np.save(osp.join(output_path, 'ground_speeds.npy'), speeds)
 with open(osp.join(output_path, 'time.pkl'), 'wb') as f:
     pickle.dump(time, f)
 
