@@ -33,6 +33,10 @@ hyperparameters:
     default: 0.9
     search_space:
     - 0.9
+  predict_delta:
+    default: True
+    search_space:
+      - True
+      - False
 epochs: 50
 timesteps: 40
-predict_delta: True
