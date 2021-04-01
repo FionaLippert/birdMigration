@@ -641,7 +641,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.mlp_aggr = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                             torch.nn.Dropout(p=self.dropout_p),
                                             torch.nn.ReLU(),
-                                            torch.nn.Linear(self.n_hidden, self.n_hidden))
+                                            torch.nn.Linear(self.n_hidden, 1))
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
