@@ -738,7 +738,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             birds = self.mlp_aggr(aggr_out).sigmoid()
             pred = birds + delta
 
-        return pred
+        return pred, h_t, c_t
 
 
 
