@@ -9,6 +9,7 @@ import os
 import json
 import numpy as np
 import ruamel.yaml
+import pandas as pd
 # data=json.loads(argv[1])
 
 
@@ -98,11 +99,88 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     log.flush()
 
+def test(cfg: DictConfig, output_dir: str, log):
+    assert cfg.model.name == 'GBT'
+    assert cfg.action.name == 'testing'
+
+    data_root = osp.join(cfg.root, 'data')
+
+    # load model settings
+    hp_settings = {key: settings.default for key, settings in cfg.model.hyperparameters.items()}
+
+    # directory to which outputs will be written
+    output_dir = osp.join(output_dir, json.dumps(hp_settings))
+    os.makedirs(output_dir, exist_ok=True)
+
+    # directory from which model is loaded
+    train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
+                         cfg.model.name, cfg.experiment)
+    model_dir = osp.join(train_dir, json.dumps(hp_settings))
+
+    # load normalizer
+    with open(osp.join(train_dir, 'normalization.pkl'), 'wb') as f:
+        normalization = pickle.load(f)
+
+    # load test data
+    test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
+                                   cfg.season, cfg.model.timesteps,
+                                   data_source=cfg.datasource.name,
+                                   use_buffers=cfg.datasource.use_buffers,
+                                   normalization=normalization)
+    if cfg.datasource.validation_year == cfg.datasource.test_year:
+        _, test_data = utils.val_test_split(test_data, cfg.datasource.test_val_split, cfg.seed)
+    X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
+                                    timesteps=cfg.model.timesteps, return_mask=True)
+
+    # load additional data
+    time = test_data.info['timepoints']
+    radars = test_data.info['radars']
+    radar_index = {idx: name for idx, name in enumerate(radars)}
+
+    # load models and predict
+    gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
+    for r in range(cfg.repeats):
+        with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
+            model = pickle.load(f)
+
+        for nidx, data in range(test_data):
+            y = data.y * cfg.datasource.bird_scale
+            _tidx = data.tidx
+            local_night = data.local_night
+
+            for ridx, name in radar_index.items():
+                y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
+                gt.append(y[ridx, :])
+                prediction.append(y_hat)
+                night.append(local_night[ridx, :])
+                radar.append([name] * y.shape[1])
+                seqID.append([nidx] * y.shape[1])
+                tidx.append(_tidx)
+                datetime.append(time[_tidx])
+                trial.append([r] * y.shape[1])
+
+    # create dataframe containing all results
+    df = pd.DataFrame(dict(
+        gt=torch.cat(gt).detach().numpy(),
+        prediction = torch.cat(prediction).detach().numpy(),
+        night=torch.cat(night),
+        radar = np.concatenate(radar),
+        seqID = np.concatenate(seqID),
+        tidx = np.concatenate(tidx),
+        datetime = np.concatenate(datetime),
+        trial = np.concatenate(trial)
+    ))
+    df.to_csv(osp.join(output_dir, 'results.csv'))
+
+    print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
+    log.flush()
+
+
 def run(cfg: DictConfig, output_dir: str, log):
     if cfg.action.name == 'training':
         train(cfg, output_dir, log)
-    # elif cfg.action.name == 'testing':
-    #     test(cfg, output_dir, log)
+    elif cfg.action.name == 'testing':
+        test(cfg, output_dir, log)
 
 
 if __name__ == "__main__":
