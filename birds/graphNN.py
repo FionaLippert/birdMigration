@@ -473,7 +473,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = kwargs.get('n_node_in', 10)
-        self.n_edge_in = kwargs.get('n_edge_in', 14)
+        self.n_edge_in = kwargs.get('n_edge_in', 15)
+        self.n_self_in = kwargs.get('n_self_in', 7)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.use_wind = kwargs.get('use_wind', True)
@@ -489,6 +490,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         if self.n_fc_layers < 1:
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(self.n_edge_in, 1),
                                                 torch.nn.Sigmoid())
+            self.selfflow = torch.nn.Sequential(torch.nn.Linear(self.n_self_in, 1),
+                                                torch.nn.Sigmoid())
 
         else:
             # self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, self.n_hidden),
@@ -500,6 +503,11 @@ class BirdFlowGraphLSTM(MessagePassing):
             self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                                  for _ in range(self.n_fc_layers - 1)])
             self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+
+            self.fc_self_in = torch.nn.Linear(self.n_self_in, self.n_hidden)
+            self.fc_self_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                                 for _ in range(self.n_fc_layers - 1)])
+            self.fc_self_out = torch.nn.Linear(self.n_hidden, 1)
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
@@ -538,6 +546,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         self.flows = []
         self.abs_flows = []
+        self.selfflows = []
         for t in range(self.timesteps):
             r = torch.rand(1)
             if r < teacher_forcing:
@@ -611,8 +620,24 @@ class BirdFlowGraphLSTM(MessagePassing):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         delta = self.hidden2delta(h_t[-1]).tanh()
+
+        features = torch.cat([coords, env, dusk.float().view(-1, 1)], dim=1)
+        if self.n_fc_layers < 1:
+            selfflow = self.selfflow(features)
+        else:
+            selfflow = self.fc_self_in(features).relu()
+            selfflow = F.dropout(selfflow, p=self.dropout_p, training=self.training)
+
+            for l in self.fc_self_hidden:
+                selfflow = l(selfflow).relu()
+                selfflow = F.dropout(selfflow, p=self.dropout_p, training=self.training)
+
+            selfflow = self.fc_edge_out(selfflow).sigmoid()
+
+        selfflow = x * selfflow
+        self.selfflows.append(selfflow)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
-        pred = aggr_out + delta
+        pred = selfflow + aggr_out + delta
 
         return pred, h_t, c_t
 
@@ -626,7 +651,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = kwargs.get('n_node_in', 9)
-        self.n_edge_in = kwargs.get('n_edge_in', 16)
+        self.n_edge_in = kwargs.get('n_edge_in', 17)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)

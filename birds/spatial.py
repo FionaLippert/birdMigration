@@ -19,21 +19,24 @@ class Spatial:
             epsg_local (str): coordinate reference system as epsg string
         """
         self.radars = radars
-        #self.epsg = epsg
         self.epsg_lonlat = '4326'          # epsg code for lon lat crs
         self.epsg_equidistant = '4087'     # epsg code for "WGS 84 / World Equidistant Cylindrical"
         self.epsg_equal_area = '3035'      # epsg code for "Lambert Azimuthal Equal Area projection"
-        #self.epsg_local = epsg_local
+        self.epsg_local = '32632'          # epsg code for "WGS84 / UTM zone 32N"
         self.N = len(radars)
 
         # projections of radar positions
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
                                         crs=f'EPSG:{self.epsg_lonlat}')
-        self.pts_local = self.pts_lonlat.to_crs(epsg=self.epsg_equidistant)
+        self.pts_local = self.pts_lonlat.to_crs(epsg=self.epsg_local)
+        self.pts_equidistant = self.pts_lonlat.to_crs(epsg=self.epsg_equidistant)
+        self.pts_equal_area = self.pts_lonlat.to_crs(epsg=self.epsg_equal_area)
+
+        # self.proj4stereo = '+proj=stere +lat_0=0 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
 
         self.voronoi()
 
-    def voronoi(self, buffer=150_000):
+    def voronoi(self, buffer=175_000, self_edges=False):
         """
         Construct Voronoi diagram based on radar coordinates
         Args:
@@ -44,10 +47,14 @@ class Spatial:
         """
 
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
+
         sink = boundary.buffer(buffer).difference(boundary)
-        self.sink = gpd.GeoSeries(sink, crs=f'EPSG:{self.epsg_equidistant}')
+        self.sink = gpd.GeoSeries(sink, crs=f'EPSG:{self.epsg_local}') #.to_crs(epsg=self.epsg_equal_area)
+        #boundary = gpd.GeoSeries(boundary, crs=f'EPSG:{self.epsg_equidistant}').to_crs(epsg=self.epsg_equal_area)
 
         # compute voronoi cells
+        #xy_equal_area = self.pts2coords(self.pts_equal_area)
+        #xy_equidistant = self.pts2coords(self.pts_equidistant)
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
 
@@ -68,46 +75,66 @@ class Spatial:
                                   'lat': [c[1] for c in lonlat],
                                   },
                                  geometry=polygons,
-                                 crs=f'EPSG:{self.epsg_equidistant}')
+                                 crs=f'EPSG:{self.epsg_local}')
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
 
         adj = np.zeros((self.N, self.N))
+        G = nx.DiGraph()
         edges = []
+        face_len = []
         for i, j in it.combinations(cells.index, 2):
             intersec = cells.geometry.iloc[i].intersection(cells.geometry.iloc[j])
             if type(intersec) is geometry.LineString:
-                adj[i, j] = self.distance(xy[i], xy[j],
-                                          epsg=self.epsg_equidistant)
+                adj[i, j] = self.distance(lonlat[i], lonlat[j], epsg=self.epsg_lonlat)
                 adj[j, i] = adj[i, j]
+                face = gpd.GeoSeries(intersec, crs=f'EPSG:{self.epsg_local}').to_crs(epsg=self.epsg_lonlat)
+                p1 = face.iloc[0].coords[0]
+                p2 = face.iloc[0].coords[1]
+                face_len.append(self.distance(p1, p2, epsg=self.epsg_lonlat))
+
+                distance = self.distance(lonlat[i], lonlat[j], epsg=self.epsg_lonlat)
+                face_length = self.distance(p1, p2, epsg=self.epsg_lonlat)
+                G.add_edge(i, j, distance=distance, face_length=face_length,
+                                 angle=self.angle(lonlat[i], lonlat[j]))
+                G.add_edge(j, i, distance=distance, face_length=face_length,
+                           angle=self.angle(lonlat[j], lonlat[i]))
                 edges.append(geometry.LineString((xy[i], xy[j])))
+        if self_edges:
+            [G.add_edge(i, i, distance=0, face_length=0, angle=0) for i in cells.index]
 
         # create network
-        G = nx.from_numpy_matrix(adj, create_using=nx.DiGraph())
+        #G = nx.from_numpy_matrix(adj, create_using=nx.DiGraph())
         nx.set_node_attributes(G, pd.Series(cells['radar']).to_dict(), 'radar')
         nx.set_node_attributes(G, pd.Series(cells['boundary']).to_dict(), 'boundary')
         nx.set_node_attributes(G, 'measured', name='type')
         #nx.set_node_attributes(G, pd.Series(cells['xy'].to_dict()), 'coords')
 
         # add sink nodes
-        for i, row in cells[cells['boundary']].iterrows():
-            nidx = len(G)
-            G.add_node(nidx, type='sink', radar=row.radar)
-            G.add_edge(nidx, i)
+        # for i, row in cells[cells['boundary']].iterrows():
+        #     nidx = len(G)
+        #     G.add_node(nidx, type='sink', radar=row.radar)
+        #     G.add_edge(nidx, i)
+
+        # add one global sink node
+        sink_id = len(G)
+        G.add_node(sink_id, type='sink')
+        G.add_edges_from([(sink_id, n) for n in G.nodes])
+        G.add_edges_from([(n, sink_id) for n in G.nodes])
 
         # add self-loops to graph
-        G.add_weighted_edges_from([(n, n, 0) for n in G.nodes])
+        #G.add_weighted_edges_from([(n, n, 0) for n in G.nodes])
 
         self.cells = cells
         self.G = G
         self.max_dist = np.max(adj)
-        self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_equidistant}')
+        self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_local}')
 
         return cells, G
 
     def subgraph(self, attr, value):
         node_gen = (n for n, data in self.G.nodes(data=True) if data.get(attr) == value)
         subgraph = self.G.subgraph(node_gen)
-        return nx.Graph(subgraph)
+        return nx.DiGraph(subgraph)
 
     def pts2coords(self, pts, reverse_xy=False):
         """
@@ -132,18 +159,16 @@ class Spatial:
         Returns:
             dist (float): distance in meters
         """
-        if epsg == self.epsg_equidistant:
-            dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
-        elif epsg == self.epsg_lonlat:
+        if epsg == self.epsg_lonlat:
             dist = geodesic(self.flip(coord1), self.flip(coord2)).kilometers
         else:
-            dist = None  # raise error?
+            dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
         return dist
 
     def angle(self, coord1, coord2):
         # coords should be in lonlat crs
-        y = coord1[0] - coord2[0]
-        x = coord1[1] - coord2[1]
+        y = coord2[0] - coord1[0]
+        x = coord2[1] - coord1[1]
 
         rad = np.arctan2(y, x)
         deg = np.rad2deg(rad)
@@ -175,6 +200,7 @@ if __name__ == '__main__':
     sp = Spatial(radars)
     sp.cells.to_file(osp.join(path, 'voronoi.shp'))
     sp.sink.to_file(osp.join(path, 'voronoi_sink.shp'))
+    nx.write_gpickle(sp.subgraph('type', 'measured'), osp.join(path, 'delaunay.gpickle'), protocol=4)
 
     # for index, row in sp.cells.iterrows():
     #     area = row.geometry.area / 1000_000

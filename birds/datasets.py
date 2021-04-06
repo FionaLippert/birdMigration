@@ -21,12 +21,12 @@ def static_features(data_dir, season, year):
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars)
     voronoi, G = space.voronoi()
-    G = nx.DiGraph(space.subgraph('type', 'measured'))  # graph without sink nodes
+    G = space.subgraph('type', 'measured')  # graph without sink nodes
 
     # 25 km buffers around radars
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar},
                                      geometry=space.pts_local.buffer(25_000),
-                                     crs=f'EPSG:{space.epsg_equidistant}')
+                                     crs=f'EPSG:{space.epsg_local}')
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
     radar_buffers['area_km2'] = radar_buffers.to_crs(epsg=space.epsg_equal_area).area / 10**6
@@ -139,7 +139,7 @@ def distance(x1, y1, x2, y2):
     return np.linalg.norm(np.array([x1-x2, y1-y2])) / 10**3 # in kilometers
 
 
-def normalize(features, min=None, max=None):
+def rescale(features, min=None, max=None):
     if min is None:
         min = np.min(features)
     if max is None:
@@ -297,11 +297,11 @@ class RadarData(InMemoryDataset):
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()
 
-        # compute distances and angles between radars
-        distances = normalize([distance(voronoi.x.iloc[j], voronoi.y.iloc[j],
-                                        voronoi.x.iloc[i], voronoi.y.iloc[i]) for j, i in G.edges], min=0)
-        angles = normalize([angle(voronoi.lon.iloc[j], voronoi.lat.iloc[j],
-                                  voronoi.lon.iloc[i], voronoi.lat.iloc[i]) for j, i in G.edges], min=0, max=360)
+        # get distances, angles and face lengths between radars
+        distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
+        angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
+        face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
+
 
         # # normalize dynamic features
         # if self.normalize_dynamic:
@@ -403,44 +403,28 @@ class RadarData(InMemoryDataset):
         inputs = inputs * local_night
         targets = targets * local_night
 
-        edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
-
+        #edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
         R, T, N = inputs.shape
 
         # create graph data objects per night
-        if self.combine_features:
-            data_list = [Data(x=torch.stack([
-                                torch.tensor(inputs[:, :, nidx]),
-                                *[torch.tensor(env[:, fidx, :, nidx]) for fidx in range(env.shape[1])],
-                                torch.tensor(local_night[:, :, nidx]),
-                                torch.tensor(local_dusk[:, :, nidx]),
-                                torch.tensor(local_dawn[:, :, nidx]),
-                                torch.stack([torch.tensor(coords[:, 0]) for _ in range(T)], dim=1),
-                                torch.stack([torch.tensor(coords[:, 1]) for _ in range(T)], dim=1),
-                                torch.stack([torch.tensor(areas) for _ in range(T)], dim=1)
-                                ], dim=1),
-                              y=torch.tensor(targets[:, :, nidx]),
-                              edge_index=edge_index,
-                              edge_weight=torch.tensor(edge_weights))
-                        for nidx in range(N)]
-        else:
-            data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
-                              y=torch.tensor(targets[:, :, nidx], dtype=torch.float),
-                              coords=torch.tensor(coords, dtype=torch.float),
-                              areas=torch.tensor(areas, dtype=torch.float),
-                              env=torch.tensor(env[..., nidx], dtype=torch.float),
-                              edge_index=edge_index,
-                              edge_attr=torch.stack([
-                                  torch.tensor(distances, dtype=torch.float),
-                                  torch.tensor(angles, dtype=torch.float)
-                              ], dim=1),
-                              edge_weight=torch.tensor(edge_weights, dtype=torch.float),
-                              tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                              day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
-                              local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
-                              local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
-                              local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
-                         for nidx in range(N)]
+        data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
+                          y=torch.tensor(targets[:, :, nidx], dtype=torch.float),
+                          coords=torch.tensor(coords, dtype=torch.float),
+                          areas=torch.tensor(areas, dtype=torch.float),
+                          env=torch.tensor(env[..., nidx], dtype=torch.float),
+                          edge_index=edge_index,
+                          edge_attr=torch.stack([
+                              torch.tensor(distances, dtype=torch.float),
+                              torch.tensor(angles, dtype=torch.float),
+                              torch.tensor(face_lengths, dtype=torch.float)
+                          ], dim=1),
+                          edge_weight=torch.tensor(edge_weights, dtype=torch.float),
+                          tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
+                          day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
+                          local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
+                          local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
+                          local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
+                     for nidx in range(N)]
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
