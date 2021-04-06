@@ -189,7 +189,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     model_dir = osp.join(train_dir, json.dumps(hp_settings))
 
     # load normalizer
-    with open(osp.join(train_dir, 'normalization.pkl'), 'wb') as f:
+    with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
 
     # load test data

@@ -47,6 +47,9 @@ def train(cfg: DictConfig, output_dir: str, log):
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
 
+    with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
+        pickle.dump(normalization, f)
+
 
     best_val_loss = np.inf
     best_hp_settings = None
@@ -118,7 +121,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     model_dir = osp.join(train_dir, json.dumps(hp_settings))
 
     # load normalizer
-    with open(osp.join(train_dir, 'normalization.pkl'), 'wb') as f:
+    with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
 
     # load test data
