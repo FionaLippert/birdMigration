@@ -403,7 +403,7 @@ class RadarData(InMemoryDataset):
         inputs = inputs * local_night
         targets = targets * local_night
 
-        #edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
+        edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
         R, T, N = inputs.shape
 
         # create graph data objects per night
