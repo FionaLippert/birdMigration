@@ -36,7 +36,7 @@ class Spatial:
 
         self.voronoi()
 
-    def voronoi(self, buffer=175_000, self_edges=False):
+    def voronoi(self, buffer=150_000, self_edges=False):
         """
         Construct Voronoi diagram based on radar coordinates
         Args:
