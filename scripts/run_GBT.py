@@ -144,7 +144,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
 
     # load models and predict
-    gt, prediction, night, radar, seqID, tidx, datetime, trial = [], [], [], [], [], [], [], []
+    gt, prediction, night, radar, seqID, tidx, datetime, trial, horizon = [], [], [], [], [], [], [], [], []
     for r in range(cfg.repeats):
         with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
             model = pickle.load(f)
@@ -164,6 +164,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 tidx.append(_tidx)
                 datetime.append(time[_tidx])
                 trial.append([r] * y.shape[1])
+                horizon.append(np.arange(cfg.model.timesteps))
 
     # create dataframe containing all results
     df = pd.DataFrame(dict(
@@ -174,7 +175,8 @@ def test(cfg: DictConfig, output_dir: str, log):
         seqID = np.concatenate(seqID),
         tidx = np.concatenate(tidx),
         datetime = np.concatenate(datetime),
-        trial = np.concatenate(trial)
+        trial = np.concatenate(trial),
+        horizon = np.concatenate(horizon)
     ))
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
