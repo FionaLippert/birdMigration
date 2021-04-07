@@ -164,7 +164,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 tidx.append(_tidx)
                 datetime.append(time[_tidx])
                 trial.append([r] * y.shape[1])
-                horizon.append(np.arange(cfg.model.timesteps))
+                horizon.append(np.arange(y.shape[1]))
 
     # create dataframe containing all results
     df = pd.DataFrame(dict(
