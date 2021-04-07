@@ -167,9 +167,9 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # create dataframe containing all results
     df = pd.DataFrame(dict(
-        gt=torch.cat(gt).detach().numpy(),
-        prediction = torch.cat(prediction).detach().numpy(),
-        night=torch.cat(night),
+        gt=np.concatenate(gt),
+        prediction = np.concatenate(prediction),
+        night=np.concatenate(night),
         radar = np.concatenate(radar),
         seqID = np.concatenate(seqID),
         tidx = np.concatenate(tidx),
