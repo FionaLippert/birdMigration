@@ -130,15 +130,16 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization)
+    # load additional data
+    time = test_data.info['timepoints']
+    radars = test_data.info['radars']
+    radar_index = {idx: name for idx, name in enumerate(radars)}
+
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.test_val_split, cfg.seed)
     X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
                                     timesteps=cfg.model.timesteps, return_mask=True)
 
-    # load additional data
-    time = test_data.info['timepoints']
-    radars = test_data.info['radars']
-    radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
     gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
