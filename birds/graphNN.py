@@ -1006,6 +1006,8 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
             gt = gt[boundary_mask]
 
         if get_outfluxes:
+            print(tidx)
+            print(type(model.flows))
             outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
                                     data.num_nodes, data.num_nodes, -1)
             outfluxes_abs[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
