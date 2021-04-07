@@ -248,8 +248,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
                                             data.num_nodes, data.num_nodes, -1)  # .sum(1)
             for ridx in radar_index.keys():
-                outfluxes[nidx][ridx, ridx] = torch.stack(model.selfflows, dim=-1)
-                outfluxes_abs[nidx][ridx, ridx] = torch.stack(model.abs_selfflows, dim=-1)
+                outfluxes[nidx][ridx, ridx] = torch.stack(model.selfflows, dim=-1)[ridx]
+                outfluxes_abs[nidx][ridx, ridx] = torch.stack(model.abs_selfflows, dim=-1)[ridx]
 
             outfluxes[nidx] = outfluxes[nidx].cpu()
             outfluxes_abs[nidx] = outfluxes_abs[nidx].cpu()
