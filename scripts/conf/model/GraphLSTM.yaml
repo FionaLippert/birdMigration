@@ -14,18 +14,18 @@ hyperparameters:
       - 2
       - 3
   n_lstm_layers:
-    default: 1
+    default: 2
     search_space:
       - 1
       - 2
   dropout_p:
-    default: 0.0
+    default: 0.25
     search_space:
     - 0.0
     - 0.25
     - 0.5
   lr:
-    default: 0.1
+    default: 0.001
     search_space:
       - 0.01
       - 0.001
