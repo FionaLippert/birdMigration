@@ -20,17 +20,23 @@ class Spatial:
         """
         self.radars = radars
         self.epsg_lonlat = '4326'          # epsg code for lon lat crs
-        self.epsg_equidistant = '4087'     # epsg code for "WGS 84 / World Equidistant Cylindrical"
+        #self.epsg_equidistant = '4087'     # epsg code for "WGS 84 / World Equidistant Cylindrical"
         self.epsg_equal_area = '3035'      # epsg code for "Lambert Azimuthal Equal Area projection"
-        self.epsg_local = '32632'          # epsg code for "WGS84 / UTM zone 32N"
+        #self.epsg_local = '32632'          # epsg code for "WGS84 / UTM zone 32N"
+
         self.N = len(radars)
 
         # projections of radar positions
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
                                         crs=f'EPSG:{self.epsg_lonlat}')
-        self.pts_local = self.pts_lonlat.to_crs(epsg=self.epsg_local)
-        self.pts_equidistant = self.pts_lonlat.to_crs(epsg=self.epsg_equidistant)
+        #self.pts_equidistant = self.pts_lonlat.to_crs(epsg=self.epsg_equidistant)
         self.pts_equal_area = self.pts_lonlat.to_crs(epsg=self.epsg_equal_area)
+
+        # equidistant projection centered around mean location of radar stations
+        self.crs_local = f'+proj=aeqd +lat_0={self.pts_lonlat.y.mean():.7f} ' \
+                         f'+lon_0={self.pts_lonlat.x.mean():.7f} +units=m +ellps=WGS84'
+        self.pts_local = self.pts_lonlat.to_crs(self.crs_local)
+
 
         # self.proj4stereo = '+proj=stere +lat_0=0 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
 
@@ -49,11 +55,11 @@ class Spatial:
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
 
         sink = boundary.buffer(buffer).difference(boundary)
-        self.sink = gpd.GeoSeries(sink, crs=f'EPSG:{self.epsg_local}') #.to_crs(epsg=self.epsg_equal_area)
+        self.sink = gpd.GeoSeries(sink, crs=self.crs_local) #.to_crs(epsg=self.epsg_equal_area)
         #boundary = gpd.GeoSeries(boundary, crs=f'EPSG:{self.epsg_equidistant}').to_crs(epsg=self.epsg_equal_area)
 
         # compute voronoi cells
-        #xy_equal_area = self.pts2coords(self.pts_equal_area)
+        xy_equal_area = self.pts2coords(self.pts_equal_area)
         #xy_equidistant = self.pts2coords(self.pts_equidistant)
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
@@ -71,11 +77,13 @@ class Spatial:
         cells = gpd.GeoDataFrame({'radar': list(self.radars.values()),
                                   'x': [c[0] for c in xy],
                                   'y': [c[1] for c in xy],
+                                  'x_eqa': [c[0] for c in xy_equal_area],
+                                  'y_eqa': [c[1] for c in xy_equal_area],
                                   'lon': [c[0] for c in lonlat],
                                   'lat': [c[1] for c in lonlat],
                                   },
                                  geometry=polygons,
-                                 crs=f'EPSG:{self.epsg_local}')
+                                 crs=self.crs_local)
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
 
         adj = np.zeros((self.N, self.N))
@@ -87,7 +95,7 @@ class Spatial:
             if type(intersec) is geometry.LineString:
                 adj[i, j] = self.distance(lonlat[i], lonlat[j], epsg=self.epsg_lonlat)
                 adj[j, i] = adj[i, j]
-                face = gpd.GeoSeries(intersec, crs=f'EPSG:{self.epsg_local}').to_crs(epsg=self.epsg_lonlat)
+                face = gpd.GeoSeries(intersec, crs=self.crs_local).to_crs(epsg=self.epsg_lonlat)
                 p1 = face.iloc[0].coords[0]
                 p2 = face.iloc[0].coords[1]
                 face_len.append(self.distance(p1, p2, epsg=self.epsg_lonlat))
@@ -127,7 +135,7 @@ class Spatial:
         self.cells = cells
         self.G = G
         self.max_dist = np.max(adj)
-        self.edges = gpd.GeoSeries(edges, crs=f'EPSG:{self.epsg_local}')
+        self.edges = gpd.GeoSeries(edges, crs=self.crs_local)
 
         return cells, G
 
