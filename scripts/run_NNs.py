@@ -209,6 +209,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load models and predict
     gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
+    print(gt)
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
@@ -239,6 +240,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 datetime.append(time[_tidx])
                 trial.append([r] * y.shape[1])
 
+    print([type(e) for e in gt])
     # create dataframe containing all results
     df = pd.DataFrame(dict(
         gt=torch.cat(gt).detach().numpy(),
