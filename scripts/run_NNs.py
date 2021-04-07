@@ -227,11 +227,9 @@ def test(cfg: DictConfig, output_dir: str, log):
             _tidx = data.tidx.cpu()
             local_night = data.local_night.cpu()
 
-            print(y)
-            print(y.shape)
-
 
             for ridx, name in radar_index.items():
+                print(type(y[ridx, :]))
                 gt.append(y[ridx, :])
                 prediction.append(y_hat[ridx, :])
                 night.append(local_night[ridx, :])
