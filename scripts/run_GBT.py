@@ -144,7 +144,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
 
     # load models and predict
-    gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
+    gt, prediction, night, radar, seqID, tidx, datetime, trial = [], [], [], [], [], [], [], []
     for r in range(cfg.repeats):
         with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
             model = pickle.load(f)
