@@ -26,7 +26,7 @@ def static_features(data_dir, season, year):
     # 25 km buffers around radars
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar},
                                      geometry=space.pts_local.buffer(25_000),
-                                     crs=f'EPSG:{space.epsg_local}')
+                                     crs=space.crs_local)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
     radar_buffers['area_km2'] = radar_buffers.to_crs(epsg=space.epsg_equal_area).area / 10**6
