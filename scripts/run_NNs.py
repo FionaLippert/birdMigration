@@ -227,6 +227,10 @@ def test(cfg: DictConfig, output_dir: str, log):
             _tidx = data.tidx.cpu()
             local_night = data.local_night.cpu()
 
+            print(y)
+            print(y.shape)
+
+
             for ridx, name in radar_index.items():
                 gt.append(y[ridx, :])
                 prediction.append(y_hat[ridx, :])
@@ -238,7 +242,6 @@ def test(cfg: DictConfig, output_dir: str, log):
                 trial.append([r] * y.shape[1])
 
     # create dataframe containing all results
-    print(gt)
     df = pd.DataFrame(dict(
         gt=torch.cat(gt).detach().numpy(),
         prediction = torch.cat(prediction).detach().numpy(),
