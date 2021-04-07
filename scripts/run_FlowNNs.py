@@ -243,13 +243,16 @@ def test(cfg: DictConfig, output_dir: str, log):
                 trial.append([r] * y.shape[1])
 
             # get predicted fluxes from model
-            outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
+            outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
                                             data.num_nodes, data.num_nodes, -1)
-            outfluxes_abs[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
+            outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
                                             data.num_nodes, data.num_nodes, -1)  # .sum(1)
+            for ridx in radar_index.keys():
+                outfluxes[nidx][ridx, ridx] = torch.stack(model.selfflows, dim=-1)
+                outfluxes_abs[nidx][ridx, ridx] = torch.stack(model.abs_selfflows, dim=-1)
 
-            outfluxes[tidx] = outfluxes[tidx].cpu()
-            outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
+            outfluxes[nidx] = outfluxes[nidx].cpu()
+            outfluxes_abs[nidx] = outfluxes_abs[nidx].cpu()
 
         # write outfluxes to disk
         with open(osp.join(osp.dirname(output_dir), f'outfluxes_{r}.pickle'), 'wb') as f:
