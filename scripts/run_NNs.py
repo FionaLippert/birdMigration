@@ -238,6 +238,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 trial.append([r] * y.shape[1])
 
     # create dataframe containing all results
+    print(gt)
     df = pd.DataFrame(dict(
         gt=torch.cat(gt).detach().numpy(),
         prediction = torch.cat(prediction).detach().numpy(),
