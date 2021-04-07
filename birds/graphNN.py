@@ -937,7 +937,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
 
         outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
                                     data.num_nodes, data.num_nodes, -1).sum(1)
-        outfluxes = outfluxes + model.selfflows
+        outfluxes = outfluxes + torch.stack(model.selfflows, dim=-1)
         outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
         target_fluxes = torch.ones(outfluxes.shape)
         target_fluxes = target_fluxes.to(device)
