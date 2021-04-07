@@ -547,6 +547,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.flows = []
         self.abs_flows = []
         self.selfflows = []
+        self.abs_selfflows = []
         for t in range(self.timesteps):
             r = torch.rand(1)
             if r < teacher_forcing:
@@ -634,8 +635,9 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             selfflow = self.fc_edge_out(selfflow).sigmoid()
 
-        selfflow = x * selfflow
         self.selfflows.append(selfflow)
+        selfflow = x * selfflow
+        self.abs_selfflows.append(selfflow)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = selfflow + aggr_out + delta
 
@@ -934,7 +936,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
         gt = data.y
 
         outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
-                                    data.num_nodes, data.num_nodes, -1).sum(1)
+                                    data.num_nodes, data.num_nodes-1, -1).sum(1)
+        outfluxes = outfluxes + model.selffluxes
         outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
         target_fluxes = torch.ones(outfluxes.shape)
         target_fluxes = target_fluxes.to(device)

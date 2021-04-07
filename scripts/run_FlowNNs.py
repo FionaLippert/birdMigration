@@ -63,6 +63,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
+    cfg.datasource.bird_scale = float(normalization.max('birds'))
 
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
@@ -191,6 +192,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
+    cfg.datasource.bird_scale = float(normalization.max('birds'))
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
@@ -209,7 +211,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    gt, prediction, night, radar, seqID, tidx, datetime, trial = [[]] * 8
+    gt, prediction, night, radar, seqID, tidx, datetime, trial = [], [], [], [], [], [], [], []
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
