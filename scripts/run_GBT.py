@@ -147,7 +147,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
             model = pickle.load(f)
 
-        for nidx, data in range(test_data):
+        for nidx, data in enumerate(test_data):
             y = data.y * cfg.datasource.bird_scale
             _tidx = data.tidx
             local_night = data.local_night
