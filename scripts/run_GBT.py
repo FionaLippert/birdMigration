@@ -49,7 +49,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
-    cfg.datasource.bird_scale = normalization.max('birds')
+    cfg.datasource.bird_scale = float(normalization.max('birds'))
 
 
     best_val_loss = np.inf
@@ -124,7 +124,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
-    cfg.datasource.bird_scale = normalization.max('birds')
+    cfg.datasource.bird_scale = float(normalization.max('birds'))
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
