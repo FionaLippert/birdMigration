@@ -35,7 +35,8 @@ def static_features(data_dir, season, year):
     return voronoi, radar_buffers, G
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                     env_vars=['u', 'v'], env_points=100, random_seed=1234):
+                     env_vars=['u', 'v'], surface_vars=['tp', 'sp', 't2m', 'sshf'],
+                     env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5):
 
     print(f'##### load data for {season} {year} #####')
 
@@ -60,9 +61,12 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     #solar_t_range = solar_t_range.insert(0, t_range[0] - pd.Timedelta(t_range.freq))
 
     print('load env data')
-    env = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
+    env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
                                          voronoi.geometry, env_points,
                                          t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
+                                         voronoi.geometry, env_points,
+                                         t_range.tz_localize(None), vars=surface_vars, seed=random_seed)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
@@ -89,11 +93,45 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
         # environmental variables for radar ridx
         for var in env_vars:
-            df[var] = env[var][ridx]
+            df[var] = env_850[var][ridx]
         df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
         # Note that here wind direction is the direction into which the wind is blowing,
         # which is the opposite of the standard meteorological wind direction
+
         df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
+        for var in surface_vars:
+            df[var] = env_surface[var][ridx]
+
+        # compute accumulation variables (for baseline models)
+        groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
+        nights = [[item[0] for item in g] for g in groups if g[0][1]]
+        df['nightID'] = np.zeros(t_range.size)
+        df['acc_rain'] = np.zeros(t_range.size)
+        df['acc_wind'] = np.zeros(t_range.size)
+        df['wind_profit'] = np.zeros(t_range.size)
+        acc_rain = 0
+        u_rain = 0
+        acc_wind = 0
+        u_wind = 0
+        for nidx, night in enumerate(nights):
+            df['nightID'][night] = np.ones(len(night)) * (nidx + 1)
+
+            # accumulation due to rain in the past nights
+            acc_rain = acc_rain/3 + u_rain * 2/3
+            df['acc_rain'][night] = np.ones(len(night)) * acc_rain
+            # compute proportion of hours with rain during the night
+            u_rain = np.sum(np.where(df['tp'][night] > 0.01))
+
+            # accumulation due to unfavourable wind in the past nights
+            acc_wind = acc_wind/3 + u_wind * 2/3
+            df['acc_wind'][night] = np.ones(len(night)) * acc_wind
+            # compute wind profit for bird with speed 12 m/s and flight direction 223 degree north
+            v_air = np.ones(len(night)) * 12
+            alpha = np.ones(len(night)) * pref_dir[season]
+            df['wind_profit'][night] = v_air - np.sqrt(v_air**2 + df['wind_speed'][night]**2 - 2 * v_air *
+                                                       df['wind_speed'] * np.cos(np.deg2rad(alpha-df['wind_dir'])))
+            u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
+
 
         dfs.append(pd.DataFrame(df))
 
@@ -101,9 +139,9 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     return dynamic_feature_df
 
 
-def prepare_features(target_dir, data_dir, data_source, season, year,
-                     radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'],
-                     env_points=100, random_seed=1234):
+def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
+                     env_vars=['u', 'v'], surface_vars=['tp', 'sp', 't2m', 'sshf'],
+                     env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5):
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
@@ -119,7 +157,9 @@ def prepare_features(target_dir, data_dir, data_source, season, year,
 
     # load dynamic features
     dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                                          env_vars, env_points, random_seed)
+                                          env_vars=env_vars, surface_vars=surface_vars, env_points=env_points,
+                                          random_seed=random_seed, pref_dir=pref_dirs[season],
+                                          wp_threshold=wp_threshold)
 
     # save to disk
     dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
@@ -209,35 +249,34 @@ class Normalization:
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, root, year, season='fall', timesteps=1, combine_features=False,
-                 data_source='radar', use_buffers=False, bird_scale = 1, env_points=100,
-                 radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'], multinight=True, seed=1234,
-                 start=None, end=None, transform=None, pre_transform=None, normalize_dynamic=True, normalization=None):
+    def __init__(self, root, year, season, timesteps, transform=None, pre_transform=None, **kwargs):
 
         self.season = season
         self.year = str(year)
         self.timesteps = timesteps
-        self.data_source = data_source
-        self.start = start
-        self.end = end
-        self.bird_scale = bird_scale
-        self.env_points = env_points # number of environment variable samples per radar cell
-        self.radar_years = radar_years # years for which radar data is available
-        self.env_vars = env_vars
-        self.multinight = multinight
-        self.use_buffers = use_buffers and data_source == 'abm'
-        self.random_seed = seed
-        self.combine_features = combine_features
-        self.normalize_dynamic = normalize_dynamic
-        self.slice = slice
-        self.normalization = normalization
+
+        self.data_source = kwargs.get('data_source', 'radar')
+        self.use_buffers = kwargs.get('use_buffers', False)
+        self.bird_scale = kwargs.get('bird_scale', 1)
+        self.env_points = kwargs.get('env_points', 100)
+        self.radar_years = kwargs.get('radar_years', ['2015', '2016', '2017'])
+        self.env_vars = kwargs.get('env_vars', ['u', 'v'])
+        self.surface_vars = kwargs.get('surface_vars', ['tp', 'sp', 't2m', 'sshf'])
+        self.multinight = kwargs.get('multinight', True)
+        self.random_seed = kwargs.get('seed', 1234)
+        self.pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
+        self.wp_threshold = kwargs.get('wp_threshold', -0.5)
+
+        self.start = kwargs.get('start', None)
+        self.end = kwargs.get('end', None)
+        self.normalize_dynamic = kwargs.get('normalize_dynamic', True)
+        self.normalization = kwargs.get('normalization', None)
+
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers'
         else:
             self.processed_dirname = f'measurements=voronoi_cells'
-        if self.combine_features:
-            self.processed_dirname = f'{self.processed_dirname}_combined_features'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -280,8 +319,9 @@ class RadarData(InMemoryDataset):
             # load all features and organize them into dataframes
             os.makedirs(self.preprocessed_dir)
             prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-                             radar_years=self.radar_years, env_vars=self.env_vars,
-                             env_points=self.env_points, random_seed=self.random_seed)
+                             radar_years=self.radar_years, env_vars=self.env_vars, surface_vars=self.surface_vars,
+                             env_points=self.env_points, random_seed=self.random_seed, pref_dirs=self.pref_dirs,
+                             wp_threshold=self.wp_threshold)
 
         # load features
         dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir, 'dynamic_features.csv'))
@@ -327,7 +367,7 @@ class RadarData(InMemoryDataset):
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
         target_col = input_col
-        env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt']
+        env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + self.surface_vars
         coord_cols = ['x', 'y']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
@@ -341,35 +381,31 @@ class RadarData(InMemoryDataset):
         coords = static[coord_cols].to_numpy()
         dayofyear = dayofyear / max(dayofyear)
 
-        inputs = []
-        targets = []
-        env = []
-        nighttime = []
-        dusk = []
-        dawn = []
+        data = dict(inputs=[],
+                    targets=[],
+                    env=[],
+                    nighttime=[],
+                    dusk=[],
+                    dawn=[])
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
             df = groups.get_group(name).sort_values(by='datetime').reset_index(drop=True)
-            inputs.append(df[input_col].to_numpy())
-            targets.append(df[target_col].to_numpy())
-            env.append(df[env_cols].to_numpy().T)
-            nighttime.append(df.night.to_numpy())
-            dusk.append(df.dusk.to_numpy())
-            dawn.append(df.dawn.to_numpy())
+            data['inputs'].append(df[input_col].to_numpy())
+            data['targets'].append(df[target_col].to_numpy())
+            data['env'].append(df[env_cols].to_numpy().T)
+            data['nighttime'].append(df.night.to_numpy())
+            data['dusk'].append(df.dusk.to_numpy())
+            data['dawn'].append(df.dawn.to_numpy())
 
-        inputs = np.stack(inputs, axis=0)
-        targets = np.stack(targets, axis=0)
-        env = np.stack(env, axis=0)
-        nighttime = np.stack(nighttime, axis=0)
-        dusk = np.stack(dusk, axis=0)
-        dawn = np.stack(dawn, axis=0)
+        for k, v in data.items():
+            data[k] = np.stack(v, axis=0)
 
 
         # find timesteps where it's night for all radars
-        check_all = nighttime.all(axis=0) # day/night mask
+        check_all = data['nighttime'].all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar
-        check_any = nighttime.any(axis=0)
+        check_any = data['nighttime'].any(axis=0)
         # also include timesteps immediately before dusk
         check_any = np.append(np.logical_or(check_any[:-1], check_any[1:]), check_any[-1])
         # dft = pd.DataFrame({'check_all': np.append(np.logical_and(check_all[:-1], check_all[1:]), False),
@@ -390,28 +426,26 @@ class RadarData(InMemoryDataset):
         else:
             mask = check_all
 
-        inputs = reshape(inputs, nights, mask, self.timesteps)
-        targets = reshape(targets, nights, mask, self.timesteps)
-        env = reshape(env, nights, mask, self.timesteps)
+        for k, v in data.items():
+            data[k] = reshape(v, nights, mask, self.timesteps)
+
         tidx = reshape(tidx, nights, mask, self.timesteps)
         dayofyear = reshape(dayofyear, nights, mask, self.timesteps)
-        local_dusk = reshape(dusk, nights, mask, self.timesteps)
-        local_dawn = reshape(dawn, nights, mask, self.timesteps)
-        local_night = reshape(nighttime, nights, mask, self.timesteps)
+
 
         # set bird densities during the day to zero
-        inputs = inputs * local_night
-        targets = targets * local_night
+        data['inputs'] = data['inputs'] * data['nighttime']
+        data['targets'] = data['inputs'] * data['nighttime']
 
         edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
-        R, T, N = inputs.shape
+        R, T, N = data['inputs'].shape
 
         # create graph data objects per night
-        data_list = [Data(x=torch.tensor(inputs[:, :, nidx], dtype=torch.float),
-                          y=torch.tensor(targets[:, :, nidx], dtype=torch.float),
+        data_list = [Data(x=torch.tensor(data['inputs'][:, :, nidx], dtype=torch.float),
+                          y=torch.tensor(data['targets'][:, :, nidx], dtype=torch.float),
                           coords=torch.tensor(coords, dtype=torch.float),
                           areas=torch.tensor(areas, dtype=torch.float),
-                          env=torch.tensor(env[..., nidx], dtype=torch.float),
+                          env=torch.tensor(data['env'][..., nidx], dtype=torch.float),
                           edge_index=edge_index,
                           edge_attr=torch.stack([
                               torch.tensor(distances, dtype=torch.float),
@@ -421,9 +455,9 @@ class RadarData(InMemoryDataset):
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
                           day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
-                          local_night=torch.tensor(local_night[:, :, nidx], dtype=torch.bool),
-                          local_dusk=torch.tensor(local_dusk[:, :, nidx], dtype=torch.bool),
-                          local_dawn=torch.tensor(local_dawn[:, :, nidx], dtype=torch.bool))
+                          local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
+                          local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
+                          local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool))
                      for nidx in range(N)]
 
         # write data to disk
@@ -433,7 +467,6 @@ class RadarData(InMemoryDataset):
                  'timepoints': time,
                  'tidx': tidx,
                  'nights': nights,
-                 'local_nights': nighttime,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict()}
 

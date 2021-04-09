@@ -144,7 +144,8 @@ def test(cfg: DictConfig, output_dir: str, log):
 
 
     # load models and predict
-    gt, prediction, night, radar, seqID, tidx, datetime, trial, horizon = [], [], [], [], [], [], [], [], []
+    results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
+                   tidx=[], datetime=[], trial=[], horizon=[])
     for r in range(cfg.repeats):
         with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
             model = pickle.load(f)
@@ -156,28 +157,20 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             for ridx, name in radar_index.items():
                 y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
-                gt.append(y[ridx, :])
-                prediction.append(y_hat)
-                night.append(local_night[ridx, :])
-                radar.append([name] * y.shape[1])
-                seqID.append([nidx] * y.shape[1])
-                tidx.append(_tidx)
-                datetime.append(time[_tidx])
-                trial.append([r] * y.shape[1])
-                horizon.append(np.arange(y.shape[1]))
+                results['gt'].append(y[ridx, :])
+                results['prediction'].append(y_hat)
+                results['night'].append(local_night[ridx, :])
+                results['radar'].append([name] * y.shape[1])
+                results['seqID'].append([nidx] * y.shape[1])
+                results['tidx'].append(_tidx)
+                results['datetime'].append(time[_tidx])
+                results['trial'].append([r] * y.shape[1])
+                results['horizon'].append(np.arange(y.shape[1]))
 
     # create dataframe containing all results
-    df = pd.DataFrame(dict(
-        gt=np.concatenate(gt),
-        prediction = np.concatenate(prediction),
-        night=np.concatenate(night),
-        radar = np.concatenate(radar),
-        seqID = np.concatenate(seqID),
-        tidx = np.concatenate(tidx),
-        datetime = np.concatenate(datetime),
-        trial = np.concatenate(trial),
-        horizon = np.concatenate(horizon)
-    ))
+    for k, v in results.items():
+        results[k] = np.concatenate(v)
+    df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
     print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)

@@ -211,7 +211,8 @@ def test(cfg: DictConfig, output_dir: str, log):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    gt, prediction, night, radar, seqID, tidx, datetime, trial = [], [], [], [], [], [], [], []
+    results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
+                   tidx=[], datetime=[], trial=[], horizon=[])
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
@@ -233,14 +234,15 @@ def test(cfg: DictConfig, output_dir: str, log):
             local_night = data.local_night.cpu()
 
             for ridx, name in radar_index.items():
-                gt.append(y[ridx, :])
-                prediction.append(y_hat[ridx, :])
-                night.append(local_night[ridx, :])
-                radar.append([name] * y.shape[1])
-                seqID.append([nidx] * y.shape[1])
-                tidx.append(_tidx)
-                datetime.append(time[_tidx])
-                trial.append([r] * y.shape[1])
+                results['gt'].append(y[ridx, :])
+                results['prediction'].append(y_hat[ridx, :])
+                results['night'].append(local_night[ridx, :])
+                results['radar'].append([name] * y.shape[1])
+                results['seqID'].append([nidx] * y.shape[1])
+                results['tidx'].append(_tidx)
+                results['datetime'].append(time[_tidx])
+                results['trial'].append([r] * y.shape[1])
+                results['horizon'].append(np.arange(y.shape[1]))
 
             # get predicted fluxes from model
             outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
@@ -261,16 +263,12 @@ def test(cfg: DictConfig, output_dir: str, log):
             pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
 
     # create dataframe containing all results
-    df = pd.DataFrame(dict(
-        gt=torch.cat(gt).detach().numpy(),
-        prediction = torch.cat(prediction).detach().numpy(),
-        night=torch.cat(night),
-        radar = np.concatenate(radar),
-        seqID = np.concatenate(seqID),
-        tidx = np.concatenate(tidx),
-        datetime = np.concatenate(datetime),
-        trial = np.concatenate(trial)
-    ))
+    for k, v in results.items():
+        if torch.is_tensor(v[0]):
+            results[k] = torch.cat(v).detach().numpy()
+        else:
+            results[k] = np.concatenate(v)
+    df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
     print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
