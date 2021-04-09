@@ -554,6 +554,7 @@ class BirdFlowGraphLSTM(MessagePassing):
                 x = data.x[..., t].view(-1, 1)
 
             if torch.any(torch.logical_or(data.local_night[:, t+1], data.local_dusk[:, t+1])):
+                # TODO test this and if it works use it for other models too
                 # at least for one radar station it is night or dusk
                 env = data.env[..., t]
                 if not self.use_wind:

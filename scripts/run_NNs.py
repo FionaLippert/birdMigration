@@ -51,8 +51,10 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     # load training data
     train_data = [datasets.RadarData(data_root, year, cfg.season, ts,
-                                     data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization)
+                                     data_source=cfg.datasource.name,
+                                     use_buffers=cfg.datasource.use_buffers,
+                                     normalization=normalization,
+                                     env_vars=cfg.datasource.env_vars)
                   for year in cfg.datasource.training_years]
     boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     train_data = torch.utils.data.ConcatDataset(train_data)
@@ -66,9 +68,12 @@ def train(cfg: DictConfig, output_dir: str, log):
     cfg.datasource.bird_scale = float(normalization.max('birds'))
 
     # load validation data
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
-                                  data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                  normalization=normalization)
+    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
+                                  cfg.season, ts,
+                                  data_source=cfg.datasource.name,
+                                  use_buffers=cfg.datasource.use_buffers,
+                                  normalization=normalization,
+                                  env_vars=cfg.datasource.env_vars)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, cfg.seed)
@@ -196,7 +201,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    cfg.season, cfg.model.timesteps,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
-                                   normalization=normalization)
+                                   normalization=normalization,
+                                   env_vars=cfg.datasource.env_vars)
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:

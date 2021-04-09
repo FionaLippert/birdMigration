@@ -225,7 +225,7 @@ class Normalization:
                 prepare_features(dir, self.raw_dir, data_source, season, str(year),
                                  radar_years=radar_years, env_vars=env_vars,
                                  env_points=env_points, random_seed=seed,
-                                 pref_dir=pref_dirs[season], wp_threshold=wp_threshold)
+                                 pref_dirs=pref_dirs, wp_threshold=wp_threshold)
 
             # load features
             dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
