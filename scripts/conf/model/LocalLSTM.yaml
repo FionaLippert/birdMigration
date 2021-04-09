@@ -37,6 +37,5 @@ hyperparameters:
     default: True
     search_space:
       - True
-      - False
 epochs: 50
 timesteps: 40
