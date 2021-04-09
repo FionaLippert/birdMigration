@@ -6,6 +6,9 @@ training_years:
   - 2018
 validation_year: 2019
 test_year: 2015
+env_vars:
+  - u
+  - v
 
 use_buffers: False
 # will be filled at runtime

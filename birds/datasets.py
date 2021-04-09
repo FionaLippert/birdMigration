@@ -35,7 +35,7 @@ def static_features(data_dir, season, year):
     return voronoi, radar_buffers, G
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                     env_vars=['u', 'v'], surface_vars=['tp', 'sp', 't2m', 'sshf'],
+                     env_vars=['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'],
                      env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5):
 
     print(f'##### load data for {season} {year} #####')
@@ -66,7 +66,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
                                          t_range.tz_localize(None), vars=env_vars, seed=random_seed)
     env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
                                          voronoi.geometry, env_points,
-                                         t_range.tz_localize(None), vars=surface_vars, seed=random_seed)
+                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
@@ -95,14 +95,15 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
         # environmental variables for radar ridx
         for var in env_vars:
-            df[var] = env_850[var][ridx]
+            if var in env_850:
+                df[var] = env_850[var][ridx]
+            elif var in env_surface:
+                df[var] = env_surface[var][ridx]
         df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
         # Note that here wind direction is the direction into which the wind is blowing,
         # which is the opposite of the standard meteorological wind direction
 
         df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
-        for var in surface_vars:
-            df[var] = env_surface[var][ridx]
 
         # compute accumulation variables (for baseline models)
         groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
@@ -142,7 +143,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 
 def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
-                     env_vars=['u', 'v'], surface_vars=['tp', 'sp', 't2m', 'sshf'],
+                     env_vars=['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'],
                      env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5):
 
     # load static features
@@ -159,7 +160,7 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
 
     # load dynamic features
     dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                                          env_vars=env_vars, surface_vars=surface_vars, env_points=env_points,
+                                          env_vars=env_vars, env_points=env_points,
                                           random_seed=random_seed, pref_dir=pref_dirs[season],
                                           wp_threshold=wp_threshold)
 
@@ -208,8 +209,9 @@ def timeslice(data, start_night, mask, timesteps):
     return data_night
 
 class Normalization:
-    def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], env_vars=['u', 'v'],
-                 env_points=100, seed=1234):
+    def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'],
+                 env_vars=['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'], env_points=100, seed=1234,
+                 pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5):
         self.root = root
         self.data_source = data_source
         self.season = season
@@ -222,7 +224,8 @@ class Normalization:
                 os.makedirs(dir)
                 prepare_features(dir, self.raw_dir, data_source, season, str(year),
                                  radar_years=radar_years, env_vars=env_vars,
-                                 env_points=env_points, random_seed=seed)
+                                 env_points=env_points, random_seed=seed,
+                                 pref_dir=pref_dirs[season], wp_threshold=wp_threshold)
 
             # load features
             dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
@@ -262,9 +265,9 @@ class RadarData(InMemoryDataset):
         self.bird_scale = kwargs.get('bird_scale', 1)
         self.env_points = kwargs.get('env_points', 100)
         self.radar_years = kwargs.get('radar_years', ['2015', '2016', '2017'])
-        self.env_vars = kwargs.get('env_vars', ['u', 'v'])
-        #self.surface_vars = kwargs.get('surface_vars', ['tp', 'sp', 't2m', 'sshf'])
-        self.surface_vars = kwargs.get('surface_vars', [])
+        #self.env_vars = kwargs.get('env_vars', ['u', 'v'])
+        self.env_vars = kwargs.get('surface_vars', ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'])
+        #self.surface_vars = kwargs.get('surface_vars', [])
         self.multinight = kwargs.get('multinight', True)
         self.random_seed = kwargs.get('seed', 1234)
         self.pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
@@ -322,7 +325,7 @@ class RadarData(InMemoryDataset):
             # load all features and organize them into dataframes
             os.makedirs(self.preprocessed_dir)
             prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-                             radar_years=self.radar_years, env_vars=self.env_vars, surface_vars=self.surface_vars,
+                             radar_years=self.radar_years, env_vars=self.env_vars,
                              env_points=self.env_points, random_seed=self.random_seed, pref_dirs=self.pref_dirs,
                              wp_threshold=self.wp_threshold)
 
@@ -370,6 +373,8 @@ class RadarData(InMemoryDataset):
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
         target_col = input_col
+        self.suface_vars.remove('u')
+        self.suface_vars.remove('v')
         env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + self.surface_vars
         coord_cols = ['x', 'y']
 

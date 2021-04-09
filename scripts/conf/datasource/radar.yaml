@@ -6,6 +6,14 @@ training_years:
 validation_year: 2015
 test_year: 2015
 test_val_split: 0.75
+env_vars:
+  - u
+  - v
+  - cc
+  - tp
+  - sp
+  - t2m
+  - sshf
 
 use_buffers: True
 # will be filled at runtime

@@ -35,14 +35,19 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     # load datasets
     train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
-                                     data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization) for year in cfg.datasource.training_years]
+                                     data_source=cfg.datasource.name,
+                                     use_buffers=cfg.datasource.use_buffers,
+                                     normalization=normalization,
+                                     env_vars=cfg.datasource.env_vars) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
 
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
-                                  data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                  normalization=normalization)
+    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), 
+                                  cfg.season, ts,
+                                  data_source=cfg.datasource.name,
+                                  use_buffers=cfg.datasource.use_buffers,
+                                  normalization=normalization,
+                                  env_vars=cfg.datasource.env_vars)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
@@ -131,7 +136,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    cfg.season, cfg.model.timesteps,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
-                                   normalization=normalization)
+                                   normalization=normalization,
+                                   env_vars=cfg.datasource.env_vars)
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
