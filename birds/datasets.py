@@ -130,7 +130,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
             df['acc_wind'][night] = np.ones(len(night)) * acc_wind
             # compute wind profit for bird with speed 12 m/s and flight direction 223 degree north
             v_air = np.ones(len(night)) * 12
-            alpha = np.ones(len(night)) * pref_dir[season]
+            alpha = np.ones(len(night)) * pref_dir
             df['wind_profit'][night] = v_air - np.sqrt(v_air**2 + df['wind_speed'][night]**2 - 2 * v_air *
                                                        df['wind_speed'] * np.cos(np.deg2rad(alpha-df['wind_dir'])))
             u_wind = np.mean(df['wind_profit'][night]) < wp_threshold

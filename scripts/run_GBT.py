@@ -42,7 +42,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
 
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), 
+    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,

@@ -553,18 +553,19 @@ class BirdFlowGraphLSTM(MessagePassing):
             if r < teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
 
+            if torch.any(torch.logical_or(data.local_night[:, t+1], data.local_dusk[:, t+1])):
+                # at least for one radar station it is night or dusk
+                env = data.env[..., t]
+                if not self.use_wind:
+                    env = env[:, 2:]
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env,
+                                                    h_t=h_t, c_t=c_t, areas=data.areas,
+                                                    edge_attr=edge_attr, ground=ground,
+                                                    dusk=data.local_dusk[:, t])
 
-            env = data.env[..., t]
-            if not self.use_wind:
-                env = env[:, 2:]
-            x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env,
-                                                h_t=h_t, c_t=c_t, areas=data.areas,
-                                                edge_attr=edge_attr, ground=ground,
-                                                dusk=data.local_dusk[:, t])
-
-            if len(self.fixed_boundary) > 0:
-                # use ground truth for boundary nodes
-                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+                if len(self.fixed_boundary) > 0:
+                    # use ground truth for boundary nodes
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
 
 
             # for locations where it is dawn: save birds to ground and set birds in the air to zero

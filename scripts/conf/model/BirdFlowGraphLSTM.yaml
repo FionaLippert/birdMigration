@@ -13,7 +13,6 @@ hyperparameters:
       - 0
       - 1
       - 2
-      - 3
   n_lstm_layers:
     default: 1
     search_space:
@@ -24,7 +23,6 @@ hyperparameters:
     search_space:
     - 0.0
     - 0.25
-    - 0.5
   lr:
     default: 0.1
     search_space:
