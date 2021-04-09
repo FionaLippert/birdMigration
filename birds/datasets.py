@@ -77,6 +77,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         df['birds'] = data[ridx]
         if data_source == 'abm':
             df['birds_from_buffer'] = buffer_data[ridx]
+        else:
+            df['birds_from_buffer'] = data[ridx]
         df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx
