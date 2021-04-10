@@ -41,8 +41,6 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      env_vars=cfg.datasource.env_vars) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
-    print(y_train)
-    print(np.where(np.isnan(y_train)))
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
