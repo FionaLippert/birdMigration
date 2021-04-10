@@ -139,7 +139,7 @@ class LocalMLP(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_in = kwargs.get('n_in', 7)
+        self.n_in = 3 + kwargs.get('n_env', 4)
         self.n_layers = kwargs.get('n_layers', 1)
 
         torch.manual_seed(kwargs.get('seed', 1234))
@@ -199,7 +199,7 @@ class LocalLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_in = kwargs.get('n_in', 8)
+        self.n_in = 4 + kwargs.get('n_env', 4)
         self.n_layers = kwargs.get('n_layers', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
 
