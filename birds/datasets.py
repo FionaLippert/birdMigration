@@ -366,8 +366,11 @@ class RadarData(InMemoryDataset):
                          lambda col: (col - self.normalization.min(col.name)) /
                                      (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
             self.bird_scale = self.normalization.max(input_col)
+            print(self.bird_scale)
             dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
             dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
+            print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
+
 
 
 
@@ -445,7 +448,7 @@ class RadarData(InMemoryDataset):
 
         # set bird densities during the day to zero
         data['inputs'] = data['inputs'] * data['nighttime']
-        data['targets'] = data['inputs'] * data['nighttime']
+        data['targets'] = data['targets'] * data['nighttime']
 
         edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
         R, T, N = data['inputs'].shape
