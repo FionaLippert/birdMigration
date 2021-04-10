@@ -35,7 +35,6 @@ def static_features(data_dir, season, year):
     return voronoi, radar_buffers, G
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                     env_vars=['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'],
                      env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5):
 
     print(f'##### load data for {season} {year} #####')
@@ -61,6 +60,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     #solar_t_range = solar_t_range.insert(0, t_range[0] - pd.Timedelta(t_range.freq))
 
     print('load env data')
+    env_vars = ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
     env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
                                          voronoi.geometry, env_points,
                                          t_range.tz_localize(None), vars=env_vars, seed=random_seed)
@@ -144,7 +144,6 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 
 def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
-                     env_vars=['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'],
                      env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5):
 
     # load static features
@@ -161,9 +160,8 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
 
     # load dynamic features
     dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                                          env_vars=env_vars, env_points=env_points,
-                                          random_seed=random_seed, pref_dir=pref_dirs[season],
-                                          wp_threshold=wp_threshold)
+                                          env_points=env_points, random_seed=random_seed,
+                                          pref_dir=pref_dirs[season], wp_threshold=wp_threshold)
 
     # save to disk
     dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
@@ -211,8 +209,7 @@ def timeslice(data, start_night, mask, timesteps):
 
 class Normalization:
     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'],
-                 env_vars=['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'], env_points=100, seed=1234,
-                 pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5):
+                 env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5):
         self.root = root
         self.data_source = data_source
         self.season = season
@@ -224,7 +221,7 @@ class Normalization:
                 # load all features and organize them into dataframes
                 os.makedirs(dir)
                 prepare_features(dir, self.raw_dir, data_source, season, str(year),
-                                 radar_years=radar_years, env_vars=env_vars,
+                                 radar_years=radar_years,
                                  env_points=env_points, random_seed=seed,
                                  pref_dirs=pref_dirs, wp_threshold=wp_threshold)
 
@@ -326,7 +323,7 @@ class RadarData(InMemoryDataset):
             # load all features and organize them into dataframes
             os.makedirs(self.preprocessed_dir)
             prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-                             radar_years=self.radar_years, env_vars=self.env_vars,
+                             radar_years=self.radar_years,
                              env_points=self.env_points, random_seed=self.random_seed, pref_dirs=self.pref_dirs,
                              wp_threshold=self.wp_threshold)
 
@@ -376,7 +373,7 @@ class RadarData(InMemoryDataset):
         target_col = input_col
         # self.env_vars.remove('u')
         # self.env_vars.remove('v')
-        
+
         env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + \
                    [var for var in self.env_vars if not var in ['u', 'v']]
         coord_cols = ['x', 'y']
