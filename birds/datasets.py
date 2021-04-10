@@ -267,7 +267,7 @@ class RadarData(InMemoryDataset):
         self.env_points = kwargs.get('env_points', 100)
         self.radar_years = kwargs.get('radar_years', ['2015', '2016', '2017'])
         #self.env_vars = kwargs.get('env_vars', ['u', 'v'])
-        self.env_vars = kwargs.get('surface_vars', ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'])
+        self.env_vars = kwargs.get('env_vars', ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'])
         #self.surface_vars = kwargs.get('surface_vars', [])
         self.multinight = kwargs.get('multinight', True)
         self.random_seed = kwargs.get('seed', 1234)
@@ -374,9 +374,9 @@ class RadarData(InMemoryDataset):
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
         target_col = input_col
-        self.suface_vars.remove('u')
-        self.suface_vars.remove('v')
-        env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + self.surface_vars
+        self.env_vars.remove('u')
+        self.env_vars.remove('v')
+        env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + self.env_vars
         coord_cols = ['x', 'y']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
