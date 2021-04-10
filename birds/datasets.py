@@ -356,20 +356,22 @@ class RadarData(InMemoryDataset):
         #     dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
         #     if self.use_buffers:
         #         dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
+
+        input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
+
         if self.normalization is not None:
             cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
                                                      'dusk', 'dawn', 'datetime'])
             dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
                          lambda col: (col - self.normalization.min(col.name)) /
                                      (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
-            self.bird_scale = self.normalization.max('birds')
+            self.bird_scale = self.normalization.max(input_col)
             dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
-            if self.use_buffers:
-                dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
+            dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
 
 
 
-        input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
+
         target_col = input_col
         # self.env_vars.remove('u')
         # self.env_vars.remove('v')
