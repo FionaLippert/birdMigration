@@ -335,7 +335,6 @@ class RadarData(InMemoryDataset):
         print('number of nans: ', dynamic_feature_df.birds.isna().sum())
         print('max bird measurement', dynamic_feature_df.birds.max())
 
-        dynamic_feature_df.birds.fillna(0, inplace=True)
 
         # extract edges from graph
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
@@ -358,6 +357,7 @@ class RadarData(InMemoryDataset):
         #         dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
+        dynamic_feature_df[input_col].fillna(0, inplace=True)
 
         if self.normalization is not None:
             cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
@@ -369,7 +369,7 @@ class RadarData(InMemoryDataset):
             print(self.bird_scale)
             dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
             dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
-            print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
+            #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
 
 
 
