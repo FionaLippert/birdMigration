@@ -553,7 +553,7 @@ class BirdFlowGraphLSTM(MessagePassing):
             if r < teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
 
-            if torch.any(torch.logical_or(data.local_night[:, t+1], data.local_dusk[:, t+1])):
+            if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # TODO test this and if it works use it for other models too
                 # at least for one radar station it is night or dusk
                 env = data.env[..., t]
@@ -717,7 +717,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
         for t in range(self.timesteps):
 
-            if torch.any(torch.logical_or(data.local_night[:, t+1], data.local_dusk[:, t+1])):
+            if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # TODO test this and if it works use it for other models too
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
