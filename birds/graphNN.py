@@ -474,7 +474,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 6 + kwargs.get('n_env', 4)
         self.n_edge_in = 7 + 2*kwargs.get('n_env', 4)
-        self.n_self_in = kwargs.get('n_self_in', 7)
+        self.n_self_in = 3 + kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.use_wind = kwargs.get('use_wind', True)
