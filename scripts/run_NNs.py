@@ -98,6 +98,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             print(f'train model [trial {r}]')
             model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r), n_env=2+len(cfg.datasource.env_vars),
                           fixed_boundary=boundary if fixed_boundary else [])
+            print(len(cfg.datasource.env_vars))
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])

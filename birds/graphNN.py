@@ -656,6 +656,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 5 + kwargs.get('n_env_in', 4)
         self.n_edge_in = 9 + 2*kwargs.get('n_env_in', 4)
+        print(f'edge_in = {self.n_edge_in}')
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
@@ -750,6 +751,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
         features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
         #msg = self.mlp_edge(features).relu()
+        print(features.shape)
 
         msg = self.fc_edge_in(features).relu()
         msg = F.dropout(msg, p=self.dropout_p, training=self.training)
