@@ -472,8 +472,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = kwargs.get('n_node_in', 10)
-        self.n_edge_in = kwargs.get('n_edge_in', 15)
+        self.n_node_in = 6 + kwargs.get('n_env_in', 4)
+        self.n_edge_in = 7 + 2*kwargs.get('n_env_in', 4)
         self.n_self_in = kwargs.get('n_self_in', 7)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
@@ -654,8 +654,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = kwargs.get('n_node_in', 9)
-        self.n_edge_in = kwargs.get('n_edge_in', 17)
+        self.n_node_in = 5 + kwargs.get('n_env_in', 4)
+        self.n_edge_in = 9 + 2*kwargs.get('n_env_in', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
@@ -716,19 +716,23 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         y_hat.append(x)
 
         for t in range(self.timesteps):
-            r = torch.rand(1)
-            if r < teacher_forcing:
-                x = data.x[..., t].view(-1, 1)
 
-            env = data.env[..., t]
-            if not self.use_wind:
-                env = env[:, 2:]
-            x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
-                               edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas)
+            if torch.any(torch.logical_or(data.local_night[:, t+1], data.local_dusk[:, t+1])):
+                # TODO test this and if it works use it for other models too
+                # at least for one radar station it is night or dusk
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    x = data.x[..., t].view(-1, 1)
 
-            if len(self.fixed_boundary) > 0:
-                # use ground truth for boundary cells
-                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+                env = data.env[..., t]
+                if not self.use_wind:
+                    env = env[:, 2:]
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
+                                   edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas)
+
+                if len(self.fixed_boundary) > 0:
+                    # use ground truth for boundary cells
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
 
             # for locations where it is dawn: set birds in the air to zero
             x = x * data.local_night[:, t+1].view(-1, 1)
