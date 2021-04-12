@@ -12,7 +12,7 @@ data/
 testdata/
 models/
 departure_models/
-results/
+results/*
 scripts/outputs/
 *.tif
 *.png

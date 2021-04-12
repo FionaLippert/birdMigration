@@ -8,7 +8,7 @@ hyperparameters:
       - 32
       - 64
   n_fc_layers:
-    default: 1
+    default: 2
     search_space:
       - 0
       - 1
@@ -19,12 +19,12 @@ hyperparameters:
       - 1
       - 2
   dropout_p:
-    default: 0.0
+    default: 0.25
     search_space:
     - 0.0
     - 0.25
   lr:
-    default: 0.1
+    default: 0.0001
     search_space:
       - 0.01
       - 0.001
@@ -42,7 +42,7 @@ hyperparameters:
     search_space:
     - True
   conservation_constraint:
-    default: 0
+    default: 0.0
     search_space:
       - 0.0
       - 0.001
