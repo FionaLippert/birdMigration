@@ -187,7 +187,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         model_cfg = yaml.load(f)
 
     # load model settings
-    hp_settings = {key: settings.default for key, settings in model_cfg['model']['hyperparameters'].items()}
+    hp_settings = {key: settings['default'] for key, settings in model_cfg['model']['hyperparameters'].items()}
 
     # directory to which outputs will be written
     output_dir = osp.join(output_dir, json.dumps(hp_settings))
