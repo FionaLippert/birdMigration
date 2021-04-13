@@ -114,16 +114,23 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     data_root = osp.join(cfg.root, 'data')
 
+
+    # load best settings from grid search (or setting used for regular training)
+    train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
+                         cfg.model.name, cfg.experiment)
+    yaml = ruamel.yaml.YAML()
+    fp = osp.join(train_dir, 'config.yaml')
+    with open(fp, 'r') as f:
+        model_cfg = yaml.load(f)
+
     # load model settings
-    hp_settings = {key: settings.default for key, settings in cfg.model.hyperparameters.items()}
+    hp_settings = {key: settings.default for key, settings in model_cfg['model']['hyperparameters'].items()}
 
     # directory to which outputs will be written
     output_dir = osp.join(output_dir, json.dumps(hp_settings))
     os.makedirs(output_dir, exist_ok=True)
 
     # directory from which model is loaded
-    train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
-                         cfg.model.name, cfg.experiment)
     model_dir = osp.join(train_dir, json.dumps(hp_settings))
 
     # load normalizer
