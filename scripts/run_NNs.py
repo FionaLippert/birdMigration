@@ -165,7 +165,9 @@ def train(cfg: DictConfig, output_dir: str, log):
         yaml.dump(model_config, f)
 
     # save complete config to output dir
-    with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
+    for key, val in best_hp_settings.items():
+        cfg.model.hyperparameters[key]['default'] = val
+    with open(osp.join(output_dir, f'best_config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
 
     log.flush()
