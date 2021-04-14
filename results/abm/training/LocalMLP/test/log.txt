@@ -1,4 +1,0 @@
-best settings so far with settings {'n_hidden': 8, 'n_layers': 1, 'dropout_p': 0.0, 'lr': 0.1, 'lr_decay': 50}
-validation loss = 0.008952423930168152
----------------------
-saving best settings as default
