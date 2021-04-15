@@ -363,7 +363,8 @@ class RadarData(InMemoryDataset):
 
         # apply root transform
         if self.root_transform > 0:
-            dynamic_feature_df[input_col].apply(lambda x: np.power(x, 1/self.root_transform), inplace=True)
+            dynamic_feature_df[input_col] = dynamic_feature_df[input_col].apply(
+                                            lambda x: np.power(x, 1/self.root_transform))
 
         if self.normalization is not None:
             cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
