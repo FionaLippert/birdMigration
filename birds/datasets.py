@@ -272,6 +272,7 @@ class RadarData(InMemoryDataset):
         self.pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
         self.wp_threshold = kwargs.get('wp_threshold', -0.5)
         self.root_transform = kwargs.get('root_transform', 0)
+        self.missing_data_threshold = kwargs.get('missing_data_threshold', 0)
 
         self.start = kwargs.get('start', None)
         self.end = kwargs.get('end', None)
@@ -359,6 +360,7 @@ class RadarData(InMemoryDataset):
         #         dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
 
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
+        dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
         dynamic_feature_df[input_col].fillna(0, inplace=True)
 
         # apply root transform
@@ -381,8 +383,6 @@ class RadarData(InMemoryDataset):
                 dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
                 dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
                 #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
-
-
 
 
 
@@ -411,7 +411,8 @@ class RadarData(InMemoryDataset):
                     env=[],
                     nighttime=[],
                     dusk=[],
-                    dawn=[])
+                    dawn=[],
+                    missing=[])
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
@@ -422,6 +423,7 @@ class RadarData(InMemoryDataset):
             data['nighttime'].append(df.night.to_numpy())
             data['dusk'].append(df.dusk.to_numpy())
             data['dawn'].append(df.dawn.to_numpy())
+            data['missing'].append(df.missing.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
@@ -482,19 +484,21 @@ class RadarData(InMemoryDataset):
                           day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
                           local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
-                          local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool))
-                     for nidx in range(N)]
+                          local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
+                          missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool))
+                     for nidx in range(N) if data['missing'][:, :, nidx].mean() > self.missing_data_threshold]
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
-
+        n_seq_discarded = np.sum(data['missing'].mean((0, 1)) > self.missing_data_threshold)
         info = {'radars': voronoi.radar.values,
                  'timepoints': time,
                  'tidx': tidx,
                  'nights': nights,
                  'bird_scale': self.bird_scale,
                  'boundaries': voronoi['boundary'].to_dict(),
-                 'root_transform': self.root_transform}
+                 'root_transform': self.root_transform,
+                 'n_seq_discarded': n_seq_discarded}
 
         with open(osp.join(self.processed_dir, self.info_file_name), 'wb') as f:
             pickle.dump(info, f)

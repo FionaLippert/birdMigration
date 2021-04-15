@@ -41,7 +41,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      env_vars=cfg.datasource.env_vars,
                                      root_transform=cfg.root_transform) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
-    X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
+    X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, return_mask=True)
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
@@ -75,7 +75,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         val_losses = np.zeros(cfg.repeats)
         for r in range(cfg.repeats):
             print(f'train model [trial {r}]')
-            gbt = GBT.fit_GBT(X_train, y_train, **hp_settings, seed=(cfg.seed+r), tol=cfg.model.tolerance)
+            gbt = GBT.fit_GBT(X_train[mask_train], y_train[mask_train], **hp_settings,
+                              seed=(cfg.seed+r), tol=cfg.model.tolerance)
 
             with open(osp.join(sub_dir, f'model_{r}.pkl'), 'wb') as f:
                 pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
@@ -169,7 +170,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
-                   tidx=[], datetime=[], trial=[], horizon=[])
+                   tidx=[], datetime=[], trial=[], horizon=[], missing=[])
     for r in range(cfg.repeats):
         with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
             model = pickle.load(f)
@@ -178,6 +179,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             y = data.y * cfg.datasource.bird_scale
             _tidx = data.tidx
             local_night = data.local_night
+            missing = data.missing
 
             if cfg.root_transform > 0:
                 y = np.power(y, cfg.root_transform)
@@ -194,7 +196,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['tidx'].append(_tidx)
                 results['datetime'].append(time[_tidx])
                 results['trial'].append([r] * y.shape[1])
-                results['horizon'].append(np.arange(y.shape[1]))
+                results['horizon'].append(np.arange(y.shape[1]),
+                results['missing'].append(missing[ridx, :]))
 
     # create dataframe containing all results
     for k, v in results.items():

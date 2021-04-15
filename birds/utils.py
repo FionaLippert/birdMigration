@@ -15,9 +15,8 @@ def val_test_split(dataloader, val_ratio, random_seed):
 
     return val_loader, test_loader
 
-def MSE(output, gt, local_nights):
+def MSE(output, gt, mask):
     errors = (output - gt)**2
-    # ignore daytime data points
-    errors = errors[local_nights > 0]
+    errors = errors[mask]
     mse = errors.mean()
     return mse

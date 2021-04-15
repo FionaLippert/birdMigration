@@ -14,7 +14,7 @@ def prepare_data(dataset, timesteps, return_mask=False):
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X.append(features)
             y.append(seq.y[:, t])
-            mask.append(seq.local_night[:, t])
+            mask.append(seq.local_night[:, t] & ~seq.missing[:, t])
     X = np.concatenate(X, axis=0)
     y = np.concatenate(y, axis=0)
     mask = np.concatenate(mask, axis=0)

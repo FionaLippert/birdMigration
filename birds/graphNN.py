@@ -240,7 +240,8 @@ class LocalLSTM(MessagePassing):
 
             r = torch.rand(1)
             if r < teacher_forcing:
-                x = data.x[..., t].view(-1, 1)
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
             x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, env=env, areas=data.areas,
@@ -395,7 +396,8 @@ class BirdFlowGNN(MessagePassing):
         for t in range(self.timesteps):
             r = torch.rand(1)
             if r < teacher_forcing:
-                x = data.x[..., t].view(-1, 1)
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
             if not self.use_wind:
@@ -551,7 +553,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         for t in range(self.timesteps):
             r = torch.rand(1)
             if r < teacher_forcing:
-                x = data.x[..., t].view(-1, 1)
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # TODO test this and if it works use it for other models too
@@ -722,7 +725,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
                 if r < teacher_forcing:
-                    x = data.x[..., t].view(-1, 1)
+                    # if data is available use ground truth, otherwise use model prediction
+                    x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
 
                 env = data.env[..., t]
                 if not self.use_wind:
@@ -848,7 +852,8 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
                 if r < teacher_forcing:
-                    x = data.x[..., t].view(-1, 1)
+                    # if data is available use ground truth, otherwise use model prediction
+                    x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
 
                 env = data.env[..., t]
                 x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
@@ -1065,7 +1070,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
         target_fluxes = torch.ones(outfluxes.shape)
         target_fluxes = target_fluxes.to(device)
         constraints = torch.mean((outfluxes - target_fluxes)**2)
-        loss = loss_func(output, gt, data.local_night) + conservation_constraint * constraints
+        mask = data.local_night & ~data.missing
+        loss = loss_func(output, gt, mask) + conservation_constraint * constraints
 
         loss.backward()
         loss_all += data.num_graphs * loss
@@ -1085,7 +1091,8 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         output = model(data, teacher_forcing=teacher_forcing)
         gt = data.y
 
-        loss = loss_func(output, gt, data.local_night)
+        mask = data.local_night & ~data.missing
+        loss = loss_func(output, gt, mask)
         loss.backward()
         loss_all += data.num_graphs * loss
         optimizer.step()
@@ -1139,7 +1146,9 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
             outfluxes[tidx] = outfluxes[tidx].cpu()
             outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t])
+
+        mask = data.local_night & ~data.missing
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
                                       for t in range(timesteps + 1)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
@@ -1158,7 +1167,9 @@ def test_dynamics(model, test_loader, timesteps, loss_func, device, bird_scale=2
         data = data.to(device)
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], data.local_night[:, t]) for t in range(timesteps + 1)]))
+
+        mask = data.local_night & ~data.missing
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]) for t in range(timesteps + 1)]))
 
     return torch.stack(loss_all)
 
