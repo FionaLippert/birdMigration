@@ -550,6 +550,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.abs_flows = []
         self.selfflows = []
         self.abs_selfflows = []
+        self.deltas = []
         for t in range(self.timesteps):
             r = torch.rand(1)
             if r < teacher_forcing:
@@ -557,11 +558,8 @@ class BirdFlowGraphLSTM(MessagePassing):
                 x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
-                # TODO test this and if it works use it for other models too
                 # at least for one radar station it is night or dusk
                 env = data.env[..., t]
-                if not self.use_wind:
-                    env = env[:, 2:]
                 x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env,
                                                     h_t=h_t, c_t=c_t, areas=data.areas,
                                                     edge_attr=edge_attr, ground=ground,
@@ -626,6 +624,7 @@ class BirdFlowGraphLSTM(MessagePassing):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         delta = self.hidden2delta(h_t[-1]).tanh()
+        self.deltas.append(delta)
 
         features = torch.cat([coords, env, dusk.float().view(-1, 1)], dim=1)
         if self.n_fc_layers < 1:
