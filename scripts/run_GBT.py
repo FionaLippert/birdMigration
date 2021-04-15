@@ -39,7 +39,9 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
                                      env_vars=cfg.datasource.env_vars,
-                                     root_transform=cfg.root_transform) for year in cfg.datasource.training_years]
+                                     root_transform=cfg.root_transform,
+                                     missing_data_threshold=cfg.missing_data_threshold)
+                  for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, return_mask=True)
 
@@ -49,7 +51,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
                                   env_vars=cfg.datasource.env_vars,
-                                  root_transform=cfg.root_transform)
+                                  root_transform=cfg.root_transform,
+                                  missing_data_threshold=cfg.missing_data_threshold)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
@@ -156,7 +159,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
                                    env_vars=cfg.datasource.env_vars,
-                                   root_transform=cfg.root_transform)
+                                   root_transform=cfg.root_transform,
+                                   missing_data_threshold=cfg.missing_data_threshold)
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
