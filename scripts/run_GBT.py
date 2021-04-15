@@ -38,7 +38,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars) for year in cfg.datasource.training_years]
+                                     env_vars=cfg.datasource.env_vars,
+                                     root_transform=cfg.root_transform) for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train = GBT.prepare_data(train_data, timesteps=ts)
 
@@ -47,14 +48,18 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars)
+                                  env_vars=cfg.datasource.env_vars,
+                                  root_transform=cfg.root_transform)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    if cfg.root_transform == 0:
+        cfg.datasource.bird_scale = float(normalization.max('birds'))
+    else:
+        cfg.datasource.bird_scale = 1
 
 
     best_val_loss = np.inf
@@ -138,7 +143,10 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    if cfg.root_transform == 0:
+        cfg.datasource.bird_scale = float(normalization.max('birds'))
+    else:
+        cfg.datasource.bird_scale = 1
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
@@ -146,7 +154,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars)
+                                   env_vars=cfg.datasource.env_vars,
+                                   root_transform=cfg.root_transform)
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
@@ -170,8 +179,13 @@ def test(cfg: DictConfig, output_dir: str, log):
             _tidx = data.tidx
             local_night = data.local_night
 
+            if cfg.root_transform > 0:
+                y = np.power(y, cfg.root_transform)
+
             for ridx, name in radar_index.items():
                 y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
+                if cfg.root_transform > 0:
+                    y_hat = np.power(y_hat, cfg.root_transform)
                 results['gt'].append(y[ridx, :])
                 results['prediction'].append(y_hat)
                 results['night'].append(local_night[ridx, :])

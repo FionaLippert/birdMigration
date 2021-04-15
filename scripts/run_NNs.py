@@ -19,7 +19,8 @@ import pandas as pd
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
-                 'GraphLSTM': BirdDynamicsGraphLSTM}
+                 'GraphLSTM': BirdDynamicsGraphLSTM,
+                 'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed}
 
 
 # @hydra.main(config_path="conf", config_name="config")
@@ -54,7 +55,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars)
+                                     env_vars=cfg.datasource.env_vars,
+                                     root_transform=cfg.root_tranform)
                   for year in cfg.datasource.training_years]
     boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     train_data = torch.utils.data.ConcatDataset(train_data)
@@ -73,7 +75,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars)
+                                  env_vars=cfg.datasource.env_vars,
+                                  root_transform=cfg.root_tranform)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, cfg.seed)
@@ -202,7 +205,10 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    if cfg.root_transform == 0:
+        cfg.datasource.bird_scale = float(normalization.max('birds'))
+    else:
+        cfg.datasource.bird_scale = 1
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
@@ -210,7 +216,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars)
+                                   env_vars=cfg.datasource.env_vars,
+                                   root_transform=cfg.root_tranform)
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -239,9 +246,14 @@ def test(cfg: DictConfig, output_dir: str, log):
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
             y = data.y.cpu() * cfg.datasource.bird_scale
+
+            if cfg.root_transform > 0:
+                # transform back
+                y = np.power(y, cfg.root_transform)
+                y_hat = np.power(y_hat, cfg.root_transform)
+
             _tidx = data.tidx.cpu()
             local_night = data.local_night.cpu()
-
 
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, :])

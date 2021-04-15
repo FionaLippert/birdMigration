@@ -270,6 +270,7 @@ class RadarData(InMemoryDataset):
         self.random_seed = kwargs.get('seed', 1234)
         self.pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
         self.wp_threshold = kwargs.get('wp_threshold', -0.5)
+        self.root_transform = kwargs.get('root_transform', 0)
 
         self.start = kwargs.get('start', None)
         self.end = kwargs.get('end', None)
@@ -281,6 +282,8 @@ class RadarData(InMemoryDataset):
             self.processed_dirname = f'measurements=from_buffers'
         else:
             self.processed_dirname = f'measurements=voronoi_cells'
+        if self.root_transform > 0:
+            self.preprocessed_dir += f'root_transform={self.root_transform}'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
@@ -359,17 +362,25 @@ class RadarData(InMemoryDataset):
         input_col = 'birds_from_buffer' if self.use_buffers else 'birds'
         dynamic_feature_df[input_col].fillna(0, inplace=True)
 
+        # apply root transform
+        if self.root_transform > 0:
+            dynamic_feature_df[input_col].apply(lambda x: np.power(x, 1/self.root_transform), inplace=True)
+
         if self.normalization is not None:
             cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
                                                      'dusk', 'dawn', 'datetime'])
             dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
                          lambda col: (col - self.normalization.min(col.name)) /
                                      (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
-            self.bird_scale = self.normalization.max(input_col)
-            print(self.bird_scale)
-            dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
-            dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
-            #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
+
+            if self.root_transform > 0:
+                self.bird_scale = 1
+            else:
+                self.bird_scale = self.normalization.max(input_col)
+                print(self.bird_scale)
+                dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
+                dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
+                #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
 
 
 
@@ -482,7 +493,8 @@ class RadarData(InMemoryDataset):
                  'tidx': tidx,
                  'nights': nights,
                  'bird_scale': self.bird_scale,
-                 'boundaries': voronoi['boundary'].to_dict()}
+                 'boundaries': voronoi['boundary'].to_dict(),
+                 'root_transform': self.root_transform}
 
         with open(osp.join(self.processed_dir, self.info_file_name), 'wb') as f:
             pickle.dump(info, f)

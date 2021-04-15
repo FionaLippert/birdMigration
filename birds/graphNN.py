@@ -786,6 +786,123 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
 
 
+class BirdDynamicsGraphLSTM_transformed(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(BirdDynamicsGraphLSTM_transformed, self).__init__(aggr='add', node_dim=0)
+
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_edge_in = 9 + 2*kwargs.get('n_env', 4)
+        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
+        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.fixed_boundary = kwargs.get('fixed_boundary', [])
+
+        torch.manual_seed(kwargs.get('seed', 1234))
+
+
+        self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                        for _ in range(self.n_fc_layers - 1)])
+        self.fc_edge_out = torch.nn.Linear(self.n_hidden, self.n_hidden)
+
+
+        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, 1))
+
+
+
+    def forward(self, data, teacher_forcing=0.0):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        # measurement at t=0
+        x = data.x[..., 0].view(-1, 1)
+
+        # initialize lstm variables
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+
+        y_hat = []
+        y_hat.append(x)
+
+        for t in range(self.timesteps):
+
+            if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
+                # TODO test this and if it works use it for other models too
+                # at least for one radar station it is night or dusk
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    x = data.x[..., t].view(-1, 1)
+
+                env = data.env[..., t]
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
+                                   edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas)
+
+                if len(self.fixed_boundary) > 0:
+                    # use ground truth for boundary cells
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+
+            # for locations where it is dawn: set birds in the air to zero
+            x = x * data.local_night[:, t+1].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
+        #msg = self.mlp_edge(features).relu()
+
+        msg = self.fc_edge_in(features).relu()
+        msg = F.dropout(msg, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_edge_hidden:
+            msg = l(msg).relu()
+            msg = F.dropout(msg, p=self.dropout_p, training=self.training)
+
+        msg = self.fc_edge_out(msg).relu()
+
+        return msg
+
+
+    def update(self, aggr_out, x, coords, env, areas, dusk, h_t, c_t):
+
+        # recurrent component
+        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        inputs = self.node2hidden(inputs).relu()
+        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        for l in range(1, self.n_fc_layers):
+            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+
+        # combine messages from neighbors and recurrent module into single number representing the new bird density
+        pred = self.hidden2birds(torch.cat([aggr_out, h_t[-1]])).relu()
+
+        return pred, h_t, c_t
+
+
+
 class BirdDynamicsGraphGRU(MessagePassing):
 
     def __init__(self, msg_n_in=17, node_n_in=8, n_out=1, n_hidden=16, timesteps=6,

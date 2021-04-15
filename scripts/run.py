@@ -18,7 +18,7 @@ def run(cfg: DictConfig):
     try:
         if cfg.model.name == 'GBT':
             run_GBT.run(cfg, output_dir, log)
-        elif cfg.model.name in ['LocalMLP', 'LocalLSTM', 'GraphLSTM']:
+        elif cfg.model.name in ['LocalMLP', 'LocalLSTM', 'GraphLSTM', 'GraphLSTM_transformed']:
             run_NNs.run(cfg, output_dir, log)
         elif cfg.model.name in ['BirdFlowGraphLSTM']:
             run_FlowNNs.run(cfg, output_dir, log)
