@@ -254,6 +254,7 @@ class RadarData(InMemoryDataset):
 
     def __init__(self, root, year, season, timesteps, transform=None, pre_transform=None, **kwargs):
 
+        self.root = root
         self.season = season
         self.year = str(year)
         self.timesteps = timesteps
