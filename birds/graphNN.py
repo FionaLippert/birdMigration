@@ -202,6 +202,7 @@ class LocalLSTM(MessagePassing):
         self.n_in = 4 + kwargs.get('n_env', 4)
         self.n_layers = kwargs.get('n_layers', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
+        self.force_zeros = kwargs.get('force_zeros', True)
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -237,19 +238,21 @@ class LocalLSTM(MessagePassing):
         y_hat = [x]
 
         for t in range(self.timesteps):
+            if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
+                # at least for one radar station it is night or dusk
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    # if data is available use ground truth, otherwise use model prediction
+                    x = data.missing[..., t].view(-1, 1) * x + \
+                        ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
-            r = torch.rand(1)
-            if r < teacher_forcing:
-                # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t].view(-1, 1) * x + \
-                    ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
+                env = data.env[..., t]
+                x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, env=env, areas=data.areas,
+                                                   h_t=h_t, c_t=c_t, edge_attr=data.edge_attr)
 
-            env = data.env[..., t]
-            x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, env=env, areas=data.areas,
-                                               h_t=h_t, c_t=c_t, edge_attr=data.edge_attr)
-
-            # for locations where it is night: set birds in the air to zero
-            x = x * data.local_night[:, t+1].view(-1, 1)
+            if self.force_zeros:
+                # for locations where it is night: set birds in the air to zero
+                x = x * data.local_night[:, t+1].view(-1, 1)
 
             y_hat.append(x)
 
@@ -478,18 +481,14 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 6 + kwargs.get('n_env', 4)
         self.n_edge_in = 7 + 2*kwargs.get('n_env', 4)
-        self.n_self_in = 3 + kwargs.get('n_env', 4)
+        self.n_self_in = 4 + kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
-        self.use_wind = kwargs.get('use_wind', True)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
+        self.force_zeros = kwargs.get('force_zeros', True)
+        self.recurrent = kwargs.get('recurrent', True)
 
         torch.manual_seed(kwargs.get('seed', 1234))
-
-        if not self.use_wind:
-            self.n_edge_in -= 2
-            self.n_node_in -= 2
-
 
         if self.n_fc_layers < 1:
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(self.n_edge_in, 1),
@@ -498,11 +497,6 @@ class BirdFlowGraphLSTM(MessagePassing):
                                                 torch.nn.Sigmoid())
 
         else:
-            # self.edgeflow = torch.nn.Sequential(torch.nn.Linear(edges_n_in, self.n_hidden),
-            #                                     torch.nn.Dropout(p=self.dropout_p),
-            #                                     torch.nn.ReLU(),
-            #                                     torch.nn.Linear(self.n_hidden, 1),
-            #                                     torch.nn.Sigmoid())
             self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
             self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                                  for _ in range(self.n_fc_layers - 1)])
@@ -535,11 +529,12 @@ class BirdFlowGraphLSTM(MessagePassing):
         x = data.x[..., 0].view(-1, 1)
 
         # birds on the ground at t=0
-        ground = torch.zeros_like(x).to(x.device)
+        #ground = torch.zeros_like(x).to(x.device)
 
         # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
+        if self.recurrent:
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
@@ -554,35 +549,40 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.abs_selfflows = []
         self.deltas = []
         for t in range(self.timesteps):
-            r = torch.rand(1)
-            if r < teacher_forcing:
-                # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t].view(-1, 1) * x + \
-                    ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
-                env = data.env[..., t]
-                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env,
+
+                r = torch.rand(1)
+                if r < teacher_forcing:
+                    # if data is available use ground truth, otherwise use model prediction
+                    x = data.missing[..., t].view(-1, 1) * x + \
+                        ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
+
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                     h_t=h_t, c_t=c_t, areas=data.areas,
-                                                    edge_attr=edge_attr, ground=ground,
-                                                    dusk=data.local_dusk[:, t])
+                                                    edge_attr=edge_attr, #ground=ground,
+                                                    dusk=data.local_dusk[:, t],
+                                                    dawn=data.local_dawn[:, t+1],
+                                                    env=data.env[..., t+1])
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary nodes
-                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t+1]
 
 
             # for locations where it is dawn: save birds to ground and set birds in the air to zero
-            r = torch.rand(1)
-            if r < teacher_forcing:
-                ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
-            else:
-                ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-            x = x * data.local_night[:, t+1].view(-1, 1)
+            # r = torch.rand(1)
+            # if r < teacher_forcing:
+            #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+            # else:
+            #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+
+            if self.force_zeros:
+                x = x * data.local_night[:, t+1].view(-1, 1)
 
             # for locations where it is dusk: set birds on ground to zero
-            ground = ground * ~data.local_dusk[:, t].view(-1, 1)
+            # ground = ground * ~data.local_dusk[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -616,20 +616,24 @@ class BirdFlowGraphLSTM(MessagePassing):
         return abs_flow
 
 
-    def update(self, aggr_out, x, coords, env, ground, dusk, areas, h_t, c_t):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t):
+        if self.recurrent:
+            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+                                dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+            inputs = self.node2hidden(inputs).relu()
 
-        inputs = torch.cat([x.view(-1, 1), coords, env, ground.view(-1, 1),
-                            dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
-        inputs = self.node2hidden(inputs).relu()
+            h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+            for l in range(1, self.n_lstm_layers):
+                h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
-        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        for l in range(1, self.n_lstm_layers):
-            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+            delta = self.hidden2delta(h_t[-1]).tanh()
+            self.deltas.append(delta)
+        else:
+            delta = 0
+            h_t = None
+            c_t = None
 
-        delta = self.hidden2delta(h_t[-1]).tanh()
-        self.deltas.append(delta)
-
-        features = torch.cat([coords, env, dusk.float().view(-1, 1)], dim=1)
+        features = torch.cat([coords, env, dusk.float().view(-1, 1), dawn.float().view(-1, 1)], dim=1)
         if self.n_fc_layers < 1:
             selfflow = self.selfflow(features)
         else:
@@ -659,19 +663,16 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_node_in = 6 + kwargs.get('n_env', 4)
         self.n_edge_in = 9 + 2*kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
-        self.use_wind = kwargs.get('use_wind', True)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
+        self.force_zeros = kwargs.get('force_zeros', [])
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
-        if not self.use_wind:
-            self.n_edge_in -= 2
-            self.n_node_in -= 2
 
         self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
@@ -723,7 +724,6 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
-                # TODO test this and if it works use it for other models too
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
                 if r < teacher_forcing:
@@ -731,18 +731,19 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
-                env = data.env[..., t]
-                if not self.use_wind:
-                    env = env[:, 2:]
-                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
-                                   edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas)
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+                                   edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas,
+                                   dusk=data.local_dusk[:, t],
+                                   dawn=data.local_dawn[:, t+1],
+                                   env=data.env[..., t+1])
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary cells
-                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t+1]
 
-            # for locations where it is dawn: set birds in the air to zero
-            x = x * data.local_night[:, t+1].view(-1, 1)
+            if self.force_zeros:
+                # for locations where it is dawn: set birds in the air to zero
+                x = x * data.local_night[:, t+1].view(-1, 1)
 
             y_hat.append(x)
 
@@ -770,10 +771,11 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, areas, dusk, h_t, c_t):
+    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t):
 
         # predict departure/landing
-        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                            dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_fc_layers):
@@ -801,11 +803,12 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_node_in = 6 + kwargs.get('n_env', 4)
         self.n_edge_in = 9 + 2*kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
+        self.forced_zeros = kwargs.get('forced_zeros', [])
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -851,7 +854,6 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
-                # TODO test this and if it works use it for other models too
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
                 if r < teacher_forcing:
@@ -859,16 +861,19 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
-                env = data.env[..., t]
-                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
-                                   edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas)
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+                                             edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas,
+                                             dusk=data.local_dusk[:, t],
+                                             dawn=data.local_dawn[:, t+1],
+                                             env=data.env[..., t+1])
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary cells
-                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t+1]
 
-            # for locations where it is dawn: set birds in the air to zero
-            x = x * data.local_night[:, t+1].view(-1, 1)
+            if self.forced_zeros:
+                # for locations where it is dawn: set birds in the air to zero
+                x = x * data.local_night[:, t+1].view(-1, 1)
 
             y_hat.append(x)
 
@@ -896,10 +901,11 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, areas, dusk, h_t, c_t):
+    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t):
 
         # recurrent component
-        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                            dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_fc_layers):

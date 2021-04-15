@@ -34,3 +34,4 @@ hyperparameters:
     - true
 epochs: 50
 timesteps: 40
+force_zeros: true

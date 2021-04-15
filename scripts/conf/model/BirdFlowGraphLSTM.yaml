@@ -44,3 +44,5 @@ hyperparameters:
 epochs: 50
 timesteps: 40
 fixed_boundary: false
+force_zeros: true
+recurrent: true

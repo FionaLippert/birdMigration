@@ -91,8 +91,11 @@ def train(cfg: DictConfig, output_dir: str, log):
         for r in range(cfg.repeats):
 
             print(f'train model [trial {r}]')
-            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r), n_env=2+len(cfg.datasource.env_vars),
-                          fixed_boundary=boundary if fixed_boundary else [])
+            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r),
+                          n_env=2+len(cfg.datasource.env_vars),
+                          fixed_boundary=boundary if fixed_boundary else [],
+                          force_zeros=cfg.model.get('force_zeros', 0),
+                          recurrent=cfg.model.recurrent)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
@@ -138,18 +141,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         np.save(osp.join(sub_dir, 'validation_losses.npy'), val_losses)
 
         # plotting
-        fig, ax = plt.subplots()
-        train_line = ax.plot(range(1, epochs + 1), training_curves.mean(0), label='training')
-        ax.fill_between(range(1, epochs + 1), training_curves.mean(0) - training_curves.std(0),
-                        training_curves.mean(0) + training_curves.std(0), alpha=0.2,
-                        color=train_line[0].get_color())
-        val_line = ax.plot(range(1, epochs + 1), val_curves.mean(0), label='validation')
-        ax.fill_between(range(1, epochs + 1), val_curves.mean(0) - val_curves.std(0),
-                        val_curves.mean(0) + val_curves.std(0), alpha=0.2,
-                        color=val_line[0].get_color())
-        ax.set(xlabel='epoch', ylabel='MSE', yscale='log', xscale='log')
-        plt.legend()
-        fig.savefig(osp.join(sub_dir, f'training_validation_curves.png'), bbox_inches='tight')
+        utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
+        utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
 
     print('saving best settings as default', file=log)
     # use ruamel.yaml to not overwrite comments in the original yaml
@@ -236,6 +229,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         outfluxes = {}
         outfluxes_abs = {}
+        deltas = {}
         for nidx, data in enumerate(test_loader):
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
@@ -267,12 +261,15 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             outfluxes[nidx] = outfluxes[nidx].cpu()
             outfluxes_abs[nidx] = outfluxes_abs[nidx].cpu()
+            deltas[nidx] = torch.stack(model.deltas, dim=-1)
 
-        # write outfluxes to disk
+        # write outfluxes and deltas to disk
         with open(osp.join(output_dir, f'outfluxes_{r}.pickle'), 'wb') as f:
             pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'outfluxes_abs_{r}.pickle'), 'wb') as f:
             pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
+        with open(osp.join(output_dir, f'deltas_{r}.pickle'), 'wb') as f:
+            pickle.dump(deltas, f, pickle.HIGHEST_PROTOCOL)
 
     # create dataframe containing all results
     for k, v in results.items():
