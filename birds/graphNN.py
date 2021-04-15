@@ -535,6 +535,9 @@ class BirdFlowGraphLSTM(MessagePassing):
         if self.recurrent:
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
+        else:
+            h_t = []
+            c_t = []
 
         coords = data.coords
         edge_index = data.edge_index
@@ -630,8 +633,6 @@ class BirdFlowGraphLSTM(MessagePassing):
             self.deltas.append(delta)
         else:
             delta = 0
-            h_t = None
-            c_t = None
 
         features = torch.cat([coords, env, dusk.float().view(-1, 1), dawn.float().view(-1, 1)], dim=1)
         if self.n_fc_layers < 1:
