@@ -285,7 +285,7 @@ class LocalLSTM(MessagePassing):
             delta = self.mlp_out(h_t[-1]).tanh()
             x = x + delta
         else:
-            x = self.mlp_out(h_t[-1]).sigmoid()
+            x = self.mlp_out(h_t[-1]).relu()
 
         return x, h_t, c_t
 
