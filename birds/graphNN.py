@@ -555,7 +555,6 @@ class BirdFlowGraphLSTM(MessagePassing):
 
                 r = torch.rand(1)
                 if r < teacher_forcing:
-                    print('teacher forcing is active')
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
@@ -651,9 +650,6 @@ class BirdFlowGraphLSTM(MessagePassing):
         selfflow = x * selfflow
         self.abs_selfflows.append(selfflow)
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
-        print(f'selfflow: {selfflow}')
-        print(f'aggr: {aggr_out}')
-        print(f'delta: {delta}')
         pred = selfflow + aggr_out + delta
 
         return pred, h_t, c_t
