@@ -555,6 +555,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
                 r = torch.rand(1)
                 if r < teacher_forcing:
+                    print('teacher forcing is active')
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
