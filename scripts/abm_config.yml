@@ -1,16 +1,16 @@
 # settings for ABM simulation
-year: '2016'
+year: '2017'
 season: fall
 start_date: 08-01 12:00
 end_date: 11-15 12:00
-num_birds: 50000
+num_birds: 100000
 #num_birds: 50
 
 settings:
-  energy_tol_mean: 1.0
+  energy_tol_mean: 0.25
   energy_tol_std: 0.1
   compensation: 0.6
-  start_day_range: 15
+  start_day_range: 105
   departure_window: 3
 #  start_day_mean: 15
 #  start_day_std: 5

@@ -2,15 +2,15 @@
 name: LocalLSTM
 hyperparameters:
   n_hidden:
-    default: 16
+    default: 64
     search_space:
-      - 16
-      - 32
-      - 64
+    - 16
+    - 32
+    - 64
   n_layers:
     default: 1
     search_space:
-      - 1
+    - 1
   dropout_p:
     default: 0.25
     search_space:
@@ -18,8 +18,8 @@ hyperparameters:
   lr:
     default: 0.0001
     search_space:
-      - 0.0001
-      - 0.00001
+    - 0.0001
+    - 0.00001
   lr_decay:
     default: 50
     search_space:
@@ -29,8 +29,8 @@ hyperparameters:
     search_space:
     - 0.9
   predict_delta:
-    default: True
+    default: true
     search_space:
-      - True
+    - true
 epochs: 50
 timesteps: 40

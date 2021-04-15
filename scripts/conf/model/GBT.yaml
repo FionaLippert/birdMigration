@@ -14,7 +14,7 @@ hyperparameters:
     - 0.2
     - 0.3
   max_depth:
-    default: 8
+    default: 4
     search_space:
     - 4
     - 6
