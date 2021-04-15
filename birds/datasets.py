@@ -490,7 +490,7 @@ class RadarData(InMemoryDataset):
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
-        n_seq_discarded = np.sum(data['missing'].mean((0, 1)) <= self.missing_data_threshold)
+        n_seq_discarded = np.sum(data['missing'].mean((0, 1)) > self.missing_data_threshold)
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
                  'timepoints': time,

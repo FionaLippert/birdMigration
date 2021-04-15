@@ -241,7 +241,8 @@ class LocalLSTM(MessagePassing):
             r = torch.rand(1)
             if r < teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
+                x = data.missing[..., t].view(-1, 1) * x + \
+                    ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
             x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, env=env, areas=data.areas,
@@ -397,7 +398,8 @@ class BirdFlowGNN(MessagePassing):
             r = torch.rand(1)
             if r < teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
+                x = data.missing[..., t].view(-1, 1) * x + \
+                    ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
             if not self.use_wind:
@@ -555,7 +557,8 @@ class BirdFlowGraphLSTM(MessagePassing):
             r = torch.rand(1)
             if r < teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
+                x = data.missing[..., t].view(-1, 1) * x + \
+                    ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
@@ -725,7 +728,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                 r = torch.rand(1)
                 if r < teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
-                    x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
+                    x = data.missing[..., t].view(-1, 1) * x + \
+                        ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
                 env = data.env[..., t]
                 if not self.use_wind:
@@ -852,7 +856,8 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
                 r = torch.rand(1)
                 if r < teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
-                    x = data.missing[..., t] * x + ~data.missing[..., t] * data.x[..., t].view(-1, 1)
+                    x = data.missing[..., t].view(-1, 1) * x + \
+                        ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
                 env = data.env[..., t]
                 x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords, env=env, dusk=data.local_dusk[:, t],
