@@ -37,10 +37,6 @@ hyperparameters:
     search_space:
     - true
     - false
-  use_wind:
-    default: true
-    search_space:
-    - true
 epochs: 50
 timesteps: 40
 fixed_boundary: false

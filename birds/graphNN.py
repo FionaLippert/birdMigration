@@ -552,6 +552,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
+                print(x)
 
                 r = torch.rand(1)
                 if r < teacher_forcing:

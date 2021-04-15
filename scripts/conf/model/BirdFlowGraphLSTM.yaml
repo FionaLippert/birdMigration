@@ -32,10 +32,6 @@ hyperparameters:
     default: 0.9
     search_space:
     - 0.9
-  use_wind:
-    default: true
-    search_space:
-    - true
   conservation_constraint:
     default: 0.05
     search_space:
