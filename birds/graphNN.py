@@ -552,13 +552,13 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
-                print(x)
 
                 r = torch.rand(1)
                 if r < teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
+                    print(data.x[..., t])
 
                 x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                     h_t=h_t, c_t=c_t, areas=data.areas,
