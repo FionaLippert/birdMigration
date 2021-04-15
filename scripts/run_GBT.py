@@ -51,7 +51,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   env_vars=cfg.datasource.env_vars,
                                   root_transform=cfg.root_transform)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_data, _ = utils.val_test_split(val_data, cfg.datasource.test_val_split, cfg.seed)
+        val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
     X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -162,7 +162,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     if cfg.datasource.validation_year == cfg.datasource.test_year:
-        _, test_data = utils.val_test_split(test_data, cfg.datasource.test_val_split, cfg.seed)
+        _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
     X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
                                     timesteps=cfg.model.timesteps, return_mask=True)
 

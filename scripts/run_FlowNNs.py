@@ -71,7 +71,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   normalization=normalization)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.test_val_split, cfg.seed)
+        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
 
 
 
@@ -212,7 +212,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
-        _, test_loader = utils.val_test_split(test_loader, cfg.datasource.test_val_split, cfg.seed)
+        _, test_loader = utils.val_test_split(test_loader, cfg.datasource.val_test_split, cfg.seed)
 
     # load additional data
     time = test_data.info['timepoints']
