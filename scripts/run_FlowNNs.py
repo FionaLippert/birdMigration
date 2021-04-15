@@ -221,7 +221,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
-                   tidx=[], datetime=[], trial=[], horizon=[])
+                   tidx=[], datetime=[], trial=[], horizon=[], missing=[])
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
@@ -241,6 +241,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             y = data.y.cpu() * cfg.datasource.bird_scale
             _tidx = data.tidx.cpu()
             local_night = data.local_night.cpu()
+            missing = data.missing.cpu()
 
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, :])
@@ -252,6 +253,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['datetime'].append(time[_tidx])
                 results['trial'].append([r] * y.shape[1])
                 results['horizon'].append(np.arange(y.shape[1]))
+                results['missing'].append(missing[ridx, :])
 
             # get predicted fluxes from model
             outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(

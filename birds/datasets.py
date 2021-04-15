@@ -486,11 +486,11 @@ class RadarData(InMemoryDataset):
                           local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool))
-                     for nidx in range(N) if data['missing'][:, :, nidx].mean() > self.missing_data_threshold]
+                     for nidx in range(N) if data['missing'][:, :, nidx].mean() <= self.missing_data_threshold]
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
-        n_seq_discarded = np.sum(data['missing'].mean((0, 1)) > self.missing_data_threshold)
+        n_seq_discarded = np.sum(data['missing'].mean((0, 1)) <= self.missing_data_threshold)
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
                  'timepoints': time,

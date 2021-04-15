@@ -196,8 +196,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['tidx'].append(_tidx)
                 results['datetime'].append(time[_tidx])
                 results['trial'].append([r] * y.shape[1])
-                results['horizon'].append(np.arange(y.shape[1]),
-                results['missing'].append(missing[ridx, :]))
+                results['horizon'].append(np.arange(y.shape[1]))
+                results['missing'].append(missing[ridx, :])
 
     # create dataframe containing all results
     for k, v in results.items():
