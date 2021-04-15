@@ -280,11 +280,9 @@ class RadarData(InMemoryDataset):
 
 
         if self.use_buffers:
-            self.processed_dirname = f'measurements=from_buffers'
+            self.processed_dirname = f'measurements=from_buffers_root_transform={self.root_transform}'
         else:
-            self.processed_dirname = f'measurements=voronoi_cells'
-        if self.root_transform > 0:
-            self.preprocessed_dir += f'root_transform={self.root_transform}'
+            self.processed_dirname = f'measurements=voronoi_cells_root_transform={self.root_transform}'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
