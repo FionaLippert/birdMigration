@@ -230,7 +230,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
-                   tidx=[], datetime=[], trial=[], horizon=[]) #, missing=[])
+                   tidx=[], datetime=[], trial=[], horizon=[], missing=[])
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
@@ -254,7 +254,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             _tidx = data.tidx.cpu()
             local_night = data.local_night.cpu()
-            #missing = data.missing.cpu()
+            missing = data.missing.cpu()
 
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, :])
@@ -265,8 +265,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['tidx'].append(_tidx)
                 results['datetime'].append(time[_tidx])
                 results['trial'].append([r] * y.shape[1])
-                results['horizon'].append(np.arange(y.shape[1]))#,
-                #results['missing'].append(missing[ridx, :]))
+                results['horizon'].append(np.arange(y.shape[1]),
+                results['missing'].append(missing[ridx, :]))
 
     # create dataframe containing all results
     for k, v in results.items():
