@@ -897,7 +897,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         # combine messages from neighbors and recurrent module into single number representing the new bird density
-        pred = self.hidden2birds(torch.cat([aggr_out, h_t[-1]])).relu()
+        pred = self.hidden2birds(torch.cat([aggr_out, h_t[-1]], dim=-1)).relu()
 
         return pred, h_t, c_t
 
