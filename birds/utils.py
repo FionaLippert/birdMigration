@@ -7,6 +7,7 @@ def val_test_split(dataloader, val_ratio, random_seed):
     n_val = int(N * val_ratio)
     #val_idx = rng.choice(np.arange(N, dtype=int), n_val, replace=False)
     val_idx = np.arange(n_val)
+    print(val_idx)
     val_loader = [list(dataloader)[i] for i in val_idx]
     test_loader = [list(dataloader)[i] for i in range(N) if i not in val_idx]
 
