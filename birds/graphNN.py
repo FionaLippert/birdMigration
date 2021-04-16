@@ -550,11 +550,11 @@ class BirdFlowGraphLSTM(MessagePassing):
         y_hat = []
         y_hat.append(x)
 
-        self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1))
-        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1))
-        self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1))
-        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1))
-        self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1))
+        self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+        self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
@@ -617,7 +617,6 @@ class BirdFlowGraphLSTM(MessagePassing):
             flow = self.fc_edge_out(flow).sigmoid()
 
         #self.flows.append(flow)
-        print(flow.shape)
         self.flows[..., t+1] = flow
 
         abs_flow = flow * x_j
