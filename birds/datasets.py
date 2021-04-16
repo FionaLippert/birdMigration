@@ -384,7 +384,7 @@ class RadarData(InMemoryDataset):
                                      (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
 
             if self.root_transform > 0:
-                self.bird_scale = self.normalization.root_max(input_col)
+                self.bird_scale = self.normalization.root_max(input_col, self.root_transform)
             else:
                 self.bird_scale = self.normalization.max(input_col)
             print(f'bird scale = {self.bird_scale}')
