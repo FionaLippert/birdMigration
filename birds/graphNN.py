@@ -550,11 +550,11 @@ class BirdFlowGraphLSTM(MessagePassing):
         y_hat = []
         y_hat.append(x)
 
-        self.flows = torch.zeros((edge_index.size(1), self.timesteps+1))
-        self.abs_flows = torch.zeros((edge_index.size(1), self.timesteps+1))
-        self.selfflows = torch.zeros((data.x.size(0), self.timesteps+1))
-        self.abs_selfflows = torch.zeros((data.x.size(0), self.timesteps+1))
-        self.deltas = torch.zeros((data.x.size(0), self.timesteps+1))
+        self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1))
+        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1))
+        self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1))
+        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1))
+        self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1))
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
@@ -618,11 +618,11 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         #self.flows.append(flow)
         print(flow.shape)
-        self.flows[:, t+1] = flow
+        self.flows[..., t+1] = flow
 
         abs_flow = flow * x_j
         #self.abs_flows.append(abs_flow)
-        self.abs_flows[:, t+1] = abs_flow
+        self.abs_flows[..., t+1] = abs_flow
 
         return abs_flow
 
@@ -639,7 +639,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             delta = self.hidden2delta(h_t[-1]).tanh()
             #self.deltas.append(delta)
-            self.deltas[:, t+1] = delta
+            self.deltas[..., t+1] = delta
         else:
             delta = 0
 
@@ -657,10 +657,10 @@ class BirdFlowGraphLSTM(MessagePassing):
             selfflow = self.fc_edge_out(selfflow).sigmoid()
 
         #self.selfflows.append(selfflow)
-        self.selfflows[:, t+1] = selfflow
+        self.selfflows[..., t+1] = selfflow
         selfflow = x * selfflow
         #self.abs_selfflows.append(selfflow)
-        self.abs_selfflows[:, t+1] = selfflow
+        self.abs_selfflows[..., t+1] = selfflow
 
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = selfflow + aggr_out + delta
