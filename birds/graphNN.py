@@ -199,7 +199,7 @@ class LocalLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_in = 4 + kwargs.get('n_env', 4)
+        self.n_in = 6 + kwargs.get('n_env', 4)
         self.n_layers = kwargs.get('n_layers', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
@@ -246,9 +246,12 @@ class LocalLSTM(MessagePassing):
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
-                env = data.env[..., t]
-                x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, env=env, areas=data.areas,
-                                                   h_t=h_t, c_t=c_t, edge_attr=data.edge_attr)
+                x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, areas=data.areas,
+                                             h_t=h_t, c_t=c_t, edge_attr=data.edge_attr,
+                                             dusk=data.local_dusk[:, t],
+                                             dawn=data.local_dawn[:, t+1],
+                                             env=data.env[..., t+1]
+                                             )
 
             if self.force_zeros:
                 # for locations where it is night: set birds in the air to zero
@@ -267,9 +270,10 @@ class LocalLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, coords, env, h_t, c_t, x, areas):
+    def update(self, aggr_out, coords, env, dusk, dawn, h_t, c_t, x, areas):
 
-        inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
+        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                            dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
         #inputs = self.fc_in(inputs).relu()
         inputs = self.mlp_in(inputs).relu()
 
