@@ -31,7 +31,7 @@ def prepare_data_gam(dataset, timesteps, return_mask=False):
     for seq in dataset:
         for t in range(timesteps+1):
             env = seq.env[..., t].detach().numpy()  # shape (nodes, features)
-            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t]
+            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
             features = np.concatenate([env, doy], axis=-1)
 
             X.append(features)
