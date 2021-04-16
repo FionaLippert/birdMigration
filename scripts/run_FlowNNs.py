@@ -215,7 +215,8 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
-                   tidx=[], datetime=[], trial=[], horizon=[], missing=[])
+                   tidx=[], datetime=[], trial=[], horizon=[], missing=[],
+                   outflux=[], outflux_abs=[], delta=[])
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
