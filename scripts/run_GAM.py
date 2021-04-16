@@ -36,7 +36,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      missing_data_threshold=cfg.missing_data_threshold)
                   for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data_list)
-    X_train, y_train, mask_train = GBT.prepare_data_gam(train_data, timesteps=ts, return_mask=True)
+    #X_train, y_train, mask_train = GBT.prepare_data_gam(train_data, timesteps=ts, return_mask=True)
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
@@ -48,7 +48,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   missing_data_threshold=cfg.missing_data_threshold)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
-    X_val, y_val, mask_val = GBT.prepare_data_gam(val_data, timesteps=ts, return_mask=True)
+    #X_val, y_val, mask_val = GBT.prepare_data_gam(val_data, timesteps=ts, return_mask=True)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
