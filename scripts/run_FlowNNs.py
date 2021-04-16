@@ -253,24 +253,21 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             # get predicted fluxes from model
             outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
-                                            data.num_nodes, data.num_nodes, -1)
+                                            data.num_nodes, data.num_nodes, -1).cpu()
             outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
-                                            data.num_nodes, data.num_nodes, -1)  # .sum(1)
+                                            data.num_nodes, data.num_nodes, -1).cpu()  # .sum(1)
 
             if cfg.model.recurrent:
-                deltas[nidx] = torch.stack(model.deltas, dim=-1)
+                deltas[nidx] = torch.stack(model.deltas, dim=-1).cpu()
 
             for ridx in radar_index.keys():
-                outfluxes[nidx][ridx, ridx] = torch.stack(model.selfflows, dim=-1)[ridx]
-                outfluxes_abs[nidx][ridx, ridx] = torch.stack(model.abs_selfflows, dim=-1)[ridx]
+                outfluxes[nidx][ridx, ridx] = torch.stack(model.selfflows, dim=-1)[ridx].cpu()
+                outfluxes_abs[nidx][ridx, ridx] = torch.stack(model.abs_selfflows, dim=-1)[ridx].cpu()
 
                 if cfg.model.recurrent:
                     results['outflux'].append(outfluxes[nidx].sum(1)[ridx, :])
                     results['outflux_abs'].append(outfluxes_abs[nidx].sum(1)[ridx, :])
                     results['delta'].append(deltas[nidx][ridx, :])
-
-            outfluxes[nidx] = outfluxes[nidx].cpu()
-            outfluxes_abs[nidx] = outfluxes_abs[nidx].cpu()
 
 
         # write outfluxes and deltas to disk
