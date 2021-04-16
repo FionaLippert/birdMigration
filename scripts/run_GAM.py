@@ -55,22 +55,37 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     cfg.datasource.bird_scale = float(normalization.max('birds'))
 
+    all_X = []
+    all_y = []
+    all_mappings = []
     for idx, data in enumerate(train_data_list):
-        radars = data.info['radars']
-        radar_index = {idx: name for idx, name in enumerate(radars)}
-        print(radar_index)
+        X_train, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, return_mask=True)
+        all_X.append(X_train)
+        all_y.append(y_train)
+        radars = ['nldbl-nlhrw' if r in ['nldbl', 'nlhrw'] else r for r in data.info['radars']]
+        m = {name: idx for idx, name in enumerate(radars)}
+        all_mappings.append(m)
+    all_X = np.stack(all_X, axis=-1)
+    all_y = np.stack(all_y, axis=-1)
 
-    assert(0)
-    gam = PoissonGAM(te(0, 1, 2))  # poisson distribution and log link
-    gam.fit(X_train, y_train)
+    for r in all_mappings[0].keys():
+        X_r = []
+        y_r = []
+        for i, mapping in enumerate(all_mappings):
+            ridx = mapping[r]
+            X_r.append(all_X[:, ridx]) # shape (time, features)
+            y_r.append(all_y[:, ridx])
+        X_r = np.concatenate(X_r, axis=0)
+        y_r = np.concatenate(y_r, axis=0)
 
-    with open(osp.join(output_dir, f'model.pkl'), 'wb') as f:
-        pickle.dump(gam, f)
+        # fit GAM with poisson distribution and log link
+        print(f'fitting GAM for radar {r}')
+        gam = PoissonGAM(te(0, 1, 2))
+        gam.fit(X_r, y_r)
 
-    y_hat = gam.predict(X_val)
+        with open(osp.join(output_dir, f'model_{r}.pkl'), 'wb') as f:
+            pickle.dump(gam, f)
 
-    loss = utils.MSE(y_hat, y_val, mask_val)
-    print(f'validation loss = {loss}', file=log)
 
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
