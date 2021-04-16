@@ -46,26 +46,6 @@ def prepare_data_gam(dataset, timesteps, return_mask=False):
         return X, y
 
 
-def prepare_data_nights(dataset, timesteps):
-
-    X = []
-    y = []
-    for seq in dataset:
-        X_night = []
-        y_night = []
-        for t in range(timesteps+1):
-            features = np.concatenate([seq.coords.detach().numpy(),
-                                       seq.areas.view(-1,1).detach().numpy(),
-                                       seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
-            X_night.append(features)
-            y_night.append(seq.y[:, t])
-        X.append(np.stack(X_night, axis=0))  # shape (timesteps, nodes, features)
-        y.append(np.stack(y_night, axis=0))  # shape (timesteps, nodes)
-
-    X = np.concatenate(X, axis=1)  # shape (timesteps, samples, features)
-    y = np.concatenate(y, axis=1)  # shape (timesteps, samples)
-    return X, y
-
 def prepare_data_nights_and_radars(dataset, timesteps, return_mask=False):
 
     X = []
@@ -81,7 +61,36 @@ def prepare_data_nights_and_radars(dataset, timesteps, return_mask=False):
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X_night.append(features)
             y_night.append(seq.y[:, t])
-            mask_night.append(seq.local_night[:, t])
+            mask_night.append(seq.local_night[:, t] & ~seq.missing[:, t])
+        X.append(np.stack(X_night, axis=0)) # shape (timesteps, nodes, features)
+        y.append(np.stack(y_night, axis=0)) # shape (timesteps, nodes)
+        mask.append(np.stack(mask_night, axis=0))  # shape (timesteps, nodes)
+
+    X = np.stack(X, axis=0) # shape (nights, timesteps, nodes, features)
+    y = np.stack(y, axis=0) # shape (nights, timesteps, nodes)
+    mask = np.stack(mask, axis=0)  # shape (nights, timesteps, nodes)
+    if return_mask:
+        return X, y, mask
+    else:
+        return X, y
+
+def prepare_data_nights_and_radars_gam(dataset, timesteps, return_mask=False):
+
+    X = []
+    y = []
+    mask = []
+    for seq in dataset:
+        X_night = []
+        y_night = []
+        mask_night = []
+        for t in range(timesteps+1):
+            env = seq.env[..., t].detach().numpy()  # shape (nodes, features)
+            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
+            features = np.concatenate([env, doy], axis=-1)
+
+            X_night.append(features)
+            y_night.append(seq.y[:, t])
+            mask_night.append(seq.local_night[:, t] & ~seq.missing[:, t])
         X.append(np.stack(X_night, axis=0)) # shape (timesteps, nodes, features)
         y.append(np.stack(y_night, axis=0)) # shape (timesteps, nodes)
         mask.append(np.stack(mask_night, axis=0))  # shape (timesteps, nodes)

@@ -151,6 +151,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         cfg.datasource.bird_scale = float(normalization.max('birds'))
     else:
         cfg.datasource.bird_scale = float(normalization.root_max('birds', cfg.root_transform))
+        print(cfg.datasource.bird_scale)
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),

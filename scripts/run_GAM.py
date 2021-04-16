@@ -91,13 +91,11 @@ def train(cfg: DictConfig, output_dir: str, log):
     log.flush()
 
 def test(cfg: DictConfig, output_dir: str, log):
-    assert cfg.model.name == 'GBT'
+    assert cfg.model.name == 'GAM'
     assert cfg.action.name == 'testing'
 
     data_root = osp.join(cfg.root, 'data')
 
-
-    # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
                          cfg.model.name, cfg.experiment)
     yaml = ruamel.yaml.YAML()
@@ -105,23 +103,11 @@ def test(cfg: DictConfig, output_dir: str, log):
     with open(fp, 'r') as f:
         model_cfg = yaml.load(f)
 
-    # load model settings
-    hp_settings = {key: settings['default'] for key, settings in model_cfg['model']['hyperparameters'].items()}
-
-    # directory to which outputs will be written
-    output_dir = osp.join(output_dir, json.dumps(hp_settings))
-    os.makedirs(output_dir, exist_ok=True)
-
-    # directory from which model is loaded
-    model_dir = osp.join(train_dir, json.dumps(hp_settings))
-
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
-    if cfg.root_transform == 0:
-        cfg.datasource.bird_scale = float(normalization.max('birds'))
-    else:
-        cfg.datasource.bird_scale = float(normalization.root_max('birds'))
+
+    cfg.datasource.bird_scale = float(normalization.max('birds'))
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
@@ -129,8 +115,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars,
-                                   root_transform=cfg.root_transform,
+                                   env_vars=[],
+                                   root_transform=0,
                                    missing_data_threshold=cfg.missing_data_threshold)
     # load additional data
     time = test_data.info['timepoints']
@@ -139,40 +125,42 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
-    X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
+    X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars_gam(test_data,
                                     timesteps=cfg.model.timesteps, return_mask=True)
 
 
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
-    for r in range(cfg.repeats):
-        with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
-            model = pickle.load(f)
 
-        for nidx, data in enumerate(test_data):
-            y = data.y * cfg.datasource.bird_scale
-            _tidx = data.tidx
-            local_night = data.local_night
-            missing = data.missing
+    for nidx, data in enumerate(test_data):
+        y = data.y * cfg.datasource.bird_scale
+        _tidx = data.tidx
+        local_night = data.local_night
+        missing = data.missing
 
+        if cfg.root_transform > 0:
+            y = np.power(y, cfg.root_transform)
+
+        for ridx, name in radar_index.items():
+            if name in ['nlhrw', 'nldbl']: name = 'nldbl-nlhrw'
+            with open(osp.join(output_dir, f'model_{name}.pkl'), 'rb') as f:
+                model = pickle.load(f)
+            y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
-                y = np.power(y, cfg.root_transform)
+                y_hat = np.power(y_hat, cfg.root_transform)
 
-            for ridx, name in radar_index.items():
-                y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
-                if cfg.root_transform > 0:
-                    y_hat = np.power(y_hat, cfg.root_transform)
-                results['gt'].append(y[ridx, :])
-                results['prediction'].append(y_hat)
-                results['night'].append(local_night[ridx, :])
-                results['radar'].append([name] * y.shape[1])
-                results['seqID'].append([nidx] * y.shape[1])
-                results['tidx'].append(_tidx)
-                results['datetime'].append(time[_tidx])
-                results['trial'].append([r] * y.shape[1])
-                results['horizon'].append(np.arange(y.shape[1]))
-                results['missing'].append(missing[ridx, :])
+            results['gt'].append(y[ridx, :])
+            results['prediction'].append(y_hat)
+            results['constant_prediction'].append([y[ridx, 0]] * y.shape[1])
+            results['night'].append(local_night[ridx, :])
+            results['radar'].append([name] * y.shape[1])
+            results['seqID'].append([nidx] * y.shape[1])
+            results['tidx'].append(_tidx)
+            results['datetime'].append(time[_tidx])
+            results['trial'].append([0] * y.shape[1])
+            results['horizon'].append(np.arange(y.shape[1]))
+            results['missing'].append(missing[ridx, :])
 
     # create dataframe containing all results
     for k, v in results.items():

@@ -4,7 +4,6 @@ hyperparameters:
   n_hidden:
     default: 64
     search_space:
-    - 32
     - 64
     - 128
   n_layers:
@@ -18,11 +17,13 @@ hyperparameters:
   lr:
     default: 0.0001
     search_space:
-    - 0.0001
-    - 0.00001
+      - 0.001
+      - 0.0001
+      - 0.00001
+      - 0.000001
   lr_decay:
     default: 50
     search_space:
     - 50
-epochs: 50
+epochs: 100
 timesteps: 16

@@ -4,13 +4,13 @@ hyperparameters:
   n_hidden:
     default: 64
     search_space:
-    - 32
     - 64
     - 128
   n_fc_layers:
     default: 2
     search_space:
-    - 2
+      - 1
+      - 2
   n_lstm_layers:
     default: 1
     search_space:
@@ -23,9 +23,7 @@ hyperparameters:
     default: 0.0001
     search_space:
       - 0.001
-      - 0.0005
       - 0.0001
-      - 0.00005
       - 0.00001
   lr_decay:
     default: 50
@@ -36,13 +34,11 @@ hyperparameters:
     search_space:
     - 0.9
   conservation_constraint:
-    default: 0.05
+    default: 0.01
     search_space:
       - 0.0
-      - 0.005
       - 0.01
-      - 0.05
-epochs: 50
+epochs: 100
 timesteps: 40
 fixed_boundary: false
 force_zeros: true

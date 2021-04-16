@@ -134,8 +134,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                 tf = tf * hp_settings.get('teacher_forcing_gamma', 0)
 
 
-        if val_losses.mean() < best_val_loss:
-            best_val_loss = val_losses.mean()
+        if val_curves[:, -5:].mean() < best_val_loss:
+            best_val_loss = val_curves[:, -5:].mean()
             best_hp_settings = hp_settings
 
             print(f'best settings so far with settings {hp_settings}', file=log)
