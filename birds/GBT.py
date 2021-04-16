@@ -23,6 +23,27 @@ def prepare_data(dataset, timesteps, return_mask=False):
     else:
         return X, y
 
+def prepare_data_gam(dataset, timesteps, return_mask=False):
+
+    X = []
+    y = []
+    mask = []
+    for seq in dataset:
+        for t in range(timesteps+1):
+            features = np.concatenate([seq.day_of_year.detach().numpy(),
+                                       seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
+            X.append(features)
+            y.append(seq.y[:, t])
+            mask.append(seq.local_night[:, t] & ~seq.missing[:, t])
+    X = np.stack(X, axis=0)
+    y = np.stack(y, axis=0)
+    mask = np.stack(mask, axis=0)
+    if return_mask:
+        return X, y, mask
+    else:
+        return X, y
+
+
 def prepare_data_nights(dataset, timesteps):
 
     X = []

@@ -69,7 +69,11 @@ def train(cfg: DictConfig, output_dir: str, log):
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+
+    if cfg.root_transform == 0:
+        cfg.datasource.bird_scale = float(normalization.max('birds'))
+    else:
+        cfg.datasource.bird_scale = float(normalization.root_max('birds'))
 
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),

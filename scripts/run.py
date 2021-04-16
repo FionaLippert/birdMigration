@@ -3,7 +3,7 @@ import hydra
 import os.path as osp
 import os
 import traceback
-import run_GBT, run_NNs, run_FlowNNs
+import run_GBT, run_NNs, run_FlowNNs, run_GAM
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -18,6 +18,8 @@ def run(cfg: DictConfig):
     try:
         if cfg.model.name == 'GBT':
             run_GBT.run(cfg, output_dir, log)
+        elif cfg.model.name == 'GAM':
+            run_GAM.run(cfg, output_dir, log)
         elif cfg.model.name in ['LocalMLP', 'LocalLSTM', 'GraphLSTM', 'GraphLSTM_transformed']:
             run_NNs.run(cfg, output_dir, log)
         elif cfg.model.name in ['BirdFlowGraphLSTM']:
