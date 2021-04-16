@@ -261,15 +261,17 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             outfluxes[nidx] = outfluxes[nidx].cpu()
             outfluxes_abs[nidx] = outfluxes_abs[nidx].cpu()
-            deltas[nidx] = torch.stack(model.deltas, dim=-1)
+            if cfg.model.recurrent:
+                deltas[nidx] = torch.stack(model.deltas, dim=-1)
 
         # write outfluxes and deltas to disk
         with open(osp.join(output_dir, f'outfluxes_{r}.pickle'), 'wb') as f:
             pickle.dump(outfluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'outfluxes_abs_{r}.pickle'), 'wb') as f:
             pickle.dump(outfluxes_abs, f, pickle.HIGHEST_PROTOCOL)
-        with open(osp.join(output_dir, f'deltas_{r}.pickle'), 'wb') as f:
-            pickle.dump(deltas, f, pickle.HIGHEST_PROTOCOL)
+        if cfg.model.recurrent:
+            with open(osp.join(output_dir, f'deltas_{r}.pickle'), 'wb') as f:
+                pickle.dump(deltas, f, pickle.HIGHEST_PROTOCOL)
 
     # create dataframe containing all results
     for k, v in results.items():
