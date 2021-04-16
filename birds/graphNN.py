@@ -550,11 +550,11 @@ class BirdFlowGraphLSTM(MessagePassing):
         y_hat = []
         y_hat.append(x)
 
-        self.flows = []
-        self.abs_flows = []
-        self.selfflows = []
-        self.abs_selfflows = []
-        self.deltas = []
+        self.flows = torch.zeros((edge_index.size(1), self.timesteps+1))
+        self.abs_flows = torch.zeros((edge_index.size(1), self.timesteps+1))
+        self.selfflows = torch.zeros((data.x.size(0), self.timesteps+1))
+        self.abs_selfflows = torch.zeros((data.x.size(0), self.timesteps+1))
+        self.deltas = torch.zeros((data.x.size(0), self.timesteps+1))
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
@@ -571,7 +571,8 @@ class BirdFlowGraphLSTM(MessagePassing):
                                                     edge_attr=edge_attr, #ground=ground,
                                                     dusk=data.local_dusk[:, t],
                                                     dawn=data.local_dawn[:, t+1],
-                                                    env=data.env[..., t+1])
+                                                    env=data.env[..., t+1],
+                                                    t=t)
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary nodes
@@ -597,7 +598,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
+    def message(self, x_j, coords_i, coords_j, env_i, env_j, edge_attr, t):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -615,15 +616,17 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             flow = self.fc_edge_out(flow).sigmoid()
 
-        self.flows.append(flow)
+        #self.flows.append(flow)
+        self.flows[:, t+1] = flow
 
         abs_flow = flow * x_j
-        self.abs_flows.append(abs_flow)
+        #self.abs_flows.append(abs_flow)
+        self.abs_flows[:, t+1] = abs_flow
 
         return abs_flow
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t):
         if self.recurrent:
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
                                 dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
@@ -634,7 +637,8 @@ class BirdFlowGraphLSTM(MessagePassing):
                 h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
             delta = self.hidden2delta(h_t[-1]).tanh()
-            self.deltas.append(delta)
+            #self.deltas.append(delta)
+            self.deltas[:, t+1] = delta
         else:
             delta = 0
 
@@ -651,9 +655,12 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             selfflow = self.fc_edge_out(selfflow).sigmoid()
 
-        self.selfflows.append(selfflow)
+        #self.selfflows.append(selfflow)
+        self.selfflows[:, t+1] = selfflow
         selfflow = x * selfflow
-        self.abs_selfflows.append(selfflow)
+        #self.abs_selfflows.append(selfflow)
+        self.abs_selfflows[:, t+1] = selfflow
+
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = selfflow + aggr_out + delta
 
@@ -1078,9 +1085,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
         output = model(data, teacher_forcing) #.view(-1)
         gt = data.y
 
-        outfluxes = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
+        outfluxes = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
                                     data.num_nodes, data.num_nodes, -1).sum(1)
-        outfluxes = outfluxes + torch.stack(model.selfflows, dim=-1)
+        outfluxes = outfluxes + model.selfflows
         outfluxes = torch.stack([outfluxes[node] for node in range(data.num_nodes) if not boundaries[node]])
         target_fluxes = torch.ones(outfluxes.shape)
         target_fluxes = target_fluxes.to(device)
@@ -1151,11 +1158,9 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
             gt = gt[boundary_mask]
 
         if get_outfluxes:
-            print(tidx)
-            print(type(model.flows))
-            outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
+            outfluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
                                     data.num_nodes, data.num_nodes, -1)
-            outfluxes_abs[tidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
+            outfluxes_abs[tidx] = to_dense_adj(data.edge_index, edge_attr=model.abs_flows).view(
                                     data.num_nodes, data.num_nodes, -1)# .sum(1)
 
             outfluxes[tidx] = outfluxes[tidx].cpu()

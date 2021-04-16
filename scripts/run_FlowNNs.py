@@ -252,17 +252,17 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['missing'].append(missing[ridx, :])
 
             # get predicted fluxes from model
-            outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.flows, dim=-1)).view(
+            outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
                                             data.num_nodes, data.num_nodes, -1).cpu()
-            outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=torch.stack(model.abs_flows, dim=-1)).view(
+            outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=model.abs_flows).view(
                                             data.num_nodes, data.num_nodes, -1).cpu()  # .sum(1)
 
             if cfg.model.recurrent:
-                deltas[nidx] = torch.stack(model.deltas, dim=-1).cpu()
+                deltas[nidx] = model.deltas.cpu()
 
             for ridx in radar_index.keys():
-                outfluxes[nidx][ridx, ridx] = torch.stack(model.selfflows, dim=-1)[ridx].cpu()
-                outfluxes_abs[nidx][ridx, ridx] = torch.stack(model.abs_selfflows, dim=-1)[ridx].cpu()
+                outfluxes[nidx][ridx, ridx] = model.selfflows[ridx].cpu()
+                outfluxes_abs[nidx][ridx, ridx] = model.abs_selfflows[ridx].cpu()
 
                 if cfg.model.recurrent:
                     results['outflux'].append(outfluxes[nidx].sum(1)[ridx, :])
