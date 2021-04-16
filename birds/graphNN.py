@@ -617,6 +617,7 @@ class BirdFlowGraphLSTM(MessagePassing):
             flow = self.fc_edge_out(flow).sigmoid()
 
         #self.flows.append(flow)
+        print(flow.shape)
         self.flows[:, t+1] = flow
 
         abs_flow = flow * x_j
