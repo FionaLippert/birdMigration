@@ -242,6 +242,14 @@ class Normalization:
     def max(self, key):
         return self.feature_df[key].dropna().max()
 
+    def root_min(self, key, root):
+        root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
+        return root_transformed.dropna().min()
+
+    def root_max(self, key, root):
+        root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
+        return root_transformed.dropna().max()
+
     def preprocessed_dir(self, year):
         return osp.join(self.root, 'preprocessed', self.data_source, self.season, str(year))
 
@@ -376,13 +384,13 @@ class RadarData(InMemoryDataset):
                                      (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
 
             if self.root_transform > 0:
-                self.bird_scale = 1
+                self.bird_scale = self.normalization.root_max(input_col)
             else:
                 self.bird_scale = self.normalization.max(input_col)
-                print(self.bird_scale)
-                dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
-                dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
-                #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
+            print(f'bird scale = {self.bird_scale}')
+            dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
+            dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
+            #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
 
 
 
