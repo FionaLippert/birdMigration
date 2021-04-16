@@ -65,16 +65,14 @@ def train(cfg: DictConfig, output_dir: str, log):
         radars = ['nldbl-nlhrw' if r in ['nldbl', 'nlhrw'] else r for r in data.info['radars']]
         m = {name: idx for idx, name in enumerate(radars)}
         all_mappings.append(m)
-    all_X = np.stack(all_X, axis=-1)
-    all_y = np.stack(all_y, axis=-1)
 
     for r in all_mappings[0].keys():
         X_r = []
         y_r = []
         for i, mapping in enumerate(all_mappings):
             ridx = mapping[r]
-            X_r.append(all_X[:, ridx]) # shape (time, features)
-            y_r.append(all_y[:, ridx])
+            X_r.append(all_X[i][:, ridx]) # shape (time, features)
+            y_r.append(all_y[i][:, ridx]) # shape (time)
         X_r = np.concatenate(X_r, axis=0)
         y_r = np.concatenate(y_r, axis=0)
 
