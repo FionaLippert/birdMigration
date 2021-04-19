@@ -106,6 +106,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         for r in range(cfg.repeats):
 
             print(f'train model [trial {r}]')
+            print(cfg.datasource.env_vars)
             model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r), n_env=2+len(cfg.datasource.env_vars),
                           fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0))
 

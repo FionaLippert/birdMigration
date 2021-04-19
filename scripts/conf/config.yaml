@@ -10,4 +10,4 @@ seed: 1234
 repeats: 5
 cuda: False
 root_transform: 0
-missing_data_threshold: 1
+missing_data_threshold: 0.1

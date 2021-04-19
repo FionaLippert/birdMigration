@@ -677,6 +677,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 6 + kwargs.get('n_env', 4)
         self.n_edge_in = 9 + 2*kwargs.get('n_env', 4)
+        print(self.n_edge_in, kwargs.get('n_env'))
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
