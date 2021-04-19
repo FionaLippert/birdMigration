@@ -743,7 +743,6 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
-                print(data.env[..., t+1].shape)
 
                 x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                    edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas,
