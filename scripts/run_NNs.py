@@ -278,7 +278,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 if cfg.model.name == 'GraphLSTM':
                     results['fluxes'].append(fluxes[ridx])
                     results['local_deltas'].append(local_deltas[ridx])
-                
+
 
     # create dataframe containing all results
     for k, v in results.items():

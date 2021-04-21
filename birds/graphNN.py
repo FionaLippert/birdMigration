@@ -808,8 +808,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             birds = self.mlp_aggr(aggr_out).sigmoid()
             pred = birds + delta
 
-        self.fluxes[:, t+1] = flux
-        self.local_deltas[:, t + 1] = delta
+        self.fluxes[..., t+1] = flux
+        self.local_deltas[..., t + 1] = delta
 
         return pred, h_t, c_t
 
