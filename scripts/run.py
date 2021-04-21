@@ -24,6 +24,8 @@ def run(cfg: DictConfig):
             run_NNs.run(cfg, output_dir, log)
         elif cfg.model.name in ['BirdFlowGraphLSTM']:
             run_FlowNNs.run(cfg, output_dir, log)
+        elif cfg.model.name == 'HA':
+            run_HA.run(cfg, output_dir, log)
 
     except Exception:
         print(traceback.format_exc(), file=log)
