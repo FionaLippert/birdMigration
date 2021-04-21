@@ -273,7 +273,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 if cfg.model.recurrent:
                     results['outflux'].append(outfluxes[nidx].sum(1)[ridx, :])
                     results['outflux_abs'].append(outfluxes_abs[nidx].sum(1)[ridx, :])
-                    results['delta'].append(deltas[nidx][ridx, :])
+                    results['delta'].append(deltas[nidx][ridx, :].view(-1))
 
 
         # write outfluxes and deltas to disk
