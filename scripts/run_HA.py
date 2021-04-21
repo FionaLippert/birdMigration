@@ -61,7 +61,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             y_r.append(all_y[i][mask, ridx])
         y_r = np.concatenate(y_r, axis=0)
 
-        ha[r] = y_r
+        ha[r] = y_r.mean()
 
     with open(osp.join(output_dir, f'HAs.pkl'), 'wb') as f:
         pickle.dump(ha, f)
