@@ -211,6 +211,9 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    normalization=normalization,
                                    missing_data_threshold=cfg.missing_data_threshold)
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
+    radars = test_data.info['radars']
+    radar_index = {idx: name for idx, name in enumerate(radars)}
+
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_loader = utils.val_test_split(test_loader, cfg.datasource.val_test_split, cfg.seed)
@@ -289,6 +292,9 @@ def test(cfg: DictConfig, output_dir: str, log):
         if cfg.model.recurrent:
             with open(osp.join(output_dir, f'deltas_{r}.pickle'), 'wb') as f:
                 pickle.dump(deltas, f, pickle.HIGHEST_PROTOCOL)
+
+    with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
+        pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
 
     # create dataframe containing all results
     for k, v in results.items():

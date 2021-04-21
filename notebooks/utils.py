@@ -73,7 +73,7 @@ def plot_errors(results, bird_scales):
     return fig
 
 def plot_average_errors(results, bird_scales):
-    fig, ax = plt.subplots(figsize=(10, 4))
+    fig, ax = plt.subplots(figsize=(20, 4))
     rmse_list = []
     labels = []
     for idx, m in enumerate(results.keys()):
@@ -92,6 +92,48 @@ def plot_average_errors(results, bird_scales):
 
     df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
     sb.barplot(x='model', y='RMSE', data=df, capsize=.2, ci='sd', ax=ax)
+    ax.set(ylabel='RMSE')
+    return fig
+
+def plot_average_errors_comparison(models, results1, results2, bird_scales1, bird_scales2, group_names):
+    fig, ax = plt.subplots(figsize=(10, 4))
+    rmse_list = []
+    labels = []
+    groups = []
+    for idx, m in enumerate(models):
+        if m == 'GAM':
+            results1[m]['constant_prediction_other'] = results2[m]['constant_prediction'] / bird_scales2[m] * bird_scales1[m]
+            results1[m]['constant_error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m],
+                                                                                    'constant_prediction'), axis=1)
+            results1[m]['constant_error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m],
+                                                                         'constant_prediction_other'), axis=1)
+            rmse = results1[m].groupby(['trial']).constant_error.mean().apply(np.sqrt)
+            rmse_list.append(rmse.values)
+            labels.append(['constant'] * len(rmse))
+            groups.append([group_names[0]] * len(rmse))
+
+            rmse = results1[m].groupby(['trial']).constant_error_other.mean().apply(np.sqrt)
+            rmse_list.append(rmse.values)
+            labels.append(['constant'] * len(rmse))
+            groups.append([group_names[1]] * len(rmse))
+
+
+        results1[m]['error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m]), axis=1)
+        rmse = results1[m].groupby(['trial']).error.mean().apply(np.sqrt)
+        rmse_list.append(rmse.values)
+        labels.append([m] * len(rmse))
+        groups.append([group_names[0]] * len(rmse))
+
+        results1[m]['prediction_other'] = results2[m]['prediction'] / bird_scales2[m] * bird_scales1[m]
+        results1[m]['error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m],
+                                                                               'prediction_other'), axis=1)
+        rmse = results1[m].groupby(['trial']).error_other.mean().apply(np.sqrt)
+        rmse_list.append(rmse.values)
+        labels.append([m] * len(rmse))
+        groups.append([group_names[1]] * len(rmse))
+
+    df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels), group=np.concatenate(groups)))
+    sb.barplot(x='model', y='RMSE', hue='group', data=df, capsize=.2, ci='sd', ax=ax, palette="Greens_d")
     ax.set(ylabel='RMSE')
     return fig
 
