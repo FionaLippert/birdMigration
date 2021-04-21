@@ -130,7 +130,6 @@ def test(cfg: DictConfig, output_dir: str, log):
         for ridx, name in radar_index.items():
             if name in ['nlhrw', 'nldbl']: name = 'nldbl-nlhrw'
             y_hat = ha[name] * cfg.datasource.bird_scale
-            print(y_hat)
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
 
@@ -147,11 +146,6 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # create dataframe containing all results
     for k, v in results.items():
-        #print(v)
-        try:
-            print(k, v[0].shape, v[1].shape, v[2].shape)
-        except:
-            print(k, len(v[0]), len(v[1]), len(v[2]))
         results[k] = np.concatenate(v, axis=0)
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))

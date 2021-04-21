@@ -10,6 +10,7 @@ import glob
 import pickle5 as pickle
 import seaborn as sb
 import scipy as sp
+import pandas as pd
 
 def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False):
 
@@ -41,19 +42,13 @@ def compute_mse(row, bird_scale, prediction_col='prediction'):
         return ((row['gt'] - row[prediction_col] * row['night']) / bird_scale) ** 2
 
 def plot_errors(results, bird_scales):
-    fig, ax = plt.subplots(figsize=(10, 4))
+    fig, ax = plt.subplots(figsize=(15, 6))
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
-            #constant_prediction = results[m].groupby('radar')['gt'].aggregate(np.mean)
-            #results[m]['constant_error'] = results[m].apply(
-            #    lambda row: (row['gt'] - constant_prediction.loc[row.radar] * row.night) ** 2, axis=1)
-
-            #mse_const = results[m].groupby(['horizon', 'trial']).constant_error.mean()  # .apply(np.sqrt)
-            #mean_mse_c = mse_const.groupby('horizon').aggregate(np.mean)
 
             results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
                                                                                     'constant_prediction'), axis=1)
-            mse = results[m].groupby(['horizon', 'trial']).constant_error.mean()
+            mse = results[m].groupby(['horizon', 'trial']).constant_error.mean().apply(np.sqrt)
             mean_mse = mse.groupby('horizon').aggregate(np.mean)
             ax.plot(mean_mse, label='constant prediction')
 
@@ -61,11 +56,12 @@ def plot_errors(results, bird_scales):
                 [np.where((mean_mse.iloc[1:] == 0) & (mean_mse.iloc[:-1] > 0))[0], [len(mean_mse)]])
             start_night = np.where((mean_mse.iloc[:-1] == 0) & (mean_mse.iloc[1:] > 0))[0]
 
+            print(plt.gca().get_ylim()[-1])
             for i, tidx in enumerate(start_night):
-                ax.fill_between([tidx + 1, end_night[i]], 0, plt.gca().get_ylim()[-1], color='lightgray')
+                ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
-        mse = results[m].groupby(['horizon', 'trial']).error.mean()  # .apply(np.sqrt)
+        mse = results[m].groupby(['horizon', 'trial']).error.mean().apply(np.sqrt)
         mean_mse = mse.groupby('horizon').aggregate(np.mean)
         std_mse = mse.groupby('horizon').aggregate(np.std)
 
@@ -73,18 +69,41 @@ def plot_errors(results, bird_scales):
         ax.fill_between(mean_mse.index, mean_mse + std_mse, mean_mse - std_mse, alpha=0.2, color=l[0].get_color())
 
     plt.legend()
-    ax.set(xlabel='forecast horizon', ylabel='RMSE')
+    ax.set(xlabel='forecast horizon', ylabel='RMSE', ylim=(0, 0.1))
+    return fig
+
+def plot_average_errors(results, bird_scales):
+    fig, ax = plt.subplots(figsize=(10, 4))
+    rmse_list = []
+    labels = []
+    for idx, m in enumerate(results.keys()):
+        if m == 'GAM':
+            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
+                                                                                    'constant_prediction'), axis=1)
+            rmse = results[m].groupby(['trial']).constant_error.mean().apply(np.sqrt)
+            rmse_list.append(rmse.values)
+            labels.append(['constant'] * len(rmse))
+
+
+        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
+        rmse = results[m].groupby(['trial']).error.mean().apply(np.sqrt)
+        rmse_list.append(rmse.values)
+        labels.append([m] * len(rmse))
+
+    df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
+    sb.barplot(x='model', y='RMSE', data=df, capsize=.2, ci='sd', ax=ax)
+    ax.set(ylabel='RMSE')
     return fig
 
 def plot_example_prediction(results, radar, seqID, bird_scales, max=1):
 
-    fig, ax = plt.subplots(figsize=(10, 4))
+    fig, ax = plt.subplots(figsize=(15, 6))
     for i, m in enumerate(results.keys()):
         r = results[m].query(f'seqID == {seqID} & radar == "{radar}"')
         if i == 0:
             r0 = r.query(f'trial == 0')
             ax.plot(range(len(r0)), r0['gt'] / bird_scales[m], label='radar observation', color='gray')
-            ax.plot(range(len(r0)), r0['constant_prediction'] / bird_scales[m], label='constant')
+            #ax.plot(range(len(r0)), r0['constant_prediction'] / bird_scales[m], label='constant')
 
         all_trials = []
         for trial in r.trial.unique():
