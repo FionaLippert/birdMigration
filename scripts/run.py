@@ -3,7 +3,7 @@ import hydra
 import os.path as osp
 import os
 import traceback
-import run_GBT, run_NNs, run_FlowNNs, run_GAM
+import run_GBT, run_NNs, run_FlowNNs, run_GAM, run_HA
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
