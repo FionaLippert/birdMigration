@@ -146,7 +146,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # create dataframe containing all results
     for k, v in results.items():
-        print(k, v[0].shape)
+        print(k, v[0].shape, v[1].shape, v[2].shape)
         results[k] = np.concatenate(v)
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
