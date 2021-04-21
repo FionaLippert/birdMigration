@@ -289,7 +289,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     for k, v in results.items():
         if torch.is_tensor(v[0]):
             results[k] = torch.cat(v).detach().numpy()
-            print(k, v.shape)
+            print(k, results[k].shape)
         else:
             results[k] = np.concatenate(v)
     df = pd.DataFrame(results)
