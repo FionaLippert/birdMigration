@@ -230,6 +230,10 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
+    if cfg.model.name == 'GraphLSTM':
+        results['fluxes'] = []
+        results['local_deltas'] = []
+
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
@@ -255,6 +259,10 @@ def test(cfg: DictConfig, output_dir: str, log):
             local_night = data.local_night.cpu()
             missing = data.missing.cpu()
 
+            if cfg.model.name == 'GraphLSTM':
+                fluxes = model.fluxes.cpu()
+                local_deltas = model.local_deltas.cpu()
+
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, :])
                 results['prediction'].append(y_hat[ridx, :])
@@ -266,6 +274,11 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['trial'].append([r] * y.shape[1])
                 results['horizon'].append(np.arange(y.shape[1]))
                 results['missing'].append(missing[ridx, :])
+
+                if cfg.model.name == 'GraphLSTM':
+                    results['fluxes'].append(fluxes[ridx])
+                    results['local_deltas'].append(local_deltas[ridx])
+                
 
     # create dataframe containing all results
     for k, v in results.items():

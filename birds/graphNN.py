@@ -733,6 +733,9 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         y_hat = []
         y_hat.append(x)
 
+        self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
@@ -748,7 +751,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                                    edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas,
                                    dusk=data.local_dusk[:, t],
                                    dawn=data.local_dawn[:, t+1],
-                                   env=data.env[..., t+1])
+                                   env=data.env[..., t+1],
+                                   t=t)
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary cells
@@ -784,7 +788,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t):
+    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t, t):
 
         # predict departure/landing
         inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
@@ -803,6 +807,9 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             # combine messages from neighbors into single number representing the new bird density
             birds = self.mlp_aggr(aggr_out).sigmoid()
             pred = birds + delta
+
+        self.fluxes[:, t+1] = flux
+        self.local_deltas[:, t + 1] = delta
 
         return pred, h_t, c_t
 

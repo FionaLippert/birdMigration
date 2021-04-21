@@ -246,6 +246,15 @@ def test(cfg: DictConfig, output_dir: str, log):
             local_night = data.local_night.cpu()
             missing = data.missing.cpu()
 
+            # get predicted fluxes from model
+            outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
+                data.num_nodes, data.num_nodes, -1).cpu()
+            outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=model.abs_flows).view(
+                data.num_nodes, data.num_nodes, -1).cpu()  # .sum(1)
+
+            if cfg.model.recurrent:
+                deltas[nidx] = model.deltas.cpu()
+
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, :])
                 results['prediction'].append(y_hat[ridx, :])
@@ -258,16 +267,6 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['horizon'].append(np.arange(y.shape[1]))
                 results['missing'].append(missing[ridx, :])
 
-            # get predicted fluxes from model
-            outfluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
-                                            data.num_nodes, data.num_nodes, -1).cpu()
-            outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=model.abs_flows).view(
-                                            data.num_nodes, data.num_nodes, -1).cpu()  # .sum(1)
-
-            if cfg.model.recurrent:
-                deltas[nidx] = model.deltas.cpu()
-
-            for ridx in radar_index.keys():
                 outfluxes[nidx][ridx, ridx] = model.selfflows[ridx].cpu()
                 outfluxes_abs[nidx][ridx, ridx] = model.abs_selfflows[ridx].cpu()
 
