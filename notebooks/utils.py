@@ -34,26 +34,32 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         ax[midx].set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale):
+def compute_mse(row, bird_scale, prediction_col='prediction'):
     if row['missing']:
         return np.nan
     else:
-        return ((row['gt'] - row['prediction'] * row['night']) / bird_scale) ** 2
+        return ((row['gt'] - row[prediction_col] * row['night']) / bird_scale) ** 2
 
 def plot_errors(results, bird_scales):
     fig, ax = plt.subplots(figsize=(10, 4))
     for idx, m in enumerate(results.keys()):
-        if idx == 0:
-            constant_prediction = results[m].groupby('radar')['gt'].aggregate(np.mean)
-            results[m]['constant_error'] = results[m].apply(
-                lambda row: (row['gt'] - constant_prediction.loc[row.radar] * row.night) ** 2, axis=1)
-            mse_const = results[m].groupby(['horizon', 'trial']).constant_error.mean()  # .apply(np.sqrt)
-            mean_mse_c = mse_const.groupby('horizon').aggregate(np.mean)
-            ax.plot(mean_mse_c, label='historical average')
+        if m == 'GAM':
+            #constant_prediction = results[m].groupby('radar')['gt'].aggregate(np.mean)
+            #results[m]['constant_error'] = results[m].apply(
+            #    lambda row: (row['gt'] - constant_prediction.loc[row.radar] * row.night) ** 2, axis=1)
+
+            #mse_const = results[m].groupby(['horizon', 'trial']).constant_error.mean()  # .apply(np.sqrt)
+            #mean_mse_c = mse_const.groupby('horizon').aggregate(np.mean)
+
+            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
+                                                                                    'constant_prediction'), axis=1)
+            mse = results[m].groupby(['horizon', 'trial']).constant_error.mean()
+            mean_mse = mse.groupby('horizon').aggregate(np.mean)
+            ax.plot(mean_mse, label='constant prediction')
 
             end_night = np.concatenate(
-                [np.where(mean_mse_c.iloc[1:] == 0 & mean_mse_c.iloc[:-1] > 0)[0], [len(mean_mse_c)]])
-            start_night = np.where(mean_mse_c.iloc[:-1] == 0 & mean_mse_c.iloc[1:] > 0)[0]
+                [np.where((mean_mse.iloc[1:] == 0) & (mean_mse.iloc[:-1] > 0))[0], [len(mean_mse)]])
+            start_night = np.where((mean_mse.iloc[:-1] == 0) & (mean_mse.iloc[1:] > 0))[0]
 
             for i, tidx in enumerate(start_night):
                 ax.fill_between([tidx + 1, end_night[i]], 0, plt.gca().get_ylim()[-1], color='lightgray')
@@ -77,7 +83,8 @@ def plot_example_prediction(results, radar, seqID, bird_scales, max=1):
         r = results[m].query(f'seqID == {seqID} & radar == "{radar}"')
         if i == 0:
             r0 = r.query(f'trial == 0')
-            ax.plot(range(len(r0)), r0['gt'] / bird_scales[m], label='radar observation')
+            ax.plot(range(len(r0)), r0['gt'] / bird_scales[m], label='radar observation', color='gray')
+            ax.plot(range(len(r0)), r0['constant_prediction'] / bird_scales[m], label='constant')
 
         all_trials = []
         for trial in r.trial.unique():
@@ -87,13 +94,14 @@ def plot_example_prediction(results, radar, seqID, bird_scales, max=1):
 
         line = ax.plot(range(all_trials.shape[1]), all_trials.mean(0), label=m)
         ax.fill_between(range(all_trials.shape[1]), all_trials.mean(0) - all_trials.std(0),
-                        all_trials.mean(0) + all_trials.std(0), color=line[0].get_color(), alpha=0.1)
+                        all_trials.mean(0) + all_trials.std(0), color=line[0].get_color(), alpha=0.2)
 
     end_night = np.concatenate([np.where(r0['night'].iloc[1:].values & ~r0['night'].iloc[:-1].values)[0], [len(r0)]])
     start_night = np.where(r0['night'].iloc[:-1].values & ~r0['night'].iloc[1:].values)[0]
     for i, tidx in enumerate(start_night):
         ax.fill_between([tidx + 1, end_night[i]], 0, max, color='lightgray')
     ax.set(ylim=(0, max), xlim=(-1, 40), xlabel='forcasting horizon [h]', ylabel='normalized bird density')
+    ax.set_title(f'{r0.datetime.values[0]} to {r0.datetime.values[-1]}')
     plt.legend()
     return fig
 
