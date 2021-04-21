@@ -144,7 +144,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         for ridx, name in radar_index.items():
             if name in ['nlhrw', 'nldbl']: name = 'nldbl-nlhrw'
-            with open(osp.join(output_dir, f'model_{name}.pkl'), 'rb') as f:
+            with open(osp.join(train_dir, f'model_{name}.pkl'), 'rb') as f:
                 model = pickle.load(f)
             y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
