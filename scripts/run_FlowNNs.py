@@ -50,8 +50,11 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     # load training data
     train_data = [datasets.RadarData(data_root, year, cfg.season, ts,
-                                     data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization, missing_data_threshold=cfg.missing_data_threshold)
+                                     data_source=cfg.datasource.name,
+                                     use_buffers=cfg.datasource.use_buffers,
+                                     env_vars=cfg.datasource.env_vars,
+                                     normalization=normalization,
+                                     missing_data_threshold=cfg.missing_data_threshold)
                   for year in cfg.datasource.training_years]
     boundary_dict = train_data[0].info['boundaries']
     boundary = [ridx for ridx, b in boundary_dict.items() if b]
@@ -67,8 +70,11 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
-                                  data_source=cfg.datasource.name, use_buffers=cfg.datasource.use_buffers,
-                                  normalization=normalization, missing_data_threshold=cfg.missing_data_threshold)
+                                  data_source=cfg.datasource.name,
+                                  use_buffers=cfg.datasource.use_buffers,
+                                  env_vars=cfg.datasource.env_vars,
+                                  normalization=normalization,
+                                  missing_data_threshold=cfg.missing_data_threshold)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
@@ -201,6 +207,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    cfg.season, cfg.model.timesteps,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
+                                   env_vars=cfg.datasource.env_vars,
                                    normalization=normalization,
                                    missing_data_threshold=cfg.missing_data_threshold)
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
