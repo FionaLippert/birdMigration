@@ -276,8 +276,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['missing'].append(missing[ridx, :])
 
                 if cfg.model.name == 'GraphLSTM':
-                    results['fluxes'].append(fluxes[ridx])
-                    results['local_deltas'].append(local_deltas[ridx])
+                    results['fluxes'].append(fluxes[ridx].view(-1))
+                    results['local_deltas'].append(local_deltas[ridx].view(-1))
 
 
     # create dataframe containing all results
