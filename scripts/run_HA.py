@@ -150,7 +150,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             print(k, v[0].shape, v[1].shape, v[2].shape)
         except:
             print(k, len(v[0]), len(v[1]), len(v[2]))
-        results[k] = np.concatenate(v)
+        results[k] = np.concatenate(v, axis=0)
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
