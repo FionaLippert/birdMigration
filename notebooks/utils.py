@@ -8,7 +8,94 @@ from shapely.geometry import Point, LineString, Polygon
 import os.path as osp
 import glob
 import pickle5 as pickle
+import seaborn as sb
+import scipy as sp
 
+def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False):
+
+    fig, ax = plt.subplots(1, len(results), figsize=(len(results) * 6, 6))
+    for midx, m in enumerate(results.keys()):
+        gt = results[m]['gt']
+        mask = results[m]['night'] & ~results[m]['missing'] & results[m]['gt'] > min
+        gt = gt[mask].values
+        gt = np.power(gt, 1/root_transform)
+
+        pred = results[m]['prediction']
+        pred = pred[mask].values
+        pred = np.power(np.maximum(pred, 0), 1/root_transform)
+
+        res = sp.stats.linregress(gt, pred)
+        sb.regplot(gt, pred, scatter=True, ci=95, ax=ax[midx], label=f'R-squared={res.rvalue ** 2:.4f}',
+                   scatter_kws={'alpha': 0.2, 's': 2})
+
+        ax[midx].plot(np.power([min,max], 1/root_transform), np.power([min, max], 1/root_transform), ls='--', c='red')
+        ax[midx].set_title(m)
+        if legend: ax[midx].legend()
+        ax[midx].set(xlabel='radar observation', ylabel='prediction')
+    return fig
+
+def compute_mse(row, bird_scale):
+    if row['missing']:
+        return np.nan
+    else:
+        return ((row['gt'] - row['prediction'] * row['night']) / bird_scale) ** 2
+
+def plot_errors(results, bird_scales):
+    fig, ax = plt.subplots(figsize=(10, 4))
+    for idx, m in enumerate(results.keys()):
+        if idx == 0:
+            constant_prediction = results[m].groupby('radar')['gt'].aggregate(np.mean)
+            results[m]['constant_error'] = results[m].apply(
+                lambda row: (row['gt'] - constant_prediction.loc[row.radar] * row.night) ** 2, axis=1)
+            mse_const = results[m].groupby(['horizon', 'trial']).constant_error.mean()  # .apply(np.sqrt)
+            mean_mse_c = mse_const.groupby('horizon').aggregate(np.mean)
+            ax.plot(mean_mse_c, label='historical average')
+
+            end_night = np.concatenate(
+                [np.where(mean_mse_c.iloc[1:] == 0 & mean_mse_c.iloc[:-1] > 0)[0], [len(mean_mse_c)]])
+            start_night = np.where(mean_mse_c.iloc[:-1] == 0 & mean_mse_c.iloc[1:] > 0)[0]
+
+            for i, tidx in enumerate(start_night):
+                ax.fill_between([tidx + 1, end_night[i]], 0, plt.gca().get_ylim()[-1], color='lightgray')
+
+        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
+        mse = results[m].groupby(['horizon', 'trial']).error.mean()  # .apply(np.sqrt)
+        mean_mse = mse.groupby('horizon').aggregate(np.mean)
+        std_mse = mse.groupby('horizon').aggregate(np.std)
+
+        l = ax.plot(mean_mse, label=m)
+        ax.fill_between(mean_mse.index, mean_mse + std_mse, mean_mse - std_mse, alpha=0.2, color=l[0].get_color())
+
+    plt.legend()
+    ax.set(xlabel='forecast horizon', ylabel='RMSE')
+    return fig
+
+def plot_example_prediction(results, radar, seqID, bird_scales, max=1):
+
+    fig, ax = plt.subplots(figsize=(10, 4))
+    for i, m in enumerate(results.keys()):
+        r = results[m].query(f'seqID == {seqID} & radar == "{radar}"')
+        if i == 0:
+            r0 = r.query(f'trial == 0')
+            ax.plot(range(len(r0)), r0['gt'] / bird_scales[m], label='radar observation')
+
+        all_trials = []
+        for trial in r.trial.unique():
+            r_t = r.query(f'trial == {trial}')
+            all_trials.append(r_t['prediction'] / bird_scales[m] * r_t['night'])
+        all_trials = np.stack(all_trials, axis=0)
+
+        line = ax.plot(range(all_trials.shape[1]), all_trials.mean(0), label=m)
+        ax.fill_between(range(all_trials.shape[1]), all_trials.mean(0) - all_trials.std(0),
+                        all_trials.mean(0) + all_trials.std(0), color=line[0].get_color(), alpha=0.1)
+
+    end_night = np.concatenate([np.where(r0['night'].iloc[1:].values & ~r0['night'].iloc[:-1].values)[0], [len(r0)]])
+    start_night = np.where(r0['night'].iloc[:-1].values & ~r0['night'].iloc[1:].values)[0]
+    for i, tidx in enumerate(start_night):
+        ax.fill_between([tidx + 1, end_night[i]], 0, max, color='lightgray')
+    ax.set(ylim=(0, max), xlim=(-1, 40), xlabel='forcasting horizon [h]', ylabel='normalized bird density')
+    plt.legend()
+    return fig
 
 def load_sim_results(path):
     files = glob.glob(osp.join(path, '*.pkl'))

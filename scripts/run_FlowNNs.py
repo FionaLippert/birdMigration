@@ -238,6 +238,8 @@ def test(cfg: DictConfig, output_dir: str, log):
         outfluxes = {}
         outfluxes_abs = {}
         deltas = {}
+        selffluxes = {}
+        influxes = {}
         for nidx, data in enumerate(test_loader):
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
@@ -252,6 +254,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             outfluxes_abs[nidx] = to_dense_adj(data.edge_index, edge_attr=model.abs_flows).view(
                 data.num_nodes, data.num_nodes, -1).cpu()  # .sum(1)
 
+            selffluxes[nidx] = model.abs_selfflows.cpu()
+            influxes[nidx] = model.inflows.cpu()
             if cfg.model.recurrent:
                 deltas[nidx] = model.deltas.cpu()
 
@@ -272,7 +276,8 @@ def test(cfg: DictConfig, output_dir: str, log):
 
                 if cfg.model.recurrent:
                     results['outflux'].append(outfluxes[nidx].sum(1)[ridx, :])
-                    results['outflux_abs'].append(outfluxes_abs[nidx].sum(1)[ridx, :])
+                    results['selfflux'].append(selffluxes[nidx][ridx, :].view(-1))
+                    results['influx'].append(influxes[nidx][ridx, :].view(-1))
                     results['delta'].append(deltas[nidx][ridx, :].view(-1))
 
 

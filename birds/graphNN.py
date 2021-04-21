@@ -555,6 +555,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
         self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
         self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+        self.inflows = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         for t in range(self.timesteps):
 
             if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
@@ -660,6 +661,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         selfflow = x * selfflow
         #self.abs_selfflows.append(selfflow)
         self.abs_selfflows[..., t+1] = selfflow
+        self.inflows[..., t+1] = aggr_out
 
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = selfflow + aggr_out + delta
