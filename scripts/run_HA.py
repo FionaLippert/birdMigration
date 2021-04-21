@@ -146,6 +146,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # create dataframe containing all results
     for k, v in results.items():
+        print(v)
         try:
             print(k, v[0].shape, v[1].shape, v[2].shape)
         except:
