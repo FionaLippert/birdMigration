@@ -217,7 +217,6 @@ def timeslice(data, start_night, mask, timesteps):
 
 class Normalization:
     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,
-                 edge_type='voronoi',
                  env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H'):
         self.root = root
         self.data_source = data_source
@@ -230,7 +229,7 @@ class Normalization:
                 # load all features and organize them into dataframes
                 os.makedirs(dir)
                 prepare_features(dir, self.raw_dir, data_source, season, str(year),
-                                 radar_years=radar_years, edge_type=edge_type,
+                                 radar_years=radar_years,
                                  env_points=env_points, random_seed=seed, max_distance=max_distance,
                                  pref_dirs=pref_dirs, wp_threshold=wp_threshold, t_unit=t_unit)
 
