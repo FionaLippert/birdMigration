@@ -402,6 +402,39 @@ def bird_flows(trajectories, states, tidx, grid):
     merged_t0['dst_index'] = merged_t1['index_right']
     return merged_t0
 
+def count_birds_of_interest(positions, grid):
+    df = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
+
+    if positions.shape[1] > 0:
+        # get positions of all birds of interest
+        xx_t0 = positions[..., 0].flatten()
+        yy_t0 = positions[..., 1].flatten()
+        df['geometry'] = gpd.points_from_xy(xx_t0, yy_t0)
+
+    # count birds of interest per grid cell
+    merged = gpd.sjoin(df, grid, how='inner', op='within')
+    return merged
+
+def departing_birds(trajectories, states, tidx, grid):
+    if tidx == 0:
+        mask = np.where(states[tidx] == 1)
+    else:
+        mask = np.where(np.logical_and(states[tidx-1] == 0, states[tidx] == 1))
+
+    departing = count_birds_of_interest(trajectories[tidx, mask], grid)
+    return departing
+
+def landing_birds(trajectories, states, tidx, grid):
+    if tidx == 0:
+        mask = []
+    else:
+        mask = np.where(np.logical_and(states[tidx-1] == 1, states[tidx] == 0))
+
+    landing = count_birds_of_interest(trajectories[tidx, mask], grid)
+    return landing
+
+
+
 def load_season(root, season, year, cells):
 
     abm_dir = osp.join(root, season, year)

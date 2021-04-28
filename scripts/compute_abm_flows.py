@@ -36,23 +36,45 @@ cells = sp.voronoi_with_sink().to_crs(epsg='4326')
 traj, states, time = load_sim_results(abm_path)
 T = traj.shape[0]
 
+departing = np.zeros((T, N))
+landing = np.zeros((T, N))
+
 for tidx in range(T):
     print(f'computing flows for time step {tidx}')
     # compute flows from time tidx to tidx + 1
-    flows = abm.bird_flows(traj, states, tidx, cells)
-    outfluxes = np.zeros((N, N))
+    # flows = abm.bird_flows(traj, states, tidx, cells)
+    #
+    # outfluxes = np.zeros((N, N))
+    #
+    # if len(flows) > 0:
+    #     groups = flows.groupby('radar')
+    #     grouped = groups['dst_radar'].value_counts()
+    #
+    #     for src, df_dst in groups:
+    #         fluxes = df_dst['dst_radar'].value_counts()
+    #         z = fluxes.sum()
+    #         for dst, count in fluxes.items():
+    #             outfluxes[radar_index[src], radar_index[dst]] = count #/ z
+    #
+    # np.save(osp.join(out_dir, f'{tidx}.npy'), outfluxes)
 
-    if len(flows) > 0:
-        groups = flows.groupby('radar')
-        grouped = groups['dst_radar'].value_counts()
+    # count departing and landing birds
+    departing_t = abm.departing_birds(traj, states, tidx, cells)
+    landing_t = abm.landing_birds(traj, states, tidx, cells)
 
-        for src, df_dst in groups:
-            fluxes = df_dst['dst_radar'].value_counts()
-            z = fluxes.sum()
-            for dst, count in fluxes.items():
-                outfluxes[radar_index[src], radar_index[dst]] = count #/ z
+    if len(departing_t) > 0:
+        groups = departing_t.groupby('radar')
+        for radar, df_radar in groups:
+            departing[tidx, radar_index[radar]] = len(df_radar)
 
-    np.save(osp.join(out_dir, f'{tidx}.npy'), outfluxes)
+    if len(landing_t) > 0:
+        groups = landing_t.groupby('radar')
+        for radar, df_radar in groups:
+            landing[tidx, radar_index[radar]] = len(df_radar)
+
+
+np.save(osp.join(abm_path, 'departing_birds.npy'), departing)
+np.save(osp.join(abm_path, 'landing_birds.npy'), landing)
 
 
 

@@ -24,7 +24,9 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
-                                           cfg.datasource.name, seed=cfg.seed)
+                                           cfg.datasource.name, seed=cfg.seed, edge_type=cfg.edge_type,
+                                   max_distance=cfg.max_distance,
+                                   t_unit=cfg.t_unit)
 
     # load datasets
     train_data_list = [datasets.RadarData(data_root, str(year), cfg.season, ts,
