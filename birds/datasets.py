@@ -221,6 +221,7 @@ class Normalization:
         self.root = root
         self.data_source = data_source
         self.season = season
+        self.t_unit = t_unit
 
         all_dfs = []
         for year in years:
