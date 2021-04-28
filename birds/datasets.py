@@ -259,7 +259,7 @@ class Normalization:
         return root_transformed.dropna().max()
 
     def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.data_source, self.season, str(year))
+        return osp.join(self.root, 'preprocessed', self.t_unit, self.data_source, self.season, str(year))
 
     @property
     def raw_dir(self):
