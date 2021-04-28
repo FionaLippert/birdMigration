@@ -56,7 +56,6 @@ def plot_errors(results, bird_scales):
                 [np.where((mean_mse.iloc[1:] == 0) & (mean_mse.iloc[:-1] > 0))[0], [len(mean_mse)]])
             start_night = np.where((mean_mse.iloc[:-1] == 0) & (mean_mse.iloc[1:] > 0))[0]
 
-            print(plt.gca().get_ylim()[-1])
             for i, tidx in enumerate(start_night):
                 ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
 
@@ -69,10 +68,12 @@ def plot_errors(results, bird_scales):
         ax.fill_between(mean_mse.index, mean_mse + std_mse, mean_mse - std_mse, alpha=0.2, color=l[0].get_color())
 
     plt.legend()
-    ax.set(xlabel='forecast horizon', ylabel='RMSE', ylim=(0, 0.1))
+    plt.grid()
+    ax.set(xlabel='forecast horizon [h]', ylabel='RMSE', ylim=(0, 0.1))
     return fig
 
 def plot_average_errors(results, bird_scales):
+    sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(20, 4))
     rmse_list = []
     labels = []
@@ -92,10 +93,12 @@ def plot_average_errors(results, bird_scales):
 
     df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
     sb.barplot(x='model', y='RMSE', data=df, capsize=.2, ci='sd', ax=ax)
+    plt.grid()
     ax.set(ylabel='RMSE')
     return fig
 
 def plot_average_errors_comparison(models, results1, results2, bird_scales1, bird_scales2, group_names):
+    sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(10, 4))
     rmse_list = []
     labels = []
@@ -135,6 +138,7 @@ def plot_average_errors_comparison(models, results1, results2, bird_scales1, bir
     df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels), group=np.concatenate(groups)))
     sb.barplot(x='model', y='RMSE', hue='group', data=df, capsize=.2, ci='sd', ax=ax, palette="Greens_d")
     ax.set(ylabel='RMSE')
+    plt.grid()
     return fig
 
 def plot_example_prediction(results, radar, seqID, bird_scales, max=1):

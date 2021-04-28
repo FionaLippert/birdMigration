@@ -139,6 +139,27 @@ class Spatial:
 
         return cells, G
 
+    def G_max_dist(self, max_distance):
+        # create graph with edges between any two radars with distance <= max_distance [km]
+        xy_equal_area = self.pts2coords(self.pts_equal_area)
+        lonlat = self.pts2coords(self.pts_lonlat)
+
+        G = nx.DiGraph()
+        for i in range(self.N):
+            for j in range(self.N):
+                dist = self.distance(xy_equal_area[i], xy_equal_area[j], epsg=self.epsg_equal_area) / 1000
+                if dist <= max_distance:
+                    G.add_edge(i, j, distance=dist,
+                               angle=self.angle(lonlat[i], lonlat[j]))
+                    G.add_edge(j, i, distance=dist,
+                               angle=self.angle(lonlat[j], lonlat[i]))
+
+        nx.set_node_attributes(G, pd.Series(self.cells['radar']).to_dict(), 'radar')
+        nx.set_node_attributes(G, pd.Series(self.cells['boundary']).to_dict(), 'boundary')
+        nx.set_node_attributes(G, 'measured', name='type')
+
+        return G
+
     def subgraph(self, attr, value):
         node_gen = (n for n, data in self.G.nodes(data=True) if data.get(attr) == value)
         subgraph = self.G.subgraph(node_gen)

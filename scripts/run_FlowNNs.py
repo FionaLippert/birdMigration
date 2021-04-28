@@ -54,7 +54,11 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      use_buffers=cfg.datasource.use_buffers,
                                      env_vars=cfg.datasource.env_vars,
                                      normalization=normalization,
-                                     missing_data_threshold=cfg.missing_data_threshold)
+                                     missing_data_threshold=cfg.missing_data_threshold,
+                                     edge_type=cfg.edge_type,
+                                     max_distance=cfg.max_distance,
+                                     t_unit=cfg.t_unit
+                                     )
                   for year in cfg.datasource.training_years]
     boundary_dict = train_data[0].info['boundaries']
     boundary = [ridx for ridx, b in boundary_dict.items() if b]
@@ -74,7 +78,11 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   use_buffers=cfg.datasource.use_buffers,
                                   env_vars=cfg.datasource.env_vars,
                                   normalization=normalization,
-                                  missing_data_threshold=cfg.missing_data_threshold)
+                                  missing_data_threshold=cfg.missing_data_threshold,
+                                  edge_type=cfg.edge_type,
+                                  max_distance=cfg.max_distance,
+                                  t_unit=cfg.t_unit
+                                  )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
@@ -209,7 +217,11 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    use_buffers=cfg.datasource.use_buffers,
                                    env_vars=cfg.datasource.env_vars,
                                    normalization=normalization,
-                                   missing_data_threshold=cfg.missing_data_threshold)
+                                   missing_data_threshold=cfg.missing_data_threshold,
+                                   edge_type=cfg.edge_type,
+                                   max_distance=cfg.max_distance,
+                                   t_unit=cfg.t_unit
+                                   )
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     radars = test_data.info['radars']
     radar_index = {idx: name for idx, name in enumerate(radars)}

@@ -483,14 +483,19 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 6 + kwargs.get('n_env', 4)
-        self.n_edge_in = 7 + 2*kwargs.get('n_env', 4)
+        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_edge_in = 6 + 2*kwargs.get('n_env', 4)
         self.n_self_in = 4 + kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', True)
         self.recurrent = kwargs.get('recurrent', True)
+
+        self.edge_type = kwargs.get('edge_type', 'voronoi')
+        if self.edge_type == 'voronoi':
+            self.n_edge_in += 1 # use face_length as additional feature
+            self.n_node_in += 1 # use voronoi cell area as additional feature
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -629,8 +634,12 @@ class BirdFlowGraphLSTM(MessagePassing):
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t):
         if self.recurrent:
-            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+            if self.edge_type == 'voronoi':
+                inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+                                    dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+            else:
+                inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+                                    dusk.float().view(-1, 1)], dim=1)
             inputs = self.node2hidden(inputs).relu()
 
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
@@ -677,13 +686,18 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 6 + kwargs.get('n_env', 4)
-        self.n_edge_in = 9 + 2*kwargs.get('n_env', 4)
+        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_edge_in = 8 + 2*kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', [])
+
+        self.edge_type = kwargs.get('edge_type', 'voronoi')
+        if self.edge_type == 'voronoi':
+            self.n_edge_in += 1  # use face_length as additional feature
+            self.n_node_in += 1  # use voronoi cell area as additional feature
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -793,8 +807,12 @@ class BirdDynamicsGraphLSTM(MessagePassing):
     def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t, t):
 
         # predict departure/landing
-        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
-                            dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        if self.edge_type == 'voronoi':
+            inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                                dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        else:
+            inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                                dawn.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_fc_layers):
@@ -825,12 +843,17 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 6 + kwargs.get('n_env', 4)
-        self.n_edge_in = 9 + 2*kwargs.get('n_env', 4)
+        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_edge_in = 8 + 2*kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.forced_zeros = kwargs.get('forced_zeros', [])
+
+        self.edge_type = kwargs.get('edge_type', 'voronoi')
+        if self.edge_type == 'voronoi':
+            self.n_node_in += 1
+            self.n_edge_in += 1
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -926,8 +949,12 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
     def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t):
 
         # recurrent component
-        inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
-                            dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        if self.edge_type == 'voronoi':
+            inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                                dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+        else:
+            inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+                                dawn.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_fc_layers):

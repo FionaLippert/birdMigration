@@ -33,7 +33,11 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      normalization=normalization,
                                      env_vars=[],
                                      root_transform=0,
-                                     missing_data_threshold=cfg.missing_data_threshold)
+                                     missing_data_threshold=cfg.missing_data_threshold,
+                                      edge_type=cfg.edge_type,
+                                      max_distance=cfg.max_distance,
+                                          t_unit=cfg.t_unit
+                                          )
                   for year in cfg.datasource.training_years]
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -99,7 +103,11 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    normalization=normalization,
                                    env_vars=[],
                                    root_transform=0,
-                                   missing_data_threshold=cfg.missing_data_threshold)
+                                   missing_data_threshold=cfg.missing_data_threshold,
+                                   edge_type=cfg.edge_type,
+                                   max_distance=cfg.max_distance,
+                                   t_unit=cfg.t_unit
+                                   )
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
