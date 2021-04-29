@@ -317,6 +317,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             results[k] = torch.cat(v).detach().numpy()
         else:
             results[k] = np.concatenate(v)
+
+        print(k, results[k].shape)
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
