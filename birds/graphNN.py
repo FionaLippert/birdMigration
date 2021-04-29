@@ -201,7 +201,7 @@ class LocalLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_in = 6 + kwargs.get('n_env', 4)
+        self.n_in = 7 + kwargs.get('n_env', 4)
         self.n_layers = kwargs.get('n_layers', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
