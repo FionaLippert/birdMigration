@@ -495,12 +495,16 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.force_zeros = kwargs.get('force_zeros', True)
         self.recurrent = kwargs.get('recurrent', True)
 
+        self.use_encoder = kwargs.get('use_encoder', False)
+        self.t_context = kwargs.get('t_context', 0)
+
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
             self.n_edge_in += 1 # use face_length as additional feature
             self.n_node_in += 1 # use voronoi cell area as additional feature
 
-        torch.manual_seed(kwargs.get('seed', 1234))
+        seed = kwargs.get('seed', 1234)
+        torch.manual_seed(seed)
 
         if self.n_fc_layers < 1:
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(self.n_edge_in, 1),
@@ -531,24 +535,40 @@ class BirdFlowGraphLSTM(MessagePassing):
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
+        if self.use_encoder:
+            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed)
+
 
 
     def forward(self, data, teacher_forcing=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
-        # measurement at t=0
-        x = data.x[..., 0].view(-1, 1)
-
+        y_hat = []
 
         # birds on the ground at t=0
         #ground = torch.zeros_like(x).to(x.device)
 
         # initialize lstm variables
-        if self.recurrent:
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for _ in range(self.n_lstm_layers)]
+        if self.use_encoder and self.recurrent:
+            # push context timeseries through encoder to initialize decoder
+            h_t, c_t = self.encoder(data)
+            #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
+            x = data.x[..., self.t_context].view(-1, 1)
+            y_hat.append(x)
+
+        elif self.recurrent:
+            # start from scratch
+            # measurement at t=0
+            x = data.x[..., 0].view(-1, 1)
+            y_hat.append(x)
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+
         else:
+            x = data.x[..., 0].view(-1, 1)
+            y_hat.append(x)
             h_t = []
             c_t = []
 
@@ -556,8 +576,6 @@ class BirdFlowGraphLSTM(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-        y_hat = []
-        y_hat.append(x)
 
         self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
         self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
@@ -565,7 +583,13 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
         self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
         self.inflows = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        for t in range(self.timesteps):
+
+        if self.use_encoder:
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+        else:
+            forecast_horizon = range(1, self.timesteps + 1)
+
+        for t in forecast_horizon:
 
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
@@ -573,21 +597,21 @@ class BirdFlowGraphLSTM(MessagePassing):
                 r = torch.rand(1)
                 if r < teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
-                    x = data.missing[..., t].view(-1, 1) * x + \
-                        ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
+                    x = data.missing[..., t-1].view(-1, 1) * x + \
+                        ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
                 x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                     h_t=h_t, c_t=c_t, areas=data.areas,
                                                     edge_attr=edge_attr, #ground=ground,
-                                                    dusk=data.local_dusk[:, t],
-                                                    dawn=data.local_dawn[:, t+1],
-                                                    env=data.env[..., t+1],
-                                                    t=t,
-                                             night=data.local_night[:, t+1])
+                                                    dusk=data.local_dusk[:, t-1],
+                                                    dawn=data.local_dawn[:, t],
+                                                    env=data.env[..., t],
+                                                    t=t-self.t_context,
+                                             night=data.local_night[:, t])
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary nodes
-                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t+1]
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
 
 
             # for locations where it is dawn: save birds to ground and set birds in the air to zero
@@ -598,7 +622,7 @@ class BirdFlowGraphLSTM(MessagePassing):
             #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
 
             if self.force_zeros:
-                x = x * data.local_night[:, t+1].view(-1, 1)
+                x = x * data.local_night[:, t].view(-1, 1)
 
             # for locations where it is dusk: set birds on ground to zero
             # ground = ground * ~data.local_dusk[:, t].view(-1, 1)
@@ -628,11 +652,11 @@ class BirdFlowGraphLSTM(MessagePassing):
             flow = self.fc_edge_out(flow).sigmoid()
 
         #self.flows.append(flow)
-        self.flows[..., t+1] = flow
+        self.flows[..., t] = flow
 
         abs_flow = flow * x_j
         #self.abs_flows.append(abs_flow)
-        self.abs_flows[..., t+1] = abs_flow
+        self.abs_flows[..., t] = abs_flow
 
         return abs_flow
 
@@ -653,7 +677,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
             delta = self.hidden2delta(h_t[-1]).tanh()
             #self.deltas.append(delta)
-            self.deltas[..., t+1] = delta
+            self.deltas[..., t] = delta
         else:
             delta = 0
 
@@ -672,11 +696,11 @@ class BirdFlowGraphLSTM(MessagePassing):
             selfflow = self.fc_edge_out(selfflow).sigmoid()
 
         #self.selfflows.append(selfflow)
-        self.selfflows[..., t+1] = selfflow
+        self.selfflows[..., t] = selfflow
         selfflow = x * selfflow
         #self.abs_selfflows.append(selfflow)
-        self.abs_selfflows[..., t+1] = selfflow
-        self.inflows[..., t+1] = aggr_out
+        self.abs_selfflows[..., t] = selfflow
+        self.inflows[..., t] = aggr_out
 
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
         pred = selfflow + aggr_out + delta
@@ -1195,6 +1219,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
             mask = data.local_night & ~data.missing
         else:
             mask = ~data.missing
+        if hasattr(model, 't_context'):
+            gt = gt[:, model.t_context:]
+            mask = mask[:, model.t_context:]
         loss = loss_func(output, gt, mask) + conservation_constraint * constraints
 
         loss.backward()
@@ -1280,8 +1307,11 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
             mask = data.local_night & ~data.missing
         else:
             mask = ~data.missing
+        if hasattr(model, 't_context'):
+            gt = gt[:, model.t_context:]
+            mask = mask[:, model.t_context:]
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
-                                      for t in range(timesteps + 1)]))
+                                      for t in range(model.timesteps + 1)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 

@@ -43,3 +43,5 @@ horizon: 40
 fixed_boundary: false
 force_zeros: false
 recurrent: true
+use_encoder: true
+context: 24

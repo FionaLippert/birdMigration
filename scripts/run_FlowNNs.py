@@ -29,7 +29,16 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.horizon
+
+    use_encoder = cfg.model.get('use_encoder', False)
+    if use_encoder:
+        context = cfg.model.context
+        seq_len = context + cfg.model.horizon
+    else:
+        context = 0
+        seq_len = cfg.model.horizon
+
+
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
     fixed_boundary = cfg.model.get('fixed_boundary', False)
@@ -51,7 +60,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                    t_unit=cfg.t_unit)
 
     # load training data
-    train_data = [datasets.RadarData(data_root, year, cfg.season, ts,
+    train_data = [datasets.RadarData(data_root, year, cfg.season, seq_len,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      env_vars=cfg.datasource.env_vars,
@@ -75,7 +84,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     cfg.datasource.bird_scale = float(normalization.max('birds'))
 
     # load validation data
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, ts,
+    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, seq_len,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   env_vars=cfg.datasource.env_vars,
@@ -107,11 +116,12 @@ def train(cfg: DictConfig, output_dir: str, log):
         for r in range(cfg.repeats):
 
             print(f'train model [trial {r}]')
-            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r),
+            model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
                           n_env=2+len(cfg.datasource.env_vars),
                           fixed_boundary=boundary if fixed_boundary else [],
                           force_zeros=cfg.model.get('force_zeros', 0),
-                          recurrent=cfg.model.recurrent, edge_type=cfg.edge_type)
+                          recurrent=cfg.model.recurrent, edge_type=cfg.edge_type,
+                          use_encoder=use_encoder, t_context=context)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
