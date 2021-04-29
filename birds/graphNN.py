@@ -733,6 +733,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
+            print('Use Voronoi tessellation')
             self.n_edge_in += 1  # use face_length as additional feature
             self.n_node_in += 1  # use voronoi cell area as additional feature
 

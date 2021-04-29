@@ -388,6 +388,7 @@ class RadarData(InMemoryDataset):
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
 
         if self.edge_type == 'voronoi':
+            print('Use Voronoi tessellation')
             face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
             edge_attr = torch.stack([
                                   torch.tensor(distances, dtype=torch.float),
@@ -395,6 +396,7 @@ class RadarData(InMemoryDataset):
                                   torch.tensor(face_lengths, dtype=torch.float)
                               ], dim=1)
         else:
+            print('Use other edge type')
             edge_attr = torch.stack([
                 torch.tensor(distances, dtype=torch.float),
                 torch.tensor(angles, dtype=torch.float),
