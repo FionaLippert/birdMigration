@@ -139,8 +139,9 @@ class LocalMLP(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_in = 3 + kwargs.get('n_env', 4)
+        self.n_in = 4 + kwargs.get('n_env', 4)
         self.n_layers = kwargs.get('n_layers', 1)
+        self.force_zeros = kwargs.get('force_zeros', False)
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -157,10 +158,11 @@ class LocalMLP(MessagePassing):
         for t in range(self.timesteps + 1):
 
             x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t],
-                               areas=data.areas, edge_attr=data.edge_attr)
+                               areas=data.areas, edge_attr=data.edge_attr, night=data.local_night[:, t])
 
-            # for locations where it is night: set birds in the air to zero
-            x = x * data.local_night[:, t].view(-1, 1)
+            if self.force_zeros:
+                # for locations where it is night: set birds in the air to zero
+                x = x * data.local_night[:, t].view(-1, 1)
 
             y_hat.append(x)
 
@@ -175,9 +177,9 @@ class LocalMLP(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, coords, env, areas):
+    def update(self, aggr_out, coords, env, areas, night):
         # use only location-specific features to predict migration intensities
-        features = torch.cat([coords, env, areas.view(-1,1)], dim=1)
+        features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
         x = self.fc_in(features).relu()
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
@@ -238,7 +240,7 @@ class LocalLSTM(MessagePassing):
         y_hat = [x]
 
         for t in range(self.timesteps):
-            if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
+            if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
                 if r < teacher_forcing:
@@ -250,7 +252,8 @@ class LocalLSTM(MessagePassing):
                                              h_t=h_t, c_t=c_t, edge_attr=data.edge_attr,
                                              dusk=data.local_dusk[:, t],
                                              dawn=data.local_dawn[:, t+1],
-                                             env=data.env[..., t+1]
+                                             env=data.env[..., t+1],
+                                             night=data.local_night[:, t+1]
                                              )
 
             if self.force_zeros:
@@ -270,10 +273,10 @@ class LocalLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, coords, env, dusk, dawn, h_t, c_t, x, areas):
+    def update(self, aggr_out, coords, env, dusk, dawn, h_t, c_t, x, areas, night):
 
         inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
-                            dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+                            dawn.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
         #inputs = self.fc_in(inputs).relu()
         inputs = self.mlp_in(inputs).relu()
 
@@ -724,7 +727,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_node_in = 5 + self.n_env
+        self.n_node_in = 6 + self.n_env
         self.n_edge_in = 8 + 2 * self.n_env
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
@@ -815,7 +818,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
         for t in forecast_horizon:
 
-            if torch.any(data.local_night[:, t] | data.local_dusk[:, t]):
+            if True: #torch.any(data.local_night[:, t] | data.local_dusk[:, t]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
                 if r < teacher_forcing:
@@ -829,6 +832,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                                    dusk=data.local_dusk[:, t-1],
                                    dawn=data.local_dawn[:, t],
                                    env=data.env[..., t],
+                                   night=data.local_night[:, t],
                                    t=t)
 
                 if len(self.fixed_boundary) > 0:
@@ -865,15 +869,15 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t, t):
+    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t, t, night):
 
         # predict departure/landing
         if self.edge_type == 'voronoi':
             inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
-                                dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+                                dawn.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
         else:
             inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
-                                dawn.float().view(-1, 1)], dim=1)
+                                dawn.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_fc_layers):

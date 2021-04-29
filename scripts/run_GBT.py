@@ -49,7 +49,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      )
                   for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
-    X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, return_mask=True)
+    X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, mask_daytime=False)
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
@@ -65,7 +65,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   )
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
-    X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, return_mask=True)
+    X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, mask_daytime=False)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
@@ -184,7 +184,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
     X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
-                                    timesteps=cfg.model.horizon, return_mask=True)
+                                    timesteps=cfg.model.horizon, mask_daytime=False)
 
 
     # load models and predict

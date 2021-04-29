@@ -51,7 +51,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_masks = []
     all_mappings = []
     for idx, data in enumerate(train_data_list):
-        _, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, return_mask=True)
+        _, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, mask_daytime=True)
         all_y.append(y_train)
         all_masks.append(mask_train)
         radars = ['nldbl-nlhrw' if r in ['nldbl', 'nlhrw'] else r for r in data.info['radars']]
@@ -118,7 +118,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
     _, y_test, mask_test = GBT.prepare_data_nights_and_radars_gam(test_data,
-                                    timesteps=cfg.model.horizon, return_mask=True)
+                                    timesteps=cfg.model.horizon, mask_daytime=True)
 
 
     # load models and predict

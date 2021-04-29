@@ -20,7 +20,7 @@ hyperparameters:
     search_space:
     - 0.25
   lr:
-    default: 0.0001
+    default: 0.001
     search_space:
       - 0.001
       - 0.0001
@@ -34,12 +34,12 @@ hyperparameters:
     search_space:
     - 0.9
   conservation_constraint:
-    default: 0.01
+    default: 0.0
     search_space:
       - 0.0
       - 0.01
 epochs: 100
 horizon: 40
 fixed_boundary: false
-force_zeros: true
+force_zeros: false
 recurrent: true

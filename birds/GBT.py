@@ -2,7 +2,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 import numpy as np
 
 
-def prepare_data(dataset, timesteps, return_mask=False):
+def prepare_data(dataset, timesteps, mask_daytime=False):
 
     X = []
     y = []
@@ -14,17 +14,18 @@ def prepare_data(dataset, timesteps, return_mask=False):
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X.append(features)
             y.append(seq.y[:, t])
-            #mask.append(seq.local_night[:, t] & ~seq.missing[:, t])
-            mask.append(~seq.missing[:, t])
+            if mask_daytime:
+                mask.append(seq.local_night[:, t] & ~seq.missing[:, t])
+            else:
+                mask.append(~seq.missing[:, t])
     X = np.concatenate(X, axis=0)
     y = np.concatenate(y, axis=0)
     mask = np.concatenate(mask, axis=0)
-    if return_mask:
-        return X, y, mask
-    else:
-        return X, y
 
-def prepare_data_gam(dataset, timesteps, return_mask=False):
+    return X, y, mask
+
+
+def prepare_data_gam(dataset, timesteps, mask_daytime=False):
 
     X = []
     y = []
@@ -37,18 +38,18 @@ def prepare_data_gam(dataset, timesteps, return_mask=False):
 
             X.append(features)
             y.append(seq.y[:, t])
-            #mask.append(seq.local_night[:, t] & ~seq.missing[:, t])
-            mask.append(~seq.missing[:, t])
+            if mask_daytime:
+                mask.append(seq.local_night[:, t] & ~seq.missing[:, t])
+            else:
+                mask.append(~seq.missing[:, t])
     X = np.stack(X, axis=0)
     y = np.stack(y, axis=0)
     mask = np.stack(mask, axis=0)
-    if return_mask:
-        return X, y, mask
-    else:
-        return X, y
+
+    return X, y, mask
 
 
-def prepare_data_nights_and_radars(dataset, timesteps, return_mask=False):
+def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False):
 
     X = []
     y = []
@@ -63,8 +64,10 @@ def prepare_data_nights_and_radars(dataset, timesteps, return_mask=False):
                                        seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
             X_night.append(features)
             y_night.append(seq.y[:, t])
-            #mask_night.append(seq.local_night[:, t] & ~seq.missing[:, t])
-            mask_night.append(~seq.missing[:, t])
+            if mask_daytime:
+                mask_night.append(seq.local_night[:, t] & ~seq.missing[:, t])
+            else:
+                mask_night.append(~seq.missing[:, t])
         X.append(np.stack(X_night, axis=0)) # shape (timesteps, nodes, features)
         y.append(np.stack(y_night, axis=0)) # shape (timesteps, nodes)
         mask.append(np.stack(mask_night, axis=0))  # shape (timesteps, nodes)
@@ -72,12 +75,11 @@ def prepare_data_nights_and_radars(dataset, timesteps, return_mask=False):
     X = np.stack(X, axis=0) # shape (nights, timesteps, nodes, features)
     y = np.stack(y, axis=0) # shape (nights, timesteps, nodes)
     mask = np.stack(mask, axis=0)  # shape (nights, timesteps, nodes)
-    if return_mask:
-        return X, y, mask
-    else:
-        return X, y
 
-def prepare_data_nights_and_radars_gam(dataset, timesteps, return_mask=False):
+    return X, y, mask
+
+
+def prepare_data_nights_and_radars_gam(dataset, timesteps, mask_daytime=False):
 
     X = []
     y = []
@@ -93,8 +95,10 @@ def prepare_data_nights_and_radars_gam(dataset, timesteps, return_mask=False):
 
             X_night.append(features)
             y_night.append(seq.y[:, t])
-            # mask_night.append(seq.local_night[:, t] & ~seq.missing[:, t])
-            mask_night.append(~seq.missing[:, t])
+            if mask_daytime:
+                mask_night.append(seq.local_night[:, t] & ~seq.missing[:, t])
+            else:
+                mask_night.append(~seq.missing[:, t])
         X.append(np.stack(X_night, axis=0)) # shape (timesteps, nodes, features)
         y.append(np.stack(y_night, axis=0)) # shape (timesteps, nodes)
         mask.append(np.stack(mask_night, axis=0))  # shape (timesteps, nodes)
@@ -102,10 +106,8 @@ def prepare_data_nights_and_radars_gam(dataset, timesteps, return_mask=False):
     X = np.stack(X, axis=0) # shape (nights, timesteps, nodes, features)
     y = np.stack(y, axis=0) # shape (nights, timesteps, nodes)
     mask = np.stack(mask, axis=0)  # shape (nights, timesteps, nodes)
-    if return_mask:
-        return X, y, mask
-    else:
-        return X, y
+
+    return X, y, mask
 
 
 def fit_GBT(X, y, n_estimators=100, lr=0.05, max_depth=5, seed=1234, tol=1e-6):

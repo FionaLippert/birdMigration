@@ -14,12 +14,12 @@ hyperparameters:
     - 0.2
     - 0.3
   max_depth:
-    default: 4
+    default: 6
     search_space:
     - 4
     - 6
     - 8
     - 10
     - 12
-horizon: 16
+horizon: 24
 tolerance: 1e-8
