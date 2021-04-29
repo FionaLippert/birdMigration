@@ -32,10 +32,8 @@ def prepare_data_gam(dataset, timesteps, mask_daytime=False):
     mask = []
     for seq in dataset:
         for t in range(timesteps+1):
-            env = seq.env[..., t].detach().numpy()  # shape (nodes, features)
-            print(env.shape)
+            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features)
             doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
-            print(doy)
             features = np.concatenate([env, doy], axis=-1)
 
             X.append(features)
