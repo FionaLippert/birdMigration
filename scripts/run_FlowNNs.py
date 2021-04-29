@@ -198,6 +198,14 @@ def test(cfg: DictConfig, output_dir: str, log):
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     fixed_boundary = cfg.model.get('fixed_boundary', False)
 
+    use_encoder = cfg.model.get('use_encoder', False)
+    if use_encoder:
+        context = cfg.model.context
+        seq_len = context + cfg.model.horizon
+    else:
+        context = 0
+        seq_len = cfg.model.horizon
+
 
     # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
@@ -224,7 +232,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.horizon,
+                                   cfg.season, seq_len,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    env_vars=cfg.datasource.env_vars,
