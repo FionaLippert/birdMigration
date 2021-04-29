@@ -483,9 +483,9 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 5 + kwargs.get('n_env', 4)
+        self.n_node_in = 6 + kwargs.get('n_env', 4)
         self.n_edge_in = 6 + 2*kwargs.get('n_env', 4)
-        self.n_self_in = 4 + kwargs.get('n_env', 4)
+        self.n_self_in = 5 + kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
@@ -563,7 +563,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.inflows = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         for t in range(self.timesteps):
 
-            if torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
+            if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
 
                 r = torch.rand(1)
@@ -578,7 +578,8 @@ class BirdFlowGraphLSTM(MessagePassing):
                                                     dusk=data.local_dusk[:, t],
                                                     dawn=data.local_dawn[:, t+1],
                                                     env=data.env[..., t+1],
-                                                    t=t)
+                                                    t=t,
+                                             night=data.local_night[:, t+1])
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary nodes
@@ -632,14 +633,14 @@ class BirdFlowGraphLSTM(MessagePassing):
         return abs_flow
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night):
         if self.recurrent:
             if self.edge_type == 'voronoi':
                 inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                    dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
+                                    dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
             else:
                 inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
-                                    dusk.float().view(-1, 1)], dim=1)
+                                    dusk.float().view(-1, 1), night.float().view()], dim=1)
             inputs = self.node2hidden(inputs).relu()
 
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
@@ -652,7 +653,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         else:
             delta = 0
 
-        features = torch.cat([coords, env, dusk.float().view(-1, 1), dawn.float().view(-1, 1)], dim=1)
+        features = torch.cat([coords, env, dusk.float().view(-1, 1), dawn.float().view(-1, 1),
+                              night.float().view(-1, 1)], dim=1)
         if self.n_fc_layers < 1:
             selfflow = self.selfflow(features)
         else:
@@ -1167,7 +1169,7 @@ def MSE(output, gt):
 
 
 def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, conservation_constraint=0.01,
-                 teacher_forcing=1.0):
+                 teacher_forcing=1.0, daymask=True):
     model.to(device)
     model.train()
     loss_all = 0
@@ -1184,7 +1186,10 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
         target_fluxes = torch.ones(outfluxes.shape)
         target_fluxes = target_fluxes.to(device)
         constraints = torch.mean((outfluxes - target_fluxes)**2)
-        mask = data.local_night & ~data.missing
+        if daymask:
+            mask = data.local_night & ~data.missing
+        else:
+            mask = ~data.missing
         loss = loss_func(output, gt, mask) + conservation_constraint * constraints
 
         loss.backward()
@@ -1232,7 +1237,8 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
 
     return loss_all
 
-def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=True, bird_scale=1, fixed_boundary=[]):
+def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=True, bird_scale=1,
+                fixed_boundary=[], daymask=True):
     model.to(device)
     model.eval()
     loss_all = []
@@ -1259,7 +1265,10 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
             outfluxes_abs[tidx] = outfluxes_abs[tidx].cpu()
             #constraints = torch.mean((outfluxes - torch.ones(data.num_nodes)) ** 2)
 
-        mask = data.local_night & ~data.missing
+        if daymask:
+            mask = data.local_night & ~data.missing
+        else:
+            mask = ~data.missing
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
                                       for t in range(timesteps + 1)]))
         #loss_all.append(loss_func(output, gt))

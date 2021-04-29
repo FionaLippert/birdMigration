@@ -111,7 +111,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                           n_env=2+len(cfg.datasource.env_vars),
                           fixed_boundary=boundary if fixed_boundary else [],
                           force_zeros=cfg.model.get('force_zeros', 0),
-                          recurrent=cfg.model.recurrent)
+                          recurrent=cfg.model.recurrent, edge_type=cfg.edge_type)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
@@ -121,13 +121,13 @@ def train(cfg: DictConfig, output_dir: str, log):
             for epoch in range(epochs):
                 loss = train_fluxes(model, train_loader, optimizer, utils.MSE, device, boundary_dict,
                                     conservation_constraint=hp_settings['conservation_constraint'],
-                                    teacher_forcing=tf)
+                                    teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0))
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
                 val_loss = test_fluxes(model, val_loader, ts, utils.MSE, device, get_outfluxes=False,
-                                       bird_scale=1, fixed_boundary=boundary)
+                                       bird_scale=1, fixed_boundary=boundary, daymask=cfg.model.get('force_zeros', 0))
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
