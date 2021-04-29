@@ -65,9 +65,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         y_r = []
         for i, mapping in enumerate(all_mappings):
             ridx = mapping[r]
-            print(all_masks[i].shape, all_y[i].shape)
-            X_r.append(all_X[i][all_masks[i], ridx]) # shape (time, features)
-            y_r.append(all_y[i][all_masks[i], ridx]) # shape (time)
+            X_r.append(all_X[i][all_masks[i][:, ridx], ridx]) # shape (time, features)
+            y_r.append(all_y[i][all_masks[i][:, ridx], ridx]) # shape (time)
         X_r = np.concatenate(X_r, axis=0)
         y_r = np.concatenate(y_r, axis=0)
 
