@@ -306,7 +306,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['horizon'].append(np.arange(y_hat.shape[1]))
                 results['missing'].append(missing[ridx, context:])
 
-                print(_tidx.shape)
+                print(_tidx.shape, y_hat[ridx, :].shape)
 
                 if cfg.model.name == 'GraphLSTM':
                     results['fluxes'].append(fluxes[ridx].view(-1))
