@@ -20,7 +20,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.action.name == 'training'
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.horion
+    ts = cfg.model.horizon
 
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
