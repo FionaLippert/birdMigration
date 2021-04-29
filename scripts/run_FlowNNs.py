@@ -199,12 +199,9 @@ def test(cfg: DictConfig, output_dir: str, log):
     fixed_boundary = cfg.model.get('fixed_boundary', False)
 
     use_encoder = cfg.model.get('use_encoder', False)
-    if use_encoder:
-        context = cfg.model.context
-        seq_len = context + cfg.model.horizon
-    else:
-        context = 0
-        seq_len = cfg.model.horizon
+    context = cfg.model.context if use_encoder else 0
+    seq_len = context + cfg.model.horizon
+    seq_shift = context // 24
 
 
     # load best settings from grid search (or setting used for regular training)
@@ -276,6 +273,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         selffluxes = {}
         influxes = {}
         for nidx, data in enumerate(test_loader):
+            nidx += seq_shift
             data = data.to(device)
             y_hat = model(data).cpu() * cfg.datasource.bird_scale
             y = data.y.cpu() * cfg.datasource.bird_scale
