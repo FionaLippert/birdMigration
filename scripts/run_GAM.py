@@ -78,6 +78,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         ax.plot(y_r)
         fig.savefig(osp.join(output_dir, f'data_{r}.png'), bbox_inches='tight', dpi=300)
 
+
+
         # fit GAM with poisson distribution and log link
         print(f'fitting GAM for radar {r}')
         gam = PoissonGAM(te(0, 1, 2))
