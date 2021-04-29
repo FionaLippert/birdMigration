@@ -856,7 +856,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                                    dawn=data.local_dawn[:, t],
                                    env=data.env[..., t],
                                    night=data.local_night[:, t],
-                                   t=t)
+                                   t=t-self.t_context)
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary cells
