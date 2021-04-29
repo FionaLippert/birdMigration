@@ -1277,7 +1277,7 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
 
     return loss_all
 
-def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=True, bird_scale=1,
+def test_fluxes(model, test_loader, loss_func, device, get_outfluxes=True, bird_scale=1,
                 fixed_boundary=[], daymask=True):
     model.to(device)
     model.eval()

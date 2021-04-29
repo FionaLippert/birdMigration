@@ -136,7 +136,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
-                val_loss = test_fluxes(model, val_loader, ts, utils.MSE, device, get_outfluxes=False,
+                val_loss = test_fluxes(model, val_loader, utils.MSE, device, get_outfluxes=False,
                                        bird_scale=1, fixed_boundary=boundary, daymask=cfg.model.get('force_zeros', 0))
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
