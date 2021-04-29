@@ -386,8 +386,19 @@ class RadarData(InMemoryDataset):
         # get distances, angles and face lengths between radars
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
+
         if self.edge_type == 'voronoi':
             face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
+            edge_attr = torch.stack([
+                                  torch.tensor(distances, dtype=torch.float),
+                                  torch.tensor(angles, dtype=torch.float),
+                                  torch.tensor(face_lengths, dtype=torch.float)
+                              ], dim=1)
+        else:
+            edge_attr = torch.stack([
+                torch.tensor(distances, dtype=torch.float),
+                torch.tensor(angles, dtype=torch.float),
+            ], dim=1)
 
 
         # # normalize dynamic features
@@ -515,18 +526,6 @@ class RadarData(InMemoryDataset):
         # set bird densities during the day to zero
         data['inputs'] = data['inputs'] * data['nighttime']
         data['targets'] = data['targets'] * data['nighttime']
-
-        if self.edge_type == 'voronoi':
-            edge_attr = torch.stack([
-                                  torch.tensor(distances, dtype=torch.float),
-                                  torch.tensor(angles, dtype=torch.float),
-                                  torch.tensor(face_lengths, dtype=torch.float)
-                              ], dim=1)
-        else:
-            edge_attr = torch.stack([
-                torch.tensor(distances, dtype=torch.float),
-                torch.tensor(angles, dtype=torch.float),
-            ], dim=1)
 
         edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
         R, T, N = data['inputs'].shape
