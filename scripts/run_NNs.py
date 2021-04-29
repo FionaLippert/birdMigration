@@ -286,7 +286,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 y = torch.pow(y, cfg.root_transform)
                 y_hat = torch.pow(y_hat, cfg.root_transform)
 
-            _tidx = data.tidx.cpu()
+            _tidx = data.tidx.cpu()[context:]
             local_night = data.local_night.cpu()
             missing = data.missing.cpu()
 
@@ -300,8 +300,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['night'].append(local_night[ridx, context:])
                 results['radar'].append([name] * y_hat.shape[1])
                 results['seqID'].append([nidx] * y_hat.shape[1])
-                results['tidx'].append(_tidx[:context])
-                results['datetime'].append(time[_tidx][:context])
+                results['tidx'].append(_tidx)
+                results['datetime'].append(time[_tidx])
                 results['trial'].append([r] * y_hat.shape[1])
                 results['horizon'].append(np.arange(y_hat.shape[1]))
                 results['missing'].append(missing[ridx, context:])
