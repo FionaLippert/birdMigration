@@ -20,7 +20,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.action.name == 'training'
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.timesteps
+    ts = cfg.model.horizon
 
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
@@ -99,7 +99,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.timesteps,
+                                   cfg.season, cfg.model.horizon,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
@@ -118,7 +118,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
     _, y_test, mask_test = GBT.prepare_data_nights_and_radars_gam(test_data,
-                                    timesteps=cfg.model.timesteps, return_mask=True)
+                                    timesteps=cfg.model.horizon, return_mask=True)
 
 
     # load models and predict

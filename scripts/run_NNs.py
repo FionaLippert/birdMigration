@@ -32,7 +32,16 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.timesteps
+
+    use_encoder = cfg.model.get('use_encoder', False)
+    if use_encoder:
+        context = cfg.model.context
+        seq_len = context + cfg.model.horizon
+    else:
+        context = 0
+        seq_len = cfg.model.horizon
+
+
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
     fixed_boundary = cfg.model.get('fixed_boundary', False)
@@ -53,7 +62,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   t_unit=cfg.t_unit)
 
     # load training data
-    train_data = [datasets.RadarData(data_root, year, cfg.season, ts,
+    train_data = [datasets.RadarData(data_root, year, cfg.season, seq_len,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -81,7 +90,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
-                                  cfg.season, ts,
+                                  cfg.season, seq_len,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
@@ -115,9 +124,9 @@ def train(cfg: DictConfig, output_dir: str, log):
 
             print(f'train model [trial {r}]')
             print(cfg.datasource.env_vars)
-            model = Model(**hp_settings, timesteps=ts, seed=(cfg.seed + r), n_env=2+len(cfg.datasource.env_vars),
+            model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r), n_env=2+len(cfg.datasource.env_vars),
                           fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0),
-                          edge_type=cfg.edge_type)
+                          edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
@@ -130,7 +139,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
-                val_loss = test_dynamics(model, val_loader, ts, utils.MSE, device, bird_scale=1)
+                val_loss = test_dynamics(model, val_loader, utils.MSE, device, bird_scale=1)
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
@@ -190,6 +199,13 @@ def test(cfg: DictConfig, output_dir: str, log):
     data_root = osp.join(cfg.root, 'data')
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     fixed_boundary = cfg.model.get('fixed_boundary', False)
+    use_encoder = cfg.model.get('use_encoder', False)
+    if use_encoder:
+        context = cfg.model.context
+        seq_len = context + cfg.model.horizon
+    else:
+        context = 0
+        seq_len = cfg.model.horizon
 
     # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
@@ -219,7 +235,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.timesteps,
+                                   cfg.season, seq_len,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
@@ -251,7 +267,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
         # adjust model settings for testing
-        model.timesteps = cfg.model.timesteps
+        model.timesteps = cfg.model.horizon
         if fixed_boundary:
             model.fixed_boundary = boundary
 

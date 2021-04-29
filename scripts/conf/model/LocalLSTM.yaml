@@ -34,5 +34,5 @@ hyperparameters:
     search_space:
     - true
 epochs: 100
-timesteps: 40
+horizon: 40
 force_zeros: true

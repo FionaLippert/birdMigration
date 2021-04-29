@@ -1,3 +1,3 @@
 # @package _group_
 name: GAM
-timesteps: 16
+horizon: 16

@@ -39,7 +39,7 @@ hyperparameters:
       - 0.0
       - 0.01
 epochs: 100
-timesteps: 40
+horizon: 40
 fixed_boundary: false
 force_zeros: true
 recurrent: true

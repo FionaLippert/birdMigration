@@ -29,7 +29,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.timesteps
+    ts = cfg.model.horizon
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
     fixed_boundary = cfg.model.get('fixed_boundary', False)
@@ -214,7 +214,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.timesteps,
+                                   cfg.season, cfg.model.horizon,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    env_vars=cfg.datasource.env_vars,
@@ -245,7 +245,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
         # adjust model settings for testing
-        model.timesteps = cfg.model.timesteps
+        model.timesteps = cfg.model.horizon
         if fixed_boundary:
             model.fixed_boundary = boundary
 

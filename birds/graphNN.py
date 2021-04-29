@@ -537,6 +537,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
 
+
         # birds on the ground at t=0
         #ground = torch.zeros_like(x).to(x.device)
 
@@ -787,12 +788,15 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             # push context timeseries through encoder to initialize decoder
             h_t, c_t = self.encoder(data)
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
-            x = data.x[..., 0].view(-1, 1)
+            x = data.x[..., self.t_context].view(-1, 1)
             y_hat.append(x)
         else:
             # start from scratch
             # measurement at t=0
             x = data.x[..., 0].view(-1, 1)
+            print(x)
+            print('------------------------------------')
+            print(data.y[..., 0].view(-1, 1))
             y_hat.append(x)
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
@@ -1199,7 +1203,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
     return loss_all
 
 
-def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0):
+def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, daymask=True):
     model.to(device)
     model.train()
     loss_all = 0
@@ -1210,7 +1214,13 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         output = model(data, teacher_forcing=teacher_forcing)
         gt = data.y
 
-        mask = data.local_night & ~data.missing
+        if daymask:
+            mask = data.local_night & ~data.missing
+        else:
+            mask = ~data.missing
+        if hasattr(model, 't_context'):
+            gt = gt[:, model.t_context:]
+            mask = mask[:, model.t_context:]
         loss = loss_func(output, gt, mask)
         loss.backward()
         loss_all += data.num_graphs * loss
@@ -1279,7 +1289,7 @@ def test_fluxes(model, test_loader, timesteps, loss_func, device, get_outfluxes=
     else:
         return torch.stack(loss_all)
 
-def test_dynamics(model, test_loader, timesteps, loss_func, device, bird_scale=2000):
+def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymask=True):
     model.to(device)
     model.eval()
     loss_all = []
@@ -1289,8 +1299,15 @@ def test_dynamics(model, test_loader, timesteps, loss_func, device, bird_scale=2
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
 
-        mask = data.local_night & ~data.missing
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]) for t in range(timesteps + 1)]))
+        if daymask:
+            mask = data.local_night & ~data.missing
+        else:
+            mask = ~data.missing
+        if hasattr(model, 't_context'):
+            gt = gt[:, model.t_context:]
+            mask = mask[:, model.t_context:]
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
+                                      for t in range(model.timesteps + 1)]))
 
     return torch.stack(loss_all)
 

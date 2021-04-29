@@ -26,4 +26,4 @@ hyperparameters:
     search_space:
     - 50
 epochs: 100
-timesteps: 16
+horizon: 16

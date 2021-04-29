@@ -154,7 +154,7 @@ def plot_example_prediction(results, radar, seqID, bird_scales, max=1):
         all_trials = []
         for trial in r.trial.unique():
             r_t = r.query(f'trial == {trial}')
-            all_trials.append(r_t['prediction'] / bird_scales[m] * r_t['night'])
+            all_trials.append(r_t['prediction'] / bird_scales[m]) #* r_t['night'])
         all_trials = np.stack(all_trials, axis=0)
 
         line = ax.plot(range(all_trials.shape[1]), all_trials.mean(0), label=m)

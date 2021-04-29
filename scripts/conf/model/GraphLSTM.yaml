@@ -38,16 +38,10 @@ hyperparameters:
     default: true
     search_space:
     - true
-  use_encoder:
-    default: false
-    search_space:
-      - true
-      - false
-  t_context:
-    default: 24
-    search_space:
-      - 24
 epochs: 100
-timesteps: 40
+horizon: 40
+t_context: 24
 fixed_boundary: false
 force_zeros: true
+use_encoder: false
+

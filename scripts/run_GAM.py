@@ -20,7 +20,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.action.name == 'training'
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.timesteps
+    ts = cfg.model.horion
 
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
@@ -40,8 +40,6 @@ def train(cfg: DictConfig, output_dir: str, log):
                                           max_distance=cfg.max_distance
                                           )
                   for year in cfg.datasource.training_years]
-    train_data = torch.utils.data.ConcatDataset(train_data_list)
-    #X_train, y_train, mask_train = GBT.prepare_data_gam(train_data, timesteps=ts, return_mask=True)
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
@@ -65,13 +63,15 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     all_X = []
     all_y = []
+    all_masks = []
     all_mappings = []
     for idx, data in enumerate(train_data_list):
         X_train, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, return_mask=True)
         all_X.append(X_train)
         all_y.append(y_train)
+        all_masks.append(mask_train)
         radars = ['nldbl-nlhrw' if r in ['nldbl', 'nlhrw'] else r for r in data.info['radars']]
-        m = {name: idx for idx, name in enumerate(radars)}
+        m = {name: jdx for jdx, name in enumerate(radars)}
         all_mappings.append(m)
 
     for r in all_mappings[0].keys():
@@ -79,8 +79,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         y_r = []
         for i, mapping in enumerate(all_mappings):
             ridx = mapping[r]
-            X_r.append(all_X[i][:, ridx]) # shape (time, features)
-            y_r.append(all_y[i][:, ridx]) # shape (time)
+            X_r.append(all_X[i][all_masks[i], ridx]) # shape (time, features)
+            y_r.append(all_y[i][all_masks[i], ridx]) # shape (time)
         X_r = np.concatenate(X_r, axis=0)
         y_r = np.concatenate(y_r, axis=0)
 
@@ -119,7 +119,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.timesteps,
+                                   cfg.season, cfg.model.horizon,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
@@ -138,7 +138,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
     X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars_gam(test_data,
-                                    timesteps=cfg.model.timesteps, return_mask=True)
+                                    timesteps=cfg.model.horizon, return_mask=True)
 
 
     # load models and predict
