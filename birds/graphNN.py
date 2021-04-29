@@ -738,7 +738,7 @@ class RecurrentEncoder(torch.nn.Module):
             inputs = torch.cat([data.env[..., t], data.coords, data.x[:, t].view(-1, 1)], dim=1)
             inputs = self.node2hidden(inputs).relu()
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-            for l in range(1, self.n_fc_layers):
+            for l in range(1, self.n_lstm_layers):
                 h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         return h_t, c_t
@@ -903,7 +903,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                                 dawn.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        for l in range(1, self.n_fc_layers):
+        for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
         delta = self.hidden2delta(h_t[-1]).tanh()
 
@@ -1045,7 +1045,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
                                 dawn.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs).relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        for l in range(1, self.n_fc_layers):
+        for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         # combine messages from neighbors and recurrent module into single number representing the new bird density
