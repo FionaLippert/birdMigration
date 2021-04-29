@@ -54,6 +54,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_mappings = []
     for idx, data in enumerate(train_data_list):
         X_train, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, mask_daytime=False)
+        print(X_train.shape)
         all_X.append(X_train)
         all_y.append(y_train)
         all_masks.append(mask_train)
