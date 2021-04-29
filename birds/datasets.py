@@ -151,7 +151,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
                      env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
-                     max_distance=216, t_unit='1H'):
+                     max_distance=216, t_unit='1H', process_dynamic=True):
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
@@ -166,13 +166,14 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
     nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
     nx.write_gpickle(G_max_dist, osp.join(target_dir, f'G_max_dist={max_distance}.gpickle'), protocol=4)
 
-    # load dynamic features
-    dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                                          env_points=env_points, random_seed=random_seed,
-                                          pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit)
+    if process_dynamic:
+        # load dynamic features
+        dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
+                                              env_points=env_points, random_seed=random_seed,
+                                              pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit)
 
-    # save to disk
-    dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
+        # save to disk
+        dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
 
 
 def angle(x1, y1, x2, y2):
@@ -372,8 +373,13 @@ class RadarData(InMemoryDataset):
 
         if self.edge_type == 'voronoi':
             G = nx.read_gpickle(osp.join(self.preprocessed_dir, 'delaunay.gpickle'))
-        elif self.edge_type == 'max_dist':
-            G = nx.read_gpickle(osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle'))
+        else:
+            G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
+            if not osp.isfile(G_path):
+                prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
+                                 radar_years=self.radar_years, max_distance=self.max_distance)
+            G = nx.read_gpickle(G_path)
+
 
         print('number of nans: ', dynamic_feature_df.birds.isna().sum())
         print('max bird measurement', dynamic_feature_df.birds.max())

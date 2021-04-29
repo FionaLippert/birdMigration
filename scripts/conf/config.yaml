@@ -13,4 +13,4 @@ root_transform: 0
 missing_data_threshold: 0.1
 t_unit: 1H
 edge_type: voronoi
-max_distance: NA
+max_distance: 0
