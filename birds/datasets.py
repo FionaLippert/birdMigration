@@ -44,10 +44,9 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     if data_source == 'radar':
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
-        data, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
+        birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
                                                     mask_days=False, radar_names=voronoi.radar)
-        birds_km2 = data / radar_buffers.area_km2.to_numpy()[:, None] # rescale to birds per km^2
-        data = data * voronoi.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
+        data = birds_km2 * voronoi.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':

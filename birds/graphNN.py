@@ -161,6 +161,7 @@ class LocalMLP(MessagePassing):
                                areas=data.areas, edge_attr=data.edge_attr, night=data.local_night[:, t])
 
             if self.force_zeros:
+                print('force birds in air to be zero')
                 # for locations where it is night: set birds in the air to zero
                 x = x * data.local_night[:, t].view(-1, 1)
 
