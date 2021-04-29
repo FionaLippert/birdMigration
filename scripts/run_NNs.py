@@ -306,8 +306,6 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['horizon'].append(np.arange(y_hat.shape[1]))
                 results['missing'].append(missing[ridx, context:])
 
-                print(_tidx.shape, y_hat[ridx, :].shape)
-
                 if cfg.model.name == 'GraphLSTM':
                     results['fluxes'].append(fluxes[ridx].view(-1))
                     results['local_deltas'].append(local_deltas[ridx].view(-1))
@@ -320,7 +318,6 @@ def test(cfg: DictConfig, output_dir: str, log):
         else:
             results[k] = np.concatenate(v)
 
-        print(k, results[k].shape)
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
