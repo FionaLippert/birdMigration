@@ -134,12 +134,14 @@ def train(cfg: DictConfig, output_dir: str, log):
 
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
-                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device, teacher_forcing=tf)
+                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device, teacher_forcing=tf,
+                                      daymask=cfg.model.get('force_zeros', 0))
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
-                val_loss = test_dynamics(model, val_loader, utils.MSE, device, bird_scale=1)
+                val_loss = test_dynamics(model, val_loader, utils.MSE, device, bird_scale=1,
+                                         daymask=cfg.model.get('force_zeros', 0))
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
