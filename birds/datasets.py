@@ -358,7 +358,7 @@ class RadarData(InMemoryDataset):
 
 
     def process(self):
-
+        print(self.preprocessed_dir)
         if not osp.isdir(self.preprocessed_dir):
             # load all features and organize them into dataframes
             os.makedirs(self.preprocessed_dir)
@@ -374,6 +374,7 @@ class RadarData(InMemoryDataset):
         if self.edge_type == 'voronoi':
             G = nx.read_gpickle(osp.join(self.preprocessed_dir, 'delaunay.gpickle'))
         else:
+            print(f'create graph with max distance = {self.max_distance}')
             G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
             if not osp.isfile(G_path):
                 prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
