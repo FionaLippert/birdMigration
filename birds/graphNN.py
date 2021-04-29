@@ -538,7 +538,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
-                                            n_lstm_layers=self.n_lstm_layers, seed=seed)
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
 
 
 
@@ -717,6 +717,7 @@ class RecurrentEncoder(torch.nn.Module):
         self.n_in = 3 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
+        self.dropout_p = kwargs.get('dropout_p', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -801,7 +802,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
-                                            n_lstm_layers=self.n_lstm_layers, seed=seed)
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
 
 
 
