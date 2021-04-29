@@ -295,16 +295,16 @@ def test(cfg: DictConfig, output_dir: str, log):
                 local_deltas = model.local_deltas.cpu()
 
             for ridx, name in radar_index.items():
-                results['gt'].append(y[ridx, :])
+                results['gt'].append(y[ridx, context:])
                 results['prediction'].append(y_hat[ridx, :])
-                results['night'].append(local_night[ridx, :])
-                results['radar'].append([name] * y.shape[1])
-                results['seqID'].append([nidx] * y.shape[1])
-                results['tidx'].append(_tidx)
-                results['datetime'].append(time[_tidx])
-                results['trial'].append([r] * y.shape[1])
-                results['horizon'].append(np.arange(y.shape[1]))
-                results['missing'].append(missing[ridx, :])
+                results['night'].append(local_night[ridx, context:])
+                results['radar'].append([name] * y_hat.shape[1])
+                results['seqID'].append([nidx] * y_hat.shape[1])
+                results['tidx'].append(_tidx[:context])
+                results['datetime'].append(time[_tidx][:context])
+                results['trial'].append([r] * y_hat.shape[1])
+                results['horizon'].append(np.arange(y_hat.shape[1]))
+                results['missing'].append(missing[ridx, context:])
 
                 if cfg.model.name == 'GraphLSTM':
                     results['fluxes'].append(fluxes[ridx].view(-1))
