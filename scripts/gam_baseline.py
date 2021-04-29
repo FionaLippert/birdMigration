@@ -16,9 +16,6 @@ parser.add_argument('--season', type=str, default='fall', help='season; either f
 parser.add_argument('--bird_scale', type=int, default=2000, help='scalar by which absolute bird counts will be normalized by')
 args = parser.parse_args()
 
-def persistence(last_ob, timesteps):
-    # always return last observed value
-	return [last_ob] * timesteps
 
 
 def fit_baseGAM(vid, day_of_year, solarpos, solarpos_change):

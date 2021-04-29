@@ -12,6 +12,7 @@ import ruamel.yaml
 import pandas as pd
 from pygam import PoissonGAM, te
 # data=json.loads(argv[1])
+from matplotlib import pyplot as plt
 
 
 #@hydra.main(config_path="conf", config_name="config")
@@ -72,6 +73,10 @@ def train(cfg: DictConfig, output_dir: str, log):
             print(y_r[-1] * cfg.datasource.bird_scale)
         X_r = np.concatenate(X_r, axis=0)
         y_r = np.concatenate(y_r, axis=0)
+
+        fig, ax = plt.subplots(figsize=(20,4))
+        ax.plot(y_r)
+        fig.savefig(osp.join(output_dir, f'data_{r}.png'), bbox_inches='tight', dpi=300)
 
         # fit GAM with poisson distribution and log link
         print(f'fitting GAM for radar {r}')
