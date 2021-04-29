@@ -40,7 +40,7 @@ hyperparameters:
     - true
 epochs: 100
 horizon: 40
-t_context: 24
+context: 24
 fixed_boundary: false
 force_zeros: false
 use_encoder: false
