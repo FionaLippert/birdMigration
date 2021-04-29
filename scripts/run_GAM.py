@@ -54,7 +54,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_mappings = []
     for idx, data in enumerate(train_data_list):
         X_train, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, mask_daytime=False)
-        print(X_train.shape)
         all_X.append(X_train)
         all_y.append(y_train)
         all_masks.append(mask_train)
@@ -66,19 +65,11 @@ def train(cfg: DictConfig, output_dir: str, log):
         X_r = []
         y_r = []
         for i, mapping in enumerate(all_mappings):
-            print(r, i)
             ridx = mapping[r]
             X_r.append(all_X[i][all_masks[i][:, ridx], ridx]) # shape (time, features)
-            print(X_r[-1] * cfg.datasource.bird_scale)
             y_r.append(all_y[i][all_masks[i][:, ridx], ridx]) # shape (time)
-            print(y_r[-1] * cfg.datasource.bird_scale)
         X_r = np.concatenate(X_r, axis=0)
         y_r = np.concatenate(y_r, axis=0)
-
-        fig, ax = plt.subplots(figsize=(20,4))
-        ax.plot(y_r)
-        fig.savefig(osp.join(output_dir, f'data_{r}.png'), bbox_inches='tight', dpi=300)
-
 
 
         # fit GAM with poisson distribution and log link

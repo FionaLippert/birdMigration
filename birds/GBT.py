@@ -89,7 +89,7 @@ def prepare_data_nights_and_radars_gam(dataset, timesteps, mask_daytime=False):
         y_night = []
         mask_night = []
         for t in range(timesteps+1):
-            env = seq.env[..., t].detach().numpy()  # shape (nodes, features)
+            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features)
             doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
             features = np.concatenate([env, doy], axis=-1)
 
