@@ -378,7 +378,7 @@ class RadarData(InMemoryDataset):
             G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
             if not osp.isfile(G_path):
                 prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-                                 radar_years=self.radar_years, max_distance=self.max_distance)
+                                 radar_years=self.radar_years, max_distance=self.max_distance, process_dynamic=False)
             G = nx.read_gpickle(G_path)
 
 
