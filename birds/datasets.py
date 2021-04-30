@@ -473,7 +473,10 @@ class RadarData(InMemoryDataset):
         # normalize static features
         cidx = ['area_km2', *coord_cols]
         static = voronoi.loc[:, cidx].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
-        areas = static.area_km2.to_numpy()
+        if self.edge_type == 'voronoi':
+            areas = static.area_km2.to_numpy()
+        else:
+            areas = np.ones(len(static))
         coords = static[coord_cols].to_numpy()
         dayofyear = dayofyear / max(dayofyear)
 
