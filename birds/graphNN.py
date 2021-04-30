@@ -873,13 +873,13 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr, dusk, dawn, night):
+    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr, dusk_j, dawn_j, night_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
         features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr,
-                              dusk.float().view(-1, 1), dawn.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
+                              dusk_j.float().view(-1, 1), dawn_j.float().view(-1, 1), night_j.float().view(-1, 1)], dim=1)
         #msg = self.mlp_edge(features).relu()
 
         msg = self.fc_edge_in(features).relu()
