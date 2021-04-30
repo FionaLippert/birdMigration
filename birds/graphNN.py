@@ -845,6 +845,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                               dusk_i.float().view(-1, 1), dusk_j.float().view(-1, 1),
                               dawn_i.float().view(-1, 1), dawn_j.float().view(-1, 1)], dim=1)
 
+        print(features)
+
         flux = self.fc_edge_in(features).relu()
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
@@ -863,8 +865,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         #flux[self.mask_back] = - flux[self.mask_forth]
 
         self.fluxes[..., t] = flux
-
-        print(flux)
 
         return flux
 
