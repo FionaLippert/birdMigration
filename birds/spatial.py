@@ -10,7 +10,7 @@ import geopandas as gpd
 
 
 class Spatial:
-    def __init__(self, radars): #, epsg_local='3035'):
+    def __init__(self, radars, dummy_radars): #, epsg_local='3035'):
         """
         Initialization of Spatial object
         Args:
