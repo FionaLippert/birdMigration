@@ -853,6 +853,9 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             flux = self.fc_edge_out(flux).tanh()
 
+        print(flux.shape)
+        print(self.fluxes.shape)
+
         # enforce fluxes to be symmetric along edges
         flux[self.mask_back] = - flux[self.mask_forth]
 
