@@ -275,6 +275,10 @@ def test(cfg: DictConfig, output_dir: str, log):
         model.to(device)
         model.eval()
 
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print(name, param.data)
+
         for nidx, data in enumerate(test_loader):
             nidx += seq_shift
             data = data.to(device)
