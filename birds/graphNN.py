@@ -755,7 +755,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 8 + 2 * self.n_env
+        self.n_edge_in = 11 + 2 * self.n_env
         self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
@@ -873,12 +873,13 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
+    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr, dusk, dawn, night):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
+        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr,
+                              dusk.float().view(-1, 1), dawn.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         #msg = self.mlp_edge(features).relu()
 
         msg = self.fc_edge_in(features).relu()
@@ -906,11 +907,11 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
-        delta = self.hidden2delta(h_t[-1]).tanh()
+        delta = self.hidden2delta(h_t[-1]) #.tanh()
 
         if self.predict_delta:
             # combine messages from neighbors into single number representing total flux
-            flux = self.mlp_aggr(aggr_out).tanh()
+            flux = self.mlp_aggr(aggr_out) #.tanh()
             pred = x + flux + delta
         else:
             # combine messages from neighbors into single number representing the new bird density
