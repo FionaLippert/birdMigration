@@ -855,7 +855,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = l(flux).relu()
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
-        flux = self.fc_edge_out(flux).tanh()
+        flux = self.fc_edge_out(flux) #.tanh()
 
         # # enforce fluxes to be symmetric along edges
         # A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
