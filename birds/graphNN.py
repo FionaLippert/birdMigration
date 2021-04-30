@@ -790,8 +790,6 @@ class BirdFluxGraphLSTM(MessagePassing):
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
 
-            print(x - data.y[..., 0].view(-1, 1))
-
 
         coords = data.coords
         edge_index = data.edge_index
@@ -864,10 +862,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         flux = flux.view(-1, 1)
         #flux[self.mask_back] = - flux[self.mask_forth]
 
-        print('----------------- flux -----------------')
-        print(flux)
-        print('----------------------------------------')
-
         self.fluxes[..., t] = flux
 
         return flux
@@ -875,22 +869,22 @@ class BirdFluxGraphLSTM(MessagePassing):
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night):
 
-        if self.edge_type == 'voronoi':
-            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
-        else:
-            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
-                                dusk.float().view(-1, 1), night.float().view()], dim=1)
-        inputs = self.node2hidden(inputs).relu()
+        # if self.edge_type == 'voronoi':
+        #     inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+        #                         dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+        # else:
+        #     inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+        #                         dusk.float().view(-1, 1), night.float().view()], dim=1)
+        # inputs = self.node2hidden(inputs).relu()
+        #
+        # h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        # for l in range(1, self.n_lstm_layers):
+        #     h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+        #
+        # delta = self.hidden2delta(h_t[-1]).tanh()
+        # self.local_deltas[..., t] = delta
 
-        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        for l in range(1, self.n_lstm_layers):
-            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
-
-        delta = self.hidden2delta(h_t[-1]).tanh()
-        self.local_deltas[..., t] = delta
-
-        pred = x + aggr_out + delta
+        pred = x + aggr_out #+ delta
 
         return pred, h_t, c_t
 
