@@ -864,6 +864,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.fluxes[..., t] = flux
 
+        print(flux)
+
         return flux
 
 
