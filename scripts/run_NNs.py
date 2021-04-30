@@ -292,6 +292,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
                 fluxes = model.fluxes.cpu()
+                print(fluxes)
                 local_deltas = model.local_deltas.cpu()
 
             for ridx, name in radar_index.items():
