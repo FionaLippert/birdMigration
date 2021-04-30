@@ -491,8 +491,8 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.n_node_in = 6 + self.n_env
         self.n_edge_in = 6 + 2*self.n_env
         self.n_self_in = 5 + kwargs.get('n_env', 4)
-        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', True)
         self.recurrent = kwargs.get('recurrent', True)
@@ -720,8 +720,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
         self.n_edge_in = 14 + 2*self.n_env
-        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', True)
 
@@ -851,10 +851,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = l(flux).relu()
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
-            flux = self.fc_edge_out(flux).tanh()
-
-        print(flux.shape)
-        print(self.fluxes.shape)
+        flux = self.fc_edge_out(flux).tanh()
 
         # enforce fluxes to be symmetric along edges
         flux[self.mask_back] = - flux[self.mask_forth]
@@ -932,8 +929,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
         self.n_edge_in = 11 + 2 * self.n_env
-        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', [])
@@ -1111,8 +1108,8 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 5 + kwargs.get('n_env', 4)
         self.n_edge_in = 8 + 2*kwargs.get('n_env', 4)
-        self.n_fc_layers = kwargs.get('n_layers_mlp', 1)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.forced_zeros = kwargs.get('forced_zeros', [])
 
