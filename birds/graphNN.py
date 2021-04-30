@@ -797,7 +797,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         #self.fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
-        self.fluxes = torch.zeros((data.x.size(1), 1, self.timesteps + 1)).to(x.device)
+        self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
         if self.use_encoder:
