@@ -854,13 +854,10 @@ class BirdFluxGraphLSTM(MessagePassing):
         flux = self.fc_edge_out(flux).tanh()
 
         # enforce fluxes to be symmetric along edges
-        print(flux.shape)
-        A_flux = to_dense_adj(self.edges, edge_attr=flux.view(-1))
-        print(A_flux.shape)
+        A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
         A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
         A_flux = A_flux - A_flux.T
-        print(A_flux.shape)
-        flux = dense_to_sparse(A_flux)
+        flux = dense_to_sparse(A_flux).view(-1, 1)
         #flux[self.mask_back] = - flux[self.mask_forth]
 
         self.fluxes[..., t] = flux
