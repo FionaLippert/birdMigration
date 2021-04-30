@@ -775,7 +775,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         # initialize lstm variables
-        if self.use_encoder and self.recurrent:
+        if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             h_t, c_t = self.encoder(data)
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
@@ -789,6 +789,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             y_hat.append(x)
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+
+            print(x - data.y[..., 0].view(-1, 1))
 
 
         coords = data.coords
@@ -861,6 +863,10 @@ class BirdFluxGraphLSTM(MessagePassing):
         edge_index, flux = dense_to_sparse(A_flux)
         flux = flux.view(-1, 1)
         #flux[self.mask_back] = - flux[self.mask_forth]
+
+        print('----------------- flux -----------------')
+        print(flux)
+        print('----------------------------------------')
 
         self.fluxes[..., t] = flux
 
@@ -1380,7 +1386,7 @@ def MSE(output, gt):
 
 
 
-def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, conservation_constraint=0.01,
+def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, conservation_constraint=0.01,
                  teacher_forcing=1.0, daymask=True):
     model.to(device)
     model.train()
@@ -1398,6 +1404,39 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, boundaries, 
         target_fluxes = torch.ones(outfluxes.shape)
         target_fluxes = target_fluxes.to(device)
         constraints = torch.mean((outfluxes - target_fluxes)**2)
+        if daymask:
+            mask = data.local_night & ~data.missing
+        else:
+            mask = ~data.missing
+        if hasattr(model, 't_context'):
+            gt = gt[:, model.t_context:]
+            mask = mask[:, model.t_context:]
+        loss = loss_func(output, gt, mask) + conservation_constraint * constraints
+
+        loss.backward()
+        loss_all += data.num_graphs * loss
+        optimizer.step()
+
+    return loss_all
+
+def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation_constraint=0.01,
+                 teacher_forcing=1.0, daymask=True):
+    model.to(device)
+    model.train()
+    loss_all = 0
+    for data in train_loader:
+        data = data.to(device)
+        optimizer.zero_grad()
+        output = model(data, teacher_forcing) #.view(-1)
+        gt = data.y
+
+        fluxes = to_dense_adj(data.edge_index, edge_attr=model.fluxes).view(
+                                    data.num_nodes, data.num_nodes, -1).sum(1)
+        reverse_fluxes = fluxes.permute(1, 0, 2)
+        conservation = fluxes + reverse_fluxes
+        target_conservation = torch.zeros(conservation.shape).to(device)
+
+        constraints = torch.mean((conservation - target_conservation)**2)
         if daymask:
             mask = data.local_night & ~data.missing
         else:
@@ -1458,7 +1497,7 @@ def train_departure(model, train_loader, optimizer, loss_func, cuda):
 
     return loss_all
 
-def test_fluxes(model, test_loader, loss_func, device, get_outfluxes=True, bird_scale=1,
+def test_flows(model, test_loader, loss_func, device, get_outfluxes=True, bird_scale=1,
                 fixed_boundary=[], daymask=True):
     model.to(device)
     model.eval()
@@ -1500,6 +1539,43 @@ def test_fluxes(model, test_loader, loss_func, device, get_outfluxes=True, bird_
 
     if get_outfluxes:
         return torch.stack(loss_all), outfluxes , outfluxes_abs
+    else:
+        return torch.stack(loss_all)
+
+def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_scale=1,
+                fixed_boundary=[], daymask=True):
+    model.to(device)
+    model.eval()
+    loss_all = []
+    fluxes = {}
+
+    for tidx, data in enumerate(test_loader):
+        data = data.to(device)
+        output = model(data) * bird_scale #.view(-1)
+        gt = data.y * bird_scale
+
+        if len(fixed_boundary) > 0:
+            boundary_mask = np.ones(output.size(0))
+            boundary_mask[fixed_boundary] = 0
+            output = output[boundary_mask]
+            gt = gt[boundary_mask]
+
+        if get_fluxes:
+            fluxes[tidx] = to_dense_adj(data.edge_index, edge_attr=model.fluxes).view(
+                                    data.num_nodes, data.num_nodes, -1).cpu()
+
+        if daymask:
+            mask = data.local_night & ~data.missing
+        else:
+            mask = ~data.missing
+        if hasattr(model, 't_context'):
+            gt = gt[:, model.t_context:]
+            mask = mask[:, model.t_context:]
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
+                                      for t in range(model.timesteps + 1)]))
+
+    if get_fluxes:
+        return torch.stack(loss_all), fluxes
     else:
         return torch.stack(loss_all)
 
