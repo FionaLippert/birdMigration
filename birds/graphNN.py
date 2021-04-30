@@ -796,7 +796,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        self.fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        #self.fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.fluxes = torch.zeros((data.x.size(1), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
         if self.use_encoder:
@@ -840,6 +841,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
+
         features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr,
                               night_i.float().view(-1, 1), night_j.float().view(-1, 1),
                               dusk_i.float().view(-1, 1), dusk_j.float().view(-1, 1),
@@ -855,15 +857,15 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         flux = self.fc_edge_out(flux).tanh()
 
-        # enforce fluxes to be symmetric along edges
-        A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
-        A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
-        A_flux = A_flux - A_flux.T
-        edge_index, flux = dense_to_sparse(A_flux)
-        flux = flux.view(-1, 1)
-        #flux[self.mask_back] = - flux[self.mask_forth]
+        # # enforce fluxes to be symmetric along edges
+        # A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
+        # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
+        # A_flux = A_flux - A_flux.T
+        # edge_index, flux = dense_to_sparse(A_flux)
+        # flux = flux.view(-1, 1)
+        # #flux[self.mask_back] = - flux[self.mask_forth]
 
-        self.fluxes[..., t] = flux
+        #self.fluxes[..., t] = flux
 
         return flux
 
@@ -884,6 +886,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         #
         # delta = self.hidden2delta(h_t[-1]).tanh()
         # self.local_deltas[..., t] = delta
+
+        self.fluxes[..., t] = aggr_out
 
         pred = x + aggr_out #+ delta
 
