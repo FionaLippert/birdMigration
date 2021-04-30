@@ -4,7 +4,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, degree, to_dense_adj
+from torch_geometric.utils import add_self_loops, degree, to_dense_adj, dense_to_sparse
 from torch_geometric_temporal.nn.recurrent import DCRNN
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
@@ -765,9 +765,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
-        edges = data.edge_index
-        self.mask_forth = edges[0] < edges[1]
-        self.mask_back = edges[1] < edges[0]
+        self.edges = data.edge_index
+        #self.mask_forth = edges[0] < edges[1]
+        #self.mask_back = edges[1] < edges[0]
 
 
         y_hat = []
@@ -854,7 +854,11 @@ class BirdFluxGraphLSTM(MessagePassing):
         flux = self.fc_edge_out(flux).tanh()
 
         # enforce fluxes to be symmetric along edges
-        flux[self.mask_back] = - flux[self.mask_forth]
+        A_flux = to_dense_adj(self.edges, edge_attr=flux)
+        A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
+        A_flux = A_flux - A_flux.T
+        flux = dense_to_sparse(A_flux)
+        #flux[self.mask_back] = - flux[self.mask_forth]
 
         self.fluxes[..., t] = flux
 
