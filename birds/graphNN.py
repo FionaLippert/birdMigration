@@ -525,17 +525,17 @@ class BirdFlowGraphLSTM(MessagePassing):
                                                  for _ in range(self.n_fc_layers - 1)])
             self.fc_self_out = torch.nn.Linear(self.n_hidden, 1)
 
-        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
-                                               torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
-                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
-
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
-
-        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
-                                                torch.nn.Dropout(p=self.dropout_p),
-                                                torch.nn.ReLU(),
-                                                torch.nn.Linear(self.n_hidden, 1))
+        # self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+        #                                        torch.nn.Dropout(p=self.dropout_p),
+        #                                        torch.nn.ReLU(),
+        #                                        torch.nn.Linear(self.n_hidden, self.n_hidden))
+        #
+        # self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+        #
+        # self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        #                                         torch.nn.Dropout(p=self.dropout_p),
+        #                                         torch.nn.ReLU(),
+        #                                         torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
@@ -665,24 +665,24 @@ class BirdFlowGraphLSTM(MessagePassing):
 
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night):
-        if self.recurrent:
-            if self.edge_type == 'voronoi':
-                inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                    dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
-            else:
-                inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
-                                    dusk.float().view(-1, 1), night.float().view()], dim=1)
-            inputs = self.node2hidden(inputs).relu()
-
-            h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-            for l in range(1, self.n_lstm_layers):
-                h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
-
-            delta = self.hidden2delta(h_t[-1]).tanh()
-            #self.deltas.append(delta)
-            self.deltas[..., t] = delta
-        else:
-            delta = 0
+        # if self.recurrent:
+        #     if self.edge_type == 'voronoi':
+        #         inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+        #                             dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+        #     else:
+        #         inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+        #                             dusk.float().view(-1, 1), night.float().view()], dim=1)
+        #     inputs = self.node2hidden(inputs).relu()
+        #
+        #     h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        #     for l in range(1, self.n_lstm_layers):
+        #         h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+        #
+        #     delta = self.hidden2delta(h_t[-1]).tanh()
+        #     #self.deltas.append(delta)
+        #     self.deltas[..., t] = delta
+        # else:
+        #     delta = 0
 
         features = torch.cat([coords, env, dusk.float().view(-1, 1), dawn.float().view(-1, 1),
                               night.float().view(-1, 1)], dim=1)
@@ -706,7 +706,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.inflows[..., t] = aggr_out
 
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
-        pred = selfflow + aggr_out + delta
+        pred = selfflow + aggr_out #+ delta
 
         return pred, h_t, c_t
 
