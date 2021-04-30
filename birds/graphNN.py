@@ -489,7 +489,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 6 + 2*self.n_env
+        self.n_edge_in = 9 + 2*self.n_env
         self.n_self_in = 5 + kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
@@ -635,12 +635,13 @@ class BirdFlowGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, coords_i, coords_j, env_i, env_j, edge_attr, t):
+    def message(self, x_j, coords_i, coords_j, env_i, env_j, edge_attr, t, night_j, dusk_j, dawn_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        features = torch.cat([coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
+        features = torch.cat([coords_i, coords_j, env_i, env_j, edge_attr,
+                              night_j.float().view(-1, 1), dusk_j.float().view(-1, 1), dawn_j.float().view(-1, 1)], dim=1)
         if self.n_fc_layers < 1:
             flow = self.edgeflow(features)
         else:
@@ -1067,7 +1068,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             msg = l(msg).relu()
             msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
-        msg = self.fc_edge_out(msg).relu()
+        msg = self.fc_edge_out(msg) #.relu()
 
         return msg
 
