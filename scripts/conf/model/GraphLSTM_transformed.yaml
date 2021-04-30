@@ -37,4 +37,4 @@ hyperparameters:
 epochs: 100
 horizon: 40
 fixed_boundary: false
-force_zeros: true
+force_zeros: false
