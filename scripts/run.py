@@ -20,7 +20,7 @@ def run(cfg: DictConfig):
             run_GBT.run(cfg, output_dir, log)
         elif cfg.model.name == 'GAM':
             run_GAM.run(cfg, output_dir, log)
-        elif cfg.model.name in ['LocalMLP', 'LocalLSTM', 'GraphLSTM', 'GraphLSTM_transformed']:
+        elif cfg.model.name in ['LocalMLP', 'LocalLSTM', 'GraphLSTM', 'GraphLSTM_transformed', 'BirdFluxGraphLSTM']:
             run_NNs.run(cfg, output_dir, log)
         elif cfg.model.name in ['BirdFlowGraphLSTM']:
             run_FlowNNs.run(cfg, output_dir, log)

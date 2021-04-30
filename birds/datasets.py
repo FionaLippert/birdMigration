@@ -388,7 +388,6 @@ class RadarData(InMemoryDataset):
         # extract edges from graph
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()
-        print(edge_index)
 
         # get distances, angles and face lengths between radars
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))

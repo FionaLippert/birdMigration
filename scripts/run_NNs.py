@@ -20,7 +20,8 @@ import pandas as pd
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
                  'GraphLSTM': BirdDynamicsGraphLSTM,
-                 'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed}
+                 'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
+                 'BirdFluxGraphLSTM': BirdFluxGraphLSTM}
 
 
 
@@ -259,7 +260,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load models and predict
     results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
-    if cfg.model.name == 'GraphLSTM':
+    if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
         results['fluxes'] = []
         results['local_deltas'] = []
 
@@ -289,7 +290,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             local_night = data.local_night.cpu()
             missing = data.missing.cpu()
 
-            if cfg.model.name == 'GraphLSTM':
+            if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
 
@@ -305,7 +306,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['horizon'].append(np.arange(y_hat.shape[1]))
                 results['missing'].append(missing[ridx, context:])
 
-                if cfg.model.name == 'GraphLSTM':
+                if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
                     results['fluxes'].append(fluxes[ridx].view(-1))
                     results['local_deltas'].append(local_deltas[ridx].view(-1))
 
