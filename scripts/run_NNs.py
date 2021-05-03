@@ -60,7 +60,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
                                   cfg.datasource.name, seed=cfg.seed, max_distance=cfg.max_distance,
-                                  t_unit=cfg.t_unit)
+                                  t_unit=cfg.t_unit, edge_type=cfg.edge_type, n_dummy_radars=cfg.n_dummy_radars)
 
     # load training data
     train_data = [datasets.RadarData(data_root, year, cfg.season, seq_len,
@@ -72,7 +72,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      missing_data_threshold=cfg.missing_data_threshold,
                                      edge_type=cfg.edge_type,
                                      max_distance=cfg.max_distance,
-                                     t_unit=cfg.t_unit)
+                                     t_unit=cfg.t_unit,
+                                     n_dummy_radars=cfg.n_dummy_radars)
                   for year in cfg.datasource.training_years]
     boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     train_data = torch.utils.data.ConcatDataset(train_data)
@@ -100,7 +101,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   missing_data_threshold=cfg.missing_data_threshold,
                                   edge_type=cfg.edge_type,
                                   max_distance=cfg.max_distance,
-                                  t_unit=cfg.t_unit
+                                  t_unit=cfg.t_unit,
+                                  n_dummy_radars=cfg.n_dummy_radars
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -245,7 +247,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    missing_data_threshold=cfg.missing_data_threshold,
                                    edge_type=cfg.edge_type,
                                    max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit
+                                   t_unit=cfg.t_unit,
+                                   n_dummy_radars=cfg.n_dummy_radars
                                    )
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)

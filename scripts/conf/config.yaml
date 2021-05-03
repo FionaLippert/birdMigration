@@ -14,3 +14,4 @@ missing_data_threshold: 0.1
 t_unit: 1H
 edge_type: voronoi
 max_distance: 0
+n_dummy_radars: 15

@@ -35,8 +35,8 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         ax[midx].set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale, prediction_col='prediction'):
-    if row['missing']:
+def compute_mse(row, bird_scale, prediction_col='prediction', boundary=[]):
+    if row['missing'] or row['radar'] in boundary:
         return np.nan
     else:
         return ((row['gt'] - row[prediction_col] * row['night']) / bird_scale) ** 2
@@ -72,7 +72,7 @@ def plot_errors(results, bird_scales):
     ax.set(xlabel='forecast horizon [h]', ylabel='RMSE', ylim=(0, 0.1))
     return fig
 
-def plot_average_errors(results, bird_scales):
+def plot_average_errors(results, bird_scales, boundary=None):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(20, 4))
     rmse_list = []
@@ -80,14 +80,15 @@ def plot_average_errors(results, bird_scales):
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
             results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
-                                                                                    'constant_prediction'), axis=1)
-            rmse = results[m].groupby(['trial']).constant_error.mean().apply(np.sqrt)
+                                                                'constant_prediction', boundary=boundary), axis=1)
+            rmse = results[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
             rmse_list.append(rmse.values)
             labels.append(['constant'] * len(rmse))
 
 
-        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
-        rmse = results[m].groupby(['trial']).error.mean().apply(np.sqrt)
+        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
+                                                                       boundary=boundary), axis=1)
+        rmse = results[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
 

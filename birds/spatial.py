@@ -10,7 +10,7 @@ import geopandas as gpd
 
 
 class Spatial:
-    def __init__(self, radars, dummy_radars): #, epsg_local='3035'):
+    def __init__(self, radars, seed=1234, buffer=150_000, n_dummy_radars=0): #, epsg_local='3035'):
         """
         Initialization of Spatial object
         Args:
@@ -24,21 +24,21 @@ class Spatial:
         self.epsg_equal_area = '3035'      # epsg code for "Lambert Azimuthal Equal Area projection"
         #self.epsg_local = '32632'          # epsg code for "WGS84 / UTM zone 32N"
 
-        self.N = len(radars)
 
         # projections of radar positions
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
                                         crs=f'EPSG:{self.epsg_lonlat}')
-        #self.pts_equidistant = self.pts_lonlat.to_crs(epsg=self.epsg_equidistant)
         self.pts_equal_area = self.pts_lonlat.to_crs(epsg=self.epsg_equal_area)
-
         # equidistant projection centered around mean location of radar stations
         self.crs_local = f'+proj=aeqd +lat_0={self.pts_lonlat.y.mean():.7f} ' \
                          f'+lon_0={self.pts_lonlat.x.mean():.7f} +units=m +ellps=WGS84'
         self.pts_local = self.pts_lonlat.to_crs(self.crs_local)
 
+        self.rng = np.random.default_rng(seed)
+        self.add_dummy_radars(n_dummy_radars, buffer=buffer)
 
-        # self.proj4stereo = '+proj=stere +lat_0=0 +lon_0=0 +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs'
+        self.N_dummy = n_dummy_radars
+        self.N = len(radars) + n_dummy_radars
 
         self.voronoi()
 
@@ -53,10 +53,8 @@ class Spatial:
         """
 
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
-
         sink = boundary.buffer(buffer).difference(boundary)
-        self.sink = gpd.GeoSeries(sink, crs=self.crs_local) #.to_crs(epsg=self.epsg_equal_area)
-        #boundary = gpd.GeoSeries(boundary, crs=f'EPSG:{self.epsg_equidistant}').to_crs(epsg=self.epsg_equal_area)
+        self.sink = gpd.GeoSeries(sink, crs=self.crs_local)  # .to_crs(epsg=self.epsg_equal_area)
 
         # compute voronoi cells
         xy_equal_area = self.pts2coords(self.pts_equal_area)
@@ -74,7 +72,7 @@ class Spatial:
         #polygons = np.array(list(polygons.values()))[idx]
         polygons = [polygons[pid] for pid, pt in sorted(pts.items(), key=lambda kv: kv[1])]
 
-        cells = gpd.GeoDataFrame({'radar': list(self.radars.values()),
+        cells = gpd.GeoDataFrame({'radar': list(self.radars.values()) + ['boundary'] * self.N_dummy,
                                   'x': [c[0] for c in xy],
                                   'y': [c[1] for c in xy],
                                   'x_eqa': [c[0] for c in xy_equal_area],
@@ -138,6 +136,32 @@ class Spatial:
         self.edges = gpd.GeoSeries(edges, crs=self.crs_local)
 
         return cells, G
+
+    def sample_point(self, area):
+        minx, miny, maxx, maxy = area.total_bounds
+        x = self.rng.uniform(minx, maxx)
+        y = self.rng.uniform(miny, maxy)
+        pos = geometry.Point(x, y)
+        while not area.contains(pos).any():
+            x = np.random.uniform(minx, maxx)
+            y = np.random.uniform(miny, maxy)
+            pos = geometry.Point(x, y)
+        return x, y
+
+    def add_dummy_radars(self, n, buffer=150_000):
+        boundary = geometry.MultiPoint(self.pts_local).buffer(buffer).boundary
+        # sink = boundary.buffer(buffer).difference(boundary)
+        # sink = gpd.GeoSeries(sink, crs=self.crs_local).to_crs(epsg=self.epsg_lonlat)
+
+        distances = np.linspace(0, boundary.length, n+1)
+        points = [boundary.interpolate(d) for d in distances[:-1]]
+
+        dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(epsg=self.epsg_lonlat)
+
+        self.pts_lonlat = self.pts_lonlat.append(dummy_radars, ignore_index=True)
+        self.pts_local = self.pts_local.append(dummy_radars.to_crs(self.crs_local), ignore_index=True)
+        self.pts_equal_area = self.pts_equal_area.append(dummy_radars.to_crs(epsg=self.epsg_equal_area),
+                                                         ignore_index=True)
 
     def G_max_dist(self, max_distance):
         # create graph with edges between any two radars with distance <= max_distance [km]
@@ -226,10 +250,10 @@ if __name__ == '__main__':
     path = '/home/fiona/birdMigration/data/raw/radar/fall/2015'
     radars = datahandling.load_radars(path)
 
-    sp = Spatial(radars)
-    sp.cells.to_file(osp.join(path, 'voronoi.shp'))
-    sp.sink.to_file(osp.join(path, 'voronoi_sink.shp'))
-    nx.write_gpickle(sp.subgraph('type', 'measured'), osp.join(path, 'delaunay.gpickle'), protocol=4)
+    sp = Spatial(radars, n_dummy_radars=15)
+    sp.cells.to_file(osp.join(path, 'voronoi_test.shp'))
+    sp.sink.to_file(osp.join(path, 'voronoi_sink_test.shp'))
+    nx.write_gpickle(sp.subgraph('type', 'measured'), osp.join(path, 'delaunay_test.gpickle'), protocol=4)
 
     # for index, row in sp.cells.iterrows():
     #     area = row.geometry.area / 1000_000

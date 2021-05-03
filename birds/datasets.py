@@ -13,13 +13,13 @@ import itertools as it
 from birds import spatial, datahandling, era5interface, abm
 
 
-def static_features(data_dir, season, year, max_distance):
+def static_features(data_dir, season, year, max_distance, n_dummy_radars=0):
     # load radar info
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
 
     # voronoi tesselation and associated graph
-    space = spatial.Spatial(radars)
+    space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars)
     voronoi, G = space.voronoi()
     G = space.subgraph('type', 'measured')  # graph without sink nodes
 
@@ -37,25 +37,29 @@ def static_features(data_dir, season, year, max_distance):
     return voronoi, radar_buffers, G, G_max_dist
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                     env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5, t_unit='1H'):
+                     env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5,
+                     t_unit='1H', edge_type='voronoi'):
 
     print(f'##### load data for {season} {year} #####')
 
     if data_source == 'radar':
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
+        voronoi_radars = voronoi.query('radar' != 'boundary')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
-                                                    mask_days=False, radar_names=voronoi.radar)
-        data = birds_km2 * voronoi.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
+                                                    mask_days=False, radar_names=voronoi_radars.radar)
+        data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
-        data, t_range = abm.load_season(abm_dir, season, year, voronoi)
-        buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers)
-        birds_km2 = buffer_data / radar_buffers.area_km2.to_numpy()[:, None] # rescale to birds per km^2
-        buffer_data = birds_km2 * voronoi.area_km2.to_numpy()[:, None] # rescale to birds per voronoi cell
+        voronoi_radars = voronoi.query('radar' != 'boundary')
+        radar_buffers_radars = radar_buffers.query('radar' != 'boundary')
+        data, t_range = abm.load_season(abm_dir, season, year, voronoi_radars)
+        buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers_radars)
+        birds_km2 = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None] # rescale to birds per km^2
+        buffer_data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale to birds per voronoi cell
 
     # time range for solar positions to be able to infer dusk and dawn
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
@@ -63,12 +67,16 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
     print('load env data')
     env_vars = ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
-    # TODO use radar buffer average when edge_type is not voronoi
+
+    if edge_type == 'voronoi':
+        env_areas = voronoi.geometry
+    else:
+        env_areas = radar_buffers.geometry
     env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
-                                         voronoi.geometry, env_points,
+                                         env_areas, env_points,
                                          t_range.tz_localize(None), vars=env_vars, seed=random_seed)
     env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
-                                         voronoi.geometry, env_points,
+                                         env_areas, env_points,
                                          t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
     dfs = []
@@ -77,12 +85,12 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         df = {}
 
         # bird measurementf for radar ridx
-        df['birds'] = data[ridx]
-        df['birds_km2'] = birds_km2[ridx]
+        df['birds'] = data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
+        df['birds_km2'] = birds_km2[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
         if data_source == 'abm':
-            df['birds_from_buffer'] = buffer_data[ridx]
+            df['birds_from_buffer'] = buffer_data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
         else:
-            df['birds_from_buffer'] = data[ridx]
+            df['birds_from_buffer'] = data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
         df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx
@@ -150,14 +158,15 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
                      env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
-                     max_distance=216, t_unit='1H', process_dynamic=True):
+                     max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi'):
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
         radar_year = radar_years[-1]
     else:
         radar_year = year
-    voronoi, radar_buffers, G, G_max_dist = static_features(data_dir, season, radar_year, max_distance)
+    voronoi, radar_buffers, G, G_max_dist = static_features(data_dir, season, radar_year, max_distance,
+                                                            n_dummy_radars=n_dummy_radars)
 
     # save to disk
     voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
@@ -169,7 +178,8 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
         # load dynamic features
         dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                                               env_points=env_points, random_seed=random_seed,
-                                              pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit)
+                                              pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit,
+                                              edge_type=edge_type)
 
         # save to disk
         dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
@@ -217,11 +227,13 @@ def timeslice(data, start_night, mask, timesteps):
 
 class Normalization:
     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,
-                 env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H'):
+                 env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
+                 edge_type='voronoi', n_dummy_radars=0):
         self.root = root
         self.data_source = data_source
         self.season = season
         self.t_unit = t_unit
+        self.edge_type = edge_type
 
         all_dfs = []
         for year in years:
@@ -232,7 +244,8 @@ class Normalization:
                 prepare_features(dir, self.raw_dir, data_source, season, str(year),
                                  radar_years=radar_years,
                                  env_points=env_points, random_seed=seed, max_distance=max_distance,
-                                 pref_dirs=pref_dirs, wp_threshold=wp_threshold, t_unit=t_unit)
+                                 pref_dirs=pref_dirs, wp_threshold=wp_threshold, t_unit=t_unit, edge_type=edge_type,
+                                 n_dummy_radars=n_dummy_radars)
 
             # load features
             dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
@@ -260,7 +273,7 @@ class Normalization:
         return root_transformed.dropna().max()
 
     def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.t_unit, self.data_source, self.season, str(year))
+        return osp.join(self.root, 'preprocessed', self.t_unit, self.edge_type, self.data_source, self.season, str(year))
 
     @property
     def raw_dir(self):
@@ -312,6 +325,7 @@ class RadarData(InMemoryDataset):
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         self.max_distance = kwargs.get('max_distance', 216)
         self.t_unit = kwargs.get('t_unit', '1H')
+        self.n_dummy_radars = kwargs.get('n_dummy_radars', 0)
 
 
         if self.use_buffers:
@@ -338,7 +352,7 @@ class RadarData(InMemoryDataset):
 
     @property
     def preprocessed_dir(self):
-        return osp.join(self.root, 'preprocessed', self.t_unit, self.data_source, self.season, self.year)
+        return osp.join(self.root, 'preprocessed', self.t_unit, self.edge_type, self.data_source, self.season, self.year)
 
     @property
     def processed_dir(self):
@@ -364,7 +378,8 @@ class RadarData(InMemoryDataset):
             prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
                              radar_years=self.radar_years,
                              env_points=self.env_points, random_seed=self.random_seed, pref_dirs=self.pref_dirs,
-                             wp_threshold=self.wp_threshold, max_distance=self.max_distance, t_unit=self.t_unit)
+                             wp_threshold=self.wp_threshold, max_distance=self.max_distance, t_unit=self.t_unit,
+                             edge_type=self.edge_type, n_dummy_radars=self.n_dummy_radars)
 
         # load features
         dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir, 'dynamic_features.csv'))
@@ -463,7 +478,6 @@ class RadarData(InMemoryDataset):
         # env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + \
         #            [var for var in self.env_vars if not var in ['u', 'v']]
         env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
-        print(env_cols)
         coord_cols = ['x', 'y']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
