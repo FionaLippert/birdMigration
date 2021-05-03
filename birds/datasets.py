@@ -84,7 +84,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
         df = {}
 
-        # bird measurementf for radar ridx
+        # bird measurements for radar ridx
+        print(data[ridx].shape, len(t_range))
         df['birds'] = data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
         df['birds_km2'] = birds_km2[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
         if data_source == 'abm':
