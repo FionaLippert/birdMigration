@@ -234,6 +234,7 @@ class Normalization:
         self.season = season
         self.t_unit = t_unit
         self.edge_type = edge_type
+        self.n_dummy_radars = n_dummy_radars
 
         all_dfs = []
         for year in years:
@@ -273,7 +274,8 @@ class Normalization:
         return root_transformed.dropna().max()
 
     def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.t_unit, self.edge_type, self.data_source, self.season, str(year))
+        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}',
+                        self.data_source, self.season, str(year))
 
     @property
     def raw_dir(self):
@@ -352,7 +354,8 @@ class RadarData(InMemoryDataset):
 
     @property
     def preprocessed_dir(self):
-        return osp.join(self.root, 'preprocessed', self.t_unit, self.edge_type, self.data_source, self.season, self.year)
+        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}',
+                        self.data_source, self.season, self.year)
 
     @property
     def processed_dir(self):

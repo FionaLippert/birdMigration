@@ -28,3 +28,6 @@ hyperparameters:
 epochs: 100
 horizon: 24
 force_zeros: false
+additional_env_vars:
+  - acc_rain
+  - acc_wind

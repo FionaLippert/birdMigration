@@ -56,6 +56,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         hp_space = [[settings.default for settings in hps.values()]]
     param_names = [key for key in cfg.model.hyperparameters]
 
+    additional_env_vars = cfg.model.get('additional_env_vars', [])
+
 
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
@@ -67,7 +69,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars,
+                                     env_vars=cfg.datasource.env_vars + additional_env_vars,
                                      root_transform=cfg.root_transform,
                                      missing_data_threshold=cfg.missing_data_threshold,
                                      edge_type=cfg.edge_type,
@@ -96,7 +98,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars,
+                                  env_vars=cfg.datasource.env_vars + additional_env_vars,
                                   root_transform=cfg.root_transform,
                                   missing_data_threshold=cfg.missing_data_threshold,
                                   edge_type=cfg.edge_type,
@@ -210,6 +212,8 @@ def test(cfg: DictConfig, output_dir: str, log):
     seq_len = context + cfg.model.horizon
     seq_shift = context // 24
 
+    additional_env_vars = cfg.model.get('additional_env_vars', [])
+
     # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
                          cfg.model.name, cfg.experiment)
@@ -242,7 +246,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars,
+                                   env_vars=cfg.datasource.env_vars + additional_env_vars,
                                    root_transform=cfg.root_transform,
                                    missing_data_threshold=cfg.missing_data_threshold,
                                    edge_type=cfg.edge_type,
