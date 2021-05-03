@@ -139,9 +139,8 @@ class LocalMLP(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_in = 4 + kwargs.get('n_env', 4)
-        if kwargs.get('use_acc_vars', False):
-            self.n_in += 2
+        self.use_acc = kwargs.get('use_acc_vars', False)
+        self.n_in = 4 + kwargs.get('n_env', 4) + self.use_acc * 2
         self.n_layers = kwargs.get('n_layers', 1)
         self.force_zeros = kwargs.get('force_zeros', False)
 
@@ -159,7 +158,7 @@ class LocalMLP(MessagePassing):
 
         for t in range(self.timesteps + 1):
 
-            x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t],
+            x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t], acc=data.acc[..., t],
                                areas=data.areas, edge_attr=data.edge_attr, night=data.local_night[:, t])
 
             if self.force_zeros:
@@ -180,9 +179,12 @@ class LocalMLP(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, coords, env, areas, night):
+    def update(self, aggr_out, coords, env, areas, night, acc):
         # use only location-specific features to predict migration intensities
-        features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+        if self.use_acc:
+            features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1), acc], dim=1)
+        else:
+            features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
         x = self.fc_in(features).relu()
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
