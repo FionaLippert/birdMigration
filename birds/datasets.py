@@ -493,6 +493,7 @@ class RadarData(InMemoryDataset):
             areas = np.ones(len(static))
         coords = static[coord_cols].to_numpy()
         dayofyear = dayofyear / max(dayofyear)
+        boundary = voronoi['boundary'].to_numpy()
 
         data = dict(inputs=[],
                     targets=[],
@@ -560,6 +561,7 @@ class RadarData(InMemoryDataset):
                           y=torch.tensor(data['targets'][:, :, nidx], dtype=torch.float),
                           coords=torch.tensor(coords, dtype=torch.float),
                           areas=torch.tensor(areas, dtype=torch.float),
+                          boundary=torch.tensor(boundary, dtype=torch.bool),
                           env=torch.tensor(data['env'][..., nidx], dtype=torch.float),
                           edge_index=edge_index,
                           edge_attr=edge_attr,

@@ -820,6 +820,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 dawn=data.local_dawn[:, t],
                                                 env=data.env[..., t],
                                                 t=t-self.t_context,
+                                                boundary=data.boundary,
                                          night=data.local_night[:, t])
 
             if len(self.fixed_boundary) > 0:
@@ -870,11 +871,12 @@ class BirdFluxGraphLSTM(MessagePassing):
         return flux
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
 
         if self.edge_type == 'voronoi':
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1),
+                                boundary.float().view(-1, 1)], dim=1)
         else:
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
@@ -889,7 +891,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.fluxes[..., t] = aggr_out
 
-        pred = x + aggr_out + delta
+        pred = x + delta + ~boundary * aggr_out # take messages into account for inner cells only
 
         return pred, h_t, c_t
 
