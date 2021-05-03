@@ -521,6 +521,7 @@ class RadarData(InMemoryDataset):
             data['missing'].append(df.missing.to_numpy())
 
         for k, v in data.items():
+            print(k, [len(vi) for vi in v])
             data[k] = np.stack(v, axis=0)
 
 

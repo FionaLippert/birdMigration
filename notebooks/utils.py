@@ -72,31 +72,42 @@ def plot_errors(results, bird_scales):
     ax.set(xlabel='forecast horizon [h]', ylabel='RMSE', ylim=(0, 0.1))
     return fig
 
-def plot_errors_per_radar(results, bird_scales):
+def plot_errors_per_radar(results, bird_scales, model):
     fig, ax = plt.subplots(figsize=(15, 6))
-    rmse_list = []
-    labels = []
-    for idx, m in enumerate(results.keys()):
-        if m == 'GAM':
 
-            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
-                                                                                    'constant_prediction'), axis=1)
-            rmse = results[m].groupby(['radar', 'trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
-            rmse_list.append(rmse)
-            labels.append(['constant'] * len(rmse))
+    results[model]['error'] = results[model].apply(lambda row: compute_mse(row, bird_scales[model]), axis=1)
+    rmse = results[model].groupby('radar').error.aggregate(np.nanmean).apply(np.sqrt)
+    radars = list(results[model].groupby('radar').groups.keys())
 
-        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
-        rmse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
-        rmse_list.append(rmse)
-        labels.append([m] * len(rmse))
-
-    df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
+    df = pd.DataFrame(dict(RMSE=rmse, radar=radars))
     sb.barplot(x='radar', y='RMSE', data=df, capsize=.2, ci='sd', ax=ax)
     plt.grid()
     ax.set(ylabel='RMSE')
     return fig
 
-def plot_average_errors(results, bird_scales, boundary=None):
+def residuals_corr(results, bird_scales, model):
+    radars = results[model].radar.unique()
+    N = len(radars)
+    corr = np.zeros((N, N))
+    for i, r1 in enumerate(radars):
+        for j, r2 in enumerate(radars):
+            data1 = results[model].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales[model]),
+                                                                   axis=1).to_numpy()
+            data2 = results[model].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales[model]),
+                                                                   axis=1).to_numpy()
+
+            mask = np.logical_and(np.isfinite(data1), np.isfinite(data2))
+            r, p = sp.stats.pearsonr(data1[mask], data2[mask])
+            corr[i, j] = r
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax)
+    ax.set(title=f'cross-correlation of residuals')
+    ax.set_yticklabels(radars, rotation=0)
+    ax.set_xticklabels(radars, rotation=90)
+    return fig
+
+def plot_average_errors(results, bird_scales, boundary=[]):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(20, 4))
     rmse_list = []
