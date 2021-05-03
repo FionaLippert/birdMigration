@@ -72,12 +72,12 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         env_areas = voronoi.geometry
     else:
         env_areas = radar_buffers.geometry
-    env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
-                                         env_areas, env_points,
-                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
-    env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
-                                         env_areas, env_points,
-                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    # env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
+    #                                      env_areas, env_points,
+    #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    # env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
+    #                                      env_areas, env_points,
+    #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
