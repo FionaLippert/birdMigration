@@ -149,6 +149,7 @@ class Spatial:
         return x, y
 
     def add_dummy_radars(self, n, buffer=150_000):
+        if n == 0: return
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer).boundary
         # sink = boundary.buffer(buffer).difference(boundary)
         # sink = gpd.GeoSeries(sink, crs=self.crs_local).to_crs(epsg=self.epsg_lonlat)
