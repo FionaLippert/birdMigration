@@ -45,7 +45,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     if data_source == 'radar':
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
-        voronoi_radars = voronoi.query('radar' != 'boundary')
+        voronoi_radars = voronoi.query('radar != "boundary"')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
                                                     mask_days=False, radar_names=voronoi_radars.radar)
         data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
@@ -54,8 +54,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     elif data_source == 'abm':
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
-        voronoi_radars = voronoi.query('radar' != 'boundary')
-        radar_buffers_radars = radar_buffers.query('radar' != 'boundary')
+        voronoi_radars = voronoi.query('radar != "boundary"')
+        radar_buffers_radars = radar_buffers.query('radar != "boundary"')
         data, t_range = abm.load_season(abm_dir, season, year, voronoi_radars)
         buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers_radars)
         birds_km2 = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None] # rescale to birds per km^2
