@@ -56,8 +56,6 @@ def train(cfg: DictConfig, output_dir: str, log):
         hp_space = [[settings.default for settings in hps.values()]]
     param_names = [key for key in cfg.model.hyperparameters]
 
-    additional_env_vars = cfg.model.get('additional_env_vars', [])
-
 
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
@@ -69,7 +67,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars + additional_env_vars,
+                                     env_vars=cfg.datasource.env_vars,
                                      root_transform=cfg.root_transform,
                                      missing_data_threshold=cfg.missing_data_threshold,
                                      edge_type=cfg.edge_type,
@@ -98,7 +96,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars + additional_env_vars,
+                                  env_vars=cfg.datasource.env_vars,
                                   root_transform=cfg.root_transform,
                                   missing_data_threshold=cfg.missing_data_threshold,
                                   edge_type=cfg.edge_type,
@@ -132,7 +130,8 @@ def train(cfg: DictConfig, output_dir: str, log):
             model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
                           n_env=2+len(cfg.datasource.env_vars)+len(additional_env_vars),
                           fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0),
-                          edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context)
+                          edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
+                          use_acc_vars=cfg.model.use_acc_vars)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
@@ -213,8 +212,6 @@ def test(cfg: DictConfig, output_dir: str, log):
     seq_len = context + cfg.model.horizon
     seq_shift = context // 24
 
-    additional_env_vars = cfg.model.get('additional_env_vars', [])
-
     # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
                          cfg.model.name, cfg.experiment)
@@ -247,7 +244,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars + additional_env_vars,
+                                   env_vars=cfg.datasource.env_vars,
                                    root_transform=cfg.root_transform,
                                    missing_data_threshold=cfg.missing_data_threshold,
                                    edge_type=cfg.edge_type,

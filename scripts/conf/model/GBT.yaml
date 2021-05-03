@@ -23,6 +23,4 @@ hyperparameters:
     - 12
 horizon: 24
 tolerance: 1e-8
-additional_env_vars:
-  - acc_rain
-  - acc_wind
+use_acc_vars: true

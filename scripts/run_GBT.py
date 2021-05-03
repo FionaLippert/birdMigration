@@ -41,7 +41,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars + cfg.model.additional_env_vars,
+                                     env_vars=cfg.datasource.env_vars,
                                      root_transform=cfg.root_transform,
                                      missing_data_threshold=cfg.missing_data_threshold,
                                      edge_type=cfg.edge_type,
@@ -50,14 +50,15 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      )
                   for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
-    X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, mask_daytime=False)
+    X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, mask_daytime=False,
+                                                    use_acc_vars=cfg.model.use_acc_vars)
 
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars + cfg.model.additional_env_vars,
+                                  env_vars=cfg.datasource.env_vars,
                                   root_transform=cfg.root_transform,
                                   missing_data_threshold=cfg.missing_data_threshold,
                                   edge_type=cfg.edge_type,
@@ -66,7 +67,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   )
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
-    X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, mask_daytime=False)
+    X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, mask_daytime=False,
+                                              use_acc_vars=cfg.model.use_acc_vars)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
@@ -170,7 +172,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars + cfg.model.additional_env_vars,
+                                   env_vars=cfg.datasource.env_vars,
                                    root_transform=cfg.root_transform,
                                    missing_data_threshold=cfg.missing_data_threshold,
                                    edge_type=cfg.edge_type,
@@ -185,7 +187,8 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
     X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
-                                    timesteps=cfg.model.horizon, mask_daytime=False)
+                                    timesteps=cfg.model.horizon, mask_daytime=False,
+                                                                   use_acc_vars=cfg.model.use_acc_vars)
 
 
     # load models and predict

@@ -485,6 +485,7 @@ class RadarData(InMemoryDataset):
         # env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + \
         #            [var for var in self.env_vars if not var in ['u', 'v']]
         env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
+        acc_cols = ['acc_rain', 'acc_wind']
         coord_cols = ['x', 'y']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
@@ -505,6 +506,7 @@ class RadarData(InMemoryDataset):
         data = dict(inputs=[],
                     targets=[],
                     env=[],
+                    acc=[],
                     nighttime=[],
                     dusk=[],
                     dawn=[],
@@ -516,13 +518,13 @@ class RadarData(InMemoryDataset):
             data['inputs'].append(df[input_col].to_numpy())
             data['targets'].append(df[target_col].to_numpy())
             data['env'].append(df[env_cols].to_numpy().T)
+            data['acc'].append(df[acc_cols].to_numpy().T)
             data['nighttime'].append(df.night.to_numpy())
             data['dusk'].append(df.dusk.to_numpy())
             data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
 
         for k, v in data.items():
-            print(k, [len(vi) for vi in v])
             data[k] = np.stack(v, axis=0)
 
 
@@ -571,6 +573,7 @@ class RadarData(InMemoryDataset):
                           areas=torch.tensor(areas, dtype=torch.float),
                           boundary=torch.tensor(boundary, dtype=torch.bool),
                           env=torch.tensor(data['env'][..., nidx], dtype=torch.float),
+                          acc=torch.tensor(data['acc'][..., nidx], dtype=torch.float),
                           edge_index=edge_index,
                           edge_attr=edge_attr,
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),

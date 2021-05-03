@@ -140,6 +140,8 @@ class LocalMLP(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_in = 4 + kwargs.get('n_env', 4)
+        if kwargs.get('use_acc_vars', False):
+            self.n_in += 2
         self.n_layers = kwargs.get('n_layers', 1)
         self.force_zeros = kwargs.get('force_zeros', False)
 

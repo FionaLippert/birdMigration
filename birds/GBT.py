@@ -2,16 +2,19 @@ from sklearn.ensemble import GradientBoostingRegressor
 import numpy as np
 
 
-def prepare_data(dataset, timesteps, mask_daytime=False):
+def prepare_data(dataset, timesteps, mask_daytime=False, use_acc_vars=False):
 
     X = []
     y = []
     mask = []
     for seq in dataset:
         for t in range(timesteps+1):
-            features = np.concatenate([seq.coords.detach().numpy(),
+            features = [seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
-                                       seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
+                                       seq.env[..., t].detach().numpy()]
+            if use_acc_vars:
+                features.append(seq.acc.detach().numpy())
+            features = np.concatenate(features, axis=1) # shape (nodes, features)
             X.append(features)
             y.append(seq.y[:, t])
             if mask_daytime:
@@ -49,7 +52,7 @@ def prepare_data_gam(dataset, timesteps, mask_daytime=False):
     return X, y, mask
 
 
-def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False):
+def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False, use_acc_vars=False):
 
     X = []
     y = []
@@ -59,9 +62,13 @@ def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False):
         y_night = []
         mask_night = []
         for t in range(timesteps+1):
-            features = np.concatenate([seq.coords.detach().numpy(),
-                                       seq.areas.view(-1,1).detach().numpy(),
-                                       seq.env[..., t].detach().numpy()], axis=1) # shape (nodes, features)
+
+            features = [seq.coords.detach().numpy(),
+                 seq.areas.view(-1, 1).detach().numpy(),
+                 seq.env[..., t].detach().numpy()]
+            if use_acc_vars:
+                features.append(seq.acc.detach().numpy())
+            features = np.concatenate(features, axis=1) # shape (nodes, features)
             X_night.append(features)
             y_night.append(seq.y[:, t])
             if mask_daytime:
