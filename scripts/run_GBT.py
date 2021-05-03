@@ -35,6 +35,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                    max_distance=cfg.max_distance,
                                    t_unit=cfg.t_unit)
 
+    print(cfg.edge_type)
+
     # load datasets
     train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
                                      data_source=cfg.datasource.name,
