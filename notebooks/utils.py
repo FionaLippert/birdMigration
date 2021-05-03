@@ -72,6 +72,30 @@ def plot_errors(results, bird_scales):
     ax.set(xlabel='forecast horizon [h]', ylabel='RMSE', ylim=(0, 0.1))
     return fig
 
+def plot_errors_per_radar(results, bird_scales):
+    fig, ax = plt.subplots(figsize=(15, 6))
+    rmse_list = []
+    labels = []
+    for idx, m in enumerate(results.keys()):
+        if m == 'GAM':
+
+            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
+                                                                                    'constant_prediction'), axis=1)
+            rmse = results[m].groupby(['radar', 'trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
+            rmse_list.append(rmse)
+            labels.append(['constant'] * len(rmse))
+
+        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
+        rmse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
+        rmse_list.append(rmse)
+        labels.append([m] * len(rmse))
+
+    df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
+    sb.barplot(x='radar', y='RMSE', data=df, capsize=.2, ci='sd', ax=ax)
+    plt.grid()
+    ax.set(ylabel='RMSE')
+    return fig
+
 def plot_average_errors(results, bird_scales, boundary=None):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(20, 4))

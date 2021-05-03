@@ -464,6 +464,7 @@ class RadarData(InMemoryDataset):
                 self.bird_scale = self.normalization.root_max(input_col, self.root_transform)
             else:
                 self.bird_scale = self.normalization.max(input_col)
+            print(input_col)
             print(f'bird scale = {self.bird_scale}')
             # dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
             # dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
