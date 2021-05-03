@@ -2,7 +2,7 @@
 name: LocalMLP
 hyperparameters:
   n_hidden:
-    default: 64
+    default: 128
     search_space:
     - 64
     - 128
