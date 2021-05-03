@@ -337,6 +337,8 @@ class RadarData(InMemoryDataset):
             self.processed_dirname = f'measurements=voronoi_cells_root_transform={self.root_transform}_' \
                                      f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}'
 
+        print(self.preprocessed_dir)
+
         super(RadarData, self).__init__(root, transform, pre_transform)
 
         self.data, self.slices = torch.load(self.processed_paths[0])
