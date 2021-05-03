@@ -26,7 +26,8 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0):
     G_max_dist = space.G_max_dist(max_distance)
 
     # 25 km buffers around radars
-    radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar},
+    radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
+                                     'type' : voronoi.type},
                                      geometry=space.pts_local.buffer(25_000),
                                      crs=space.crs_local)
 
@@ -45,7 +46,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     if data_source == 'radar':
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
-        voronoi_radars = voronoi.query('radar != "boundary"')
+        voronoi_radars = voronoi.query('type == "observed"')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
                                                     mask_days=False, radar_names=voronoi_radars.radar)
         data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
@@ -54,8 +55,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     elif data_source == 'abm':
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
-        voronoi_radars = voronoi.query('radar != "boundary"')
-        radar_buffers_radars = radar_buffers.query('radar != "boundary"')
+        voronoi_radars = voronoi.query('type == "observed"')
+        radar_buffers_radars = radar_buffers.query('type == "observed"')
         data, t_range = abm.load_season(abm_dir, season, year, voronoi_radars)
         buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers_radars)
         birds_km2 = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None] # rescale to birds per km^2
@@ -72,12 +73,12 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         env_areas = voronoi.geometry
     else:
         env_areas = radar_buffers.geometry
-    # env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
-    #                                      env_areas, env_points,
-    #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
-    # env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
-    #                                      env_areas, env_points,
-    #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
+                                         env_areas, env_points,
+                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
+                                         env_areas, env_points,
+                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
@@ -85,13 +86,12 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         df = {}
 
         # bird measurements for radar ridx
-        print(data[ridx].shape, len(t_range))
-        df['birds'] = data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
-        df['birds_km2'] = birds_km2[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
+        df['birds'] = data[ridx] if row.type == 'observed' else [np.nan] * len(t_range)
+        df['birds_km2'] = birds_km2[ridx] if row.type == 'observed' else [np.nan] * len(t_range)
         if data_source == 'abm':
-            df['birds_from_buffer'] = buffer_data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
+            df['birds_from_buffer'] = buffer_data[ridx] if row.radar == 'observed' else [np.nan] * len(t_range)
         else:
-            df['birds_from_buffer'] = data[ridx] if row.radar != 'boundary' else [np.nan] * len(t_range)
+            df['birds_from_buffer'] = data[ridx] if row.radar == 'observed' else [np.nan] * len(t_range)
         df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx

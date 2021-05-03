@@ -72,7 +72,8 @@ class Spatial:
         #polygons = np.array(list(polygons.values()))[idx]
         polygons = [polygons[pid] for pid, pt in sorted(pts.items(), key=lambda kv: kv[1])]
 
-        cells = gpd.GeoDataFrame({'radar': list(self.radars.values()) + ['boundary'] * self.N_dummy,
+        cells = gpd.GeoDataFrame({'radar': list(self.radars.values()) + [f'boundary_{i}' for i in range(self.N_dummy)],
+                                  'type' : ['observed'] * self.N + ['unobserved'] * self.N_dummy
                                   'x': [c[0] for c in xy],
                                   'y': [c[1] for c in xy],
                                   'x_eqa': [c[0] for c in xy_equal_area],
