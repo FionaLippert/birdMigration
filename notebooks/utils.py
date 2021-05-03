@@ -85,8 +85,8 @@ def plot_errors_per_radar(results, bird_scales, model):
     ax.set(ylabel='RMSE')
     return fig
 
-def residuals_corr(results, bird_scales, model):
-    radars = results[model].radar.unique()
+def residuals_corr(results, bird_scales, model, radars):
+    #radars = results[model].radar.unique()
     N = len(radars)
     corr = np.zeros((N, N))
     for i, r1 in enumerate(radars):

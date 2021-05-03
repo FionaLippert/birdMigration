@@ -449,7 +449,9 @@ class RadarData(InMemoryDataset):
             input_col = 'birds_km2'
 
         dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
+        print(len(dynamic_feature_df), dynamic_feature_df[input_col].isna().sum())
         dynamic_feature_df[input_col].fillna(0, inplace=True)
+
 
         # apply root transform
         if self.root_transform > 0:
