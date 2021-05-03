@@ -332,10 +332,10 @@ class RadarData(InMemoryDataset):
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers_root_transform={self.root_transform}_' \
-                                     f'edges={self.edge_type}_t_unit={self.t_unit}'
+                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}'
         else:
             self.processed_dirname = f'measurements=voronoi_cells_root_transform={self.root_transform}_' \
-                                     f'edges={self.edge_type}_t_unit={self.t_unit}'
+                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}'
 
         super(RadarData, self).__init__(root, transform, pre_transform)
 
