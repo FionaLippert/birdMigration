@@ -710,7 +710,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.inflows[..., t] = aggr_out
 
         #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
-        pred = selfflow + aggr_out #+ delta
+        pred = selfflow + aggr_out + delta
 
         return pred, h_t, c_t
 
@@ -1046,7 +1046,8 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                                    dawn=data.local_dawn[:, t],
                                    env=data.env[..., t],
                                    night=data.local_night[:, t],
-                                   t=t-self.t_context)
+                                   t=t-self.t_context,
+                                   boundary=data.boundary)
 
                 if len(self.fixed_boundary) > 0:
                     # use ground truth for boundary cells
@@ -1083,7 +1084,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t, t, night):
+    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t, t, night, boundary):
 
         # predict departure/landing
         if self.edge_type == 'voronoi':
@@ -1101,7 +1102,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         if self.predict_delta:
             # combine messages from neighbors into single number representing total flux
             flux = self.mlp_aggr(aggr_out) #.tanh()
-            pred = x + flux + delta
+            pred = x + ~boundary.view(-1, 1) * flux + delta
         else:
             # combine messages from neighbors into single number representing the new bird density
             birds = self.mlp_aggr(aggr_out).sigmoid()
