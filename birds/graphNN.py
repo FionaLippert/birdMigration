@@ -846,6 +846,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
+        print(x_i.shape, coords_i.shape, env_i.shape, edge_attr.shape, night_j.shape)
+
 
         features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr,
                               night_i.float().view(-1, 1), night_j.float().view(-1, 1),
