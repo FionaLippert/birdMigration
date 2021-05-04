@@ -139,7 +139,12 @@ def train(cfg: DictConfig, output_dir: str, log):
 
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
-                loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device, teacher_forcing=tf,
+                if cfg.model.name == 'BirdFluxGraphLSTM':
+                    loss = train_fluxes(model, train_loader, optimizer, utils.MSE, device,
+                                        conservation_constraint=hp_settings['conservation_constraint'],
+                                        teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0))
+                else:
+                    loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device, teacher_forcing=tf,
                                       daymask=cfg.model.get('force_zeros', 0))
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')

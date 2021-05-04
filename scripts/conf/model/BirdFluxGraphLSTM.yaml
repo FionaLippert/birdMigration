@@ -33,6 +33,12 @@ hyperparameters:
     default: 0.9
     search_space:
     - 0.9
+  conservation_constraint:
+    default: 0.01
+    search_space:
+      - 0.0
+      - 0.01
+      - 0.1
 epochs: 100
 horizon: 40
 fixed_boundary: false

@@ -800,7 +800,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        #self.fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
         self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
@@ -871,7 +871,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         # flux = flux.view(-1, 1)
         # #flux[self.mask_back] = - flux[self.mask_forth]
 
-        #self.fluxes[..., t] = flux
+        self.local_fluxes[..., t] = flux
 
         return flux
 
@@ -1435,13 +1435,13 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         output = model(data, teacher_forcing) #.view(-1)
         gt = data.y
 
-        fluxes = to_dense_adj(data.edge_index, edge_attr=model.fluxes).view(
+        fluxes = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).sum(1)
         reverse_fluxes = fluxes.permute(1, 0, 2)
-        conservation = fluxes + reverse_fluxes
-        target_conservation = torch.zeros(conservation.shape).to(device)
+        deltas = fluxes + reverse_fluxes
+        target = torch.zeros(deltas.shape).to(device)
 
-        constraints = torch.mean((conservation - target_conservation)**2)
+        constraints = torch.mean((deltas - target)**2)
         if daymask:
             mask = data.local_night & ~data.missing
         else:

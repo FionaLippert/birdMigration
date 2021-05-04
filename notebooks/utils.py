@@ -85,8 +85,9 @@ def plot_errors_per_radar(results, bird_scales, model):
     ax.set(ylabel='RMSE')
     return fig
 
-def residuals_corr(results, bird_scales, model, radars):
+def residuals_corr(results, bird_scales, model, radar_df):
     #radars = results[model].radar.unique()
+    radars = radar_df.sort_values(by=['lat'], ascending=False).radar.values
     N = len(radars)
     corr = np.zeros((N, N))
     for i, r1 in enumerate(radars):
@@ -103,6 +104,33 @@ def residuals_corr(results, bird_scales, model, radars):
     fig, ax = plt.subplots(figsize=(10, 8))
     sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax)
     ax.set(title=f'cross-correlation of residuals')
+    ax.set_yticklabels(radars, rotation=0)
+    ax.set_xticklabels(radars, rotation=90)
+    return fig
+
+def residuals_corr_vs_distance(results, bird_scales, model, radar_df):
+    #radars = results[model].radar.unique()
+    radars = radar_df.sort_values(by=['lat'], ascending=False).radar.values
+    corr = []
+    dist = []
+    for i, r1 in enumerate(radars):
+        for j in range(i):
+            r2 = radars[j]
+            data1 = results[model].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales[model]),
+                                                                   axis=1).to_numpy()
+            data2 = results[model].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales[model]),
+                                                                   axis=1).to_numpy()
+
+            mask = np.logical_and(np.isfinite(data1), np.isfinite(data2))
+            r, p = sp.stats.pearsonr(data1[mask], data2[mask])
+            corr.append(r)
+            coord1 = np.array([radar_df.query(f'radar == "{r1}"').x, radar_df.query(f'radar == "{r1}"').y])
+            coord2 = np.array([radar_df.query(f'radar == "{r2}"').x, radar_df.query(f'radar == "{r2}"').y])
+            dist.append(np.linalg.norm([coord1 - coord2]))
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ax.scatter(dist, corr)
+    ax.set(title=model, xlabel='distance between radars', ylabel='correlation coefficient')
     ax.set_yticklabels(radars, rotation=0)
     ax.set_xticklabels(radars, rotation=90)
     return fig
