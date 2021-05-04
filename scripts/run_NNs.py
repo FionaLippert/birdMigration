@@ -328,6 +328,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 local_deltas = model.local_deltas.cpu()
 
             for ridx, name in radar_index.items():
+                print(name, areas[ridx])
                 results['gt'].append(y[ridx, context:])
                 results['prediction'].append(y_hat[ridx, :])
                 results['gt_km2'].append(y[ridx, context:] / areas[ridx])
