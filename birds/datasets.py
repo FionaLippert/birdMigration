@@ -260,6 +260,12 @@ class Normalization:
         data = (data - min) / (max - min)
         return data
 
+    def denormalize(self, data, key):
+        min = self.min(key)
+        max = self.max(key)
+        data = data * (max - min) + min
+        return data
+
     def min(self, key):
         return self.feature_df[key].dropna().min()
 
