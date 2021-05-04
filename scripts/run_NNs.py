@@ -250,6 +250,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             input_col = 'birds'
     else:
         input_col = 'birds_km2'
+    print(input_col)
 
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
