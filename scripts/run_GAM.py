@@ -150,8 +150,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
 
-            results['gt'].append(y[ridx, :])
-            results['prediction'].append(y_hat)
+            results['gt_km2'].append(y[ridx, :])
+            results['prediction_km2'].append(y_hat)
             results['constant_prediction'].append([y[ridx, 0]] * y.shape[1])
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])

@@ -257,6 +257,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    )
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     radars = test_data.info['radars']
+    areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
@@ -269,7 +270,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
+    results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[],
                    outflux=[], delta=[], selfflux=[], influx=[])
     for r in range(cfg.repeats):
@@ -311,6 +312,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, context:])
                 results['prediction'].append(y_hat[ridx, :])
+                results['gt_km2'].append(y[ridx, context:] / areas[ridx])
+                results['prediction_km2'].append(y_hat[ridx, :] /areas[ridx])
                 results['night'].append(local_night[ridx, context:])
                 results['radar'].append([name] * y_hat.shape[1])
                 results['seqID'].append([nidx] * y_hat.shape[1])

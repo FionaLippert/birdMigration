@@ -211,8 +211,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
                 if cfg.root_transform > 0:
                     y_hat = np.power(y_hat, cfg.root_transform)
-                results['gt'].append(y[ridx, :])
-                results['prediction'].append(y_hat)
+                results['gt_km2'].append(y[ridx, :])
+                results['prediction_km2'].append(y_hat)
                 results['night'].append(local_night[ridx, :])
                 results['radar'].append([name] * y.shape[1])
                 results['seqID'].append([nidx] * y.shape[1])

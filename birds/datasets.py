@@ -600,6 +600,7 @@ class RadarData(InMemoryDataset):
         n_seq_discarded = np.sum(data['missing'].mean((0, 1)) > self.missing_data_threshold)
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
+                'areas' : static.area_km2,
                  'timepoints': time,
                  'tidx': tidx,
                  'nights': nights,

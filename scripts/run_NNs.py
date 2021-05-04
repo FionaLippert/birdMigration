@@ -282,10 +282,11 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
+    areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
+    results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
     if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
         results['fluxes'] = []
@@ -329,6 +330,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, context:])
                 results['prediction'].append(y_hat[ridx, :])
+                results['gt_km2'].append(y[ridx, context:] / areas[ridx])
+                results['prediction_km2'].append(y_hat[ridx, :] / areas[ridx])
                 results['night'].append(local_night[ridx, context:])
                 results['radar'].append([name] * y_hat.shape[1])
                 results['seqID'].append([nidx] * y_hat.shape[1])
