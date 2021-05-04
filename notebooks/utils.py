@@ -69,7 +69,7 @@ def plot_errors(results, bird_scales={}):
 
     plt.legend()
     plt.grid()
-    ax.set(xlabel='forecast horizon [h]', ylabel='RMSE', ylim=(0, 0.1))
+    ax.set(xlabel='forecast horizon [h]', ylabel='RMSE')#, ylim=(0, 0.1))
     return fig
 
 def plot_errors_per_radar(results, bird_scales, model):
@@ -139,7 +139,7 @@ def residuals_corr_vs_distance(results, bird_scales, models, radar_df):
 
 def plot_average_errors(results, bird_scales={}, boundary=[]):
     sb.set(style="ticks")
-    fig, ax = plt.subplots(figsize=(5*len(results), 4))
+    fig, ax = plt.subplots(figsize=(3*len(results), 4))
     rmse_list = []
     labels = []
     for idx, m in enumerate(results.keys()):
@@ -156,6 +156,7 @@ def plot_average_errors(results, bird_scales={}, boundary=[]):
         rmse = results[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
+        print(np.mean(rmse), np.std(rmse))
 
     df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
     g = sb.barplot(x='model', y='RMSE', data=df, ci='sd', ax=ax)
@@ -211,20 +212,20 @@ def plot_average_errors_comparison(models, results1, results2, bird_scales1, bir
     plt.grid()
     return fig
 
-def plot_example_prediction(results, radar, seqID, bird_scales, max=1):
+def plot_example_prediction(results, radar, seqID, bird_scales={}, max=1):
 
     fig, ax = plt.subplots(figsize=(15, 6))
     for i, m in enumerate(results.keys()):
         r = results[m].query(f'seqID == {seqID} & radar == "{radar}"')
         if i == 0:
             r0 = r.query(f'trial == 0')
-            ax.plot(range(len(r0)), r0['gt'] / bird_scales[m], label='radar observation', color='gray')
+            ax.plot(range(len(r0)), r0['gt_km2'] / bird_scales.get(m, 1), label='radar observation', color='gray')
             #ax.plot(range(len(r0)), r0['constant_prediction'] / bird_scales[m], label='constant')
 
         all_trials = []
         for trial in r.trial.unique():
             r_t = r.query(f'trial == {trial}')
-            all_trials.append(r_t['prediction'] / bird_scales[m]) #* r_t['night'])
+            all_trials.append(r_t['prediction_km2'] / bird_scales.get(m, 1)) #* r_t['night'])
         all_trials = np.stack(all_trials, axis=0)
 
         line = ax.plot(range(all_trials.shape[1]), all_trials.mean(0), label=m)

@@ -281,7 +281,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
-    areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas'] 
+    areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
@@ -302,9 +302,9 @@ def test(cfg: DictConfig, output_dir: str, log):
         model.to(device)
         model.eval()
 
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                print(name, param.data)
+        # for name, param in model.named_parameters():
+        #     if param.requires_grad:
+        #         print(name, param.data)
 
         for nidx, data in enumerate(test_loader):
             nidx += seq_shift
@@ -323,7 +323,6 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
                 fluxes = model.fluxes.cpu()
-                print(fluxes)
                 local_deltas = model.local_deltas.cpu()
 
             for ridx, name in radar_index.items():
