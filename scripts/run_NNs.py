@@ -250,7 +250,6 @@ def test(cfg: DictConfig, output_dir: str, log):
             input_col = 'birds'
     else:
         input_col = 'birds_km2'
-    print(input_col)
 
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
@@ -282,7 +281,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
-    areas = test_data.info['areas']
+    areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas'] 
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict

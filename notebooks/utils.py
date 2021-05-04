@@ -16,12 +16,12 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
 
     fig, ax = plt.subplots(1, len(results), figsize=(len(results) * 6, 6))
     for midx, m in enumerate(results.keys()):
-        gt = results[m]['gt']
-        mask = results[m]['night'] & ~results[m]['missing'] & results[m]['gt'] > min
+        gt = results[m]['gt_km2']
+        mask = results[m]['night'] & ~results[m]['missing'] & results[m]['gt_km2'] > min
         gt = gt[mask].values
         gt = np.power(gt, 1/root_transform)
 
-        pred = results[m]['prediction']
+        pred = results[m]['prediction_km2']
         pred = pred[mask].values
         pred = np.power(np.maximum(pred, 0), 1/root_transform)
 
@@ -41,12 +41,12 @@ def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
     else:
         return ((row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale) ** 2
 
-def plot_errors(results, bird_scales):
+def plot_errors(results, bird_scales={}):
     fig, ax = plt.subplots(figsize=(15, 6))
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
 
-            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m],
+            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
                                                                                     'constant_prediction'), axis=1)
             mse = results[m].groupby(['horizon', 'trial']).constant_error.mean().apply(np.sqrt)
             mean_mse = mse.groupby('horizon').aggregate(np.mean)
@@ -59,7 +59,7 @@ def plot_errors(results, bird_scales):
             for i, tidx in enumerate(start_night):
                 ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
 
-        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
+        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1)), axis=1)
         mse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
         std_mse = mse.groupby('horizon').aggregate(np.nanstd)
@@ -139,7 +139,7 @@ def residuals_corr_vs_distance(results, bird_scales, models, radar_df):
 
 def plot_average_errors(results, bird_scales={}, boundary=[]):
     sb.set(style="ticks")
-    fig, ax = plt.subplots(figsize=(20, 4))
+    fig, ax = plt.subplots(figsize=(5*len(results), 4))
     rmse_list = []
     labels = []
     for idx, m in enumerate(results.keys()):
