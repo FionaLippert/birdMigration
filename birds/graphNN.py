@@ -1437,6 +1437,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         fluxes = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).sum(1)
+        print(fluxes.shape)
         reverse_fluxes = fluxes.permute(1, 0, 2)
         deltas = fluxes + reverse_fluxes
         target = torch.zeros(deltas.shape).to(device)
