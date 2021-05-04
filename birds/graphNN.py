@@ -896,7 +896,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.local_deltas[..., t] = delta
 
         self.fluxes[..., t] = aggr_out
-
+        print(boundary.shape, aggr_out.shape)
         pred = x + delta + ~boundary * aggr_out # take messages into account for inner cells only
 
         return pred, h_t, c_t
