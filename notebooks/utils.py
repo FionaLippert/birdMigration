@@ -35,11 +35,11 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         ax[midx].set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale, prediction_col='prediction', boundary=[]):
+def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
     if row['missing'] or row['radar'] in boundary:
         return np.nan
     else:
-        return ((row['gt'] - row[prediction_col] * row['night']) / bird_scale) ** 2
+        return ((row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale) ** 2
 
 def plot_errors(results, bird_scales):
     fig, ax = plt.subplots(figsize=(15, 6))

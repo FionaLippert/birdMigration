@@ -192,7 +192,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
 
     # load models and predict
-    results = dict(gt=[], prediction=[], night=[], radar=[], seqID=[],
+    results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
     for r in range(cfg.repeats):
         with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
