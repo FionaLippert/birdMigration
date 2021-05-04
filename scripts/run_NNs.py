@@ -80,7 +80,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
     if cfg.edge_type == 'voronoi':
-        if cfg.use_buffers:
+        if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
         else:
             input_col = 'birds'
@@ -244,7 +244,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     model_dir = osp.join(train_dir, json.dumps(hp_settings))
 
     if cfg.edge_type == 'voronoi':
-        if cfg.use_buffers:
+        if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
         else:
             input_col = 'birds'
