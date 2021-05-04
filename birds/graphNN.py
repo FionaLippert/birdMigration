@@ -736,7 +736,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
             self.n_edge_in += 1 # use face_length as additional feature
-            self.n_node_in += 1 # use voronoi cell area as additional feature
+            self.n_node_in += 2 # use voronoi cell area and boundary boolean as additional feature
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
