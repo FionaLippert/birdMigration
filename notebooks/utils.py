@@ -60,9 +60,9 @@ def plot_errors(results, bird_scales):
                 ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales[m]), axis=1)
-        mse = results[m].groupby(['horizon', 'trial']).error.mean().apply(np.sqrt)
-        mean_mse = mse.groupby('horizon').aggregate(np.mean)
-        std_mse = mse.groupby('horizon').aggregate(np.std)
+        mse = results[m].groupby(['horizon', 'trial']).error.apply(np.nanmean).apply(np.sqrt)
+        mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
+        std_mse = mse.groupby('horizon').aggregate(np.nanstd)
 
         l = ax.plot(mean_mse, label=m)
         ax.fill_between(mean_mse.index, mean_mse + std_mse, mean_mse - std_mse, alpha=0.2, color=l[0].get_color())
