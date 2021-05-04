@@ -73,9 +73,9 @@ def train(cfg: DictConfig, output_dir: str, log):
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
     if cfg.root_transform == 0:
-        cfg.datasource.bird_scale = float(normalization.max('birds'))
+        cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
     else:
-        cfg.datasource.bird_scale = float(normalization.root_max('birds', cfg.root_transform))
+        cfg.datasource.bird_scale = float(normalization.root_max('birds_km2', cfg.root_transform))
 
 
     best_val_loss = np.inf
@@ -161,9 +161,9 @@ def test(cfg: DictConfig, output_dir: str, log):
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
     if cfg.root_transform == 0:
-        cfg.datasource.bird_scale = float(normalization.max('birds'))
+        cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
     else:
-        cfg.datasource.bird_scale = float(normalization.root_max('birds', cfg.root_transform))
+        cfg.datasource.bird_scale = float(normalization.root_max('birds_km2', cfg.root_transform))
         print(cfg.datasource.bird_scale)
 
     # load test data

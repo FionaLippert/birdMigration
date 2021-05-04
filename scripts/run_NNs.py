@@ -79,16 +79,24 @@ def train(cfg: DictConfig, output_dir: str, log):
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    if cfg.edge_type == 'voronoi':
+        if cfg.use_buffers:
+            input_col = 'birds_from_buffer'
+        else:
+            input_col = 'birds'
+    else:
+        input_col = 'birds_km2'
+
+    cfg.datasource.bird_scale = float(normalization.max(input_col))
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
 
     if cfg.root_transform == 0:
-        cfg.datasource.bird_scale = float(normalization.max('birds'))
+        cfg.datasource.bird_scale = float(normalization.max(input_col))
     else:
-        cfg.datasource.bird_scale = float(normalization.root_max('birds', cfg.root_transform))
+        cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
@@ -235,13 +243,21 @@ def test(cfg: DictConfig, output_dir: str, log):
     # directory from which trained model is loaded
     model_dir = osp.join(train_dir, json.dumps(hp_settings))
 
+    if cfg.edge_type == 'voronoi':
+        if cfg.use_buffers:
+            input_col = 'birds_from_buffer'
+        else:
+            input_col = 'birds'
+    else:
+        input_col = 'birds_km2'
+
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
     if cfg.root_transform == 0:
-        cfg.datasource.bird_scale = float(normalization.max('birds'))
+        cfg.datasource.bird_scale = float(normalization.max(input_col))
     else:
-        cfg.datasource.bird_scale = float(normalization.root_max('birds', cfg.root_transform))
+        cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
@@ -310,6 +326,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 local_deltas = model.local_deltas.cpu()
 
             for ridx, name in radar_index.items():
+                print(data.areas[ridx].cpu())
                 results['gt'].append(y[ridx, context:])
                 results['gt_km2'].append(y[ridx, context:] / data.areas[ridx].cpu())
                 results['prediction'].append(y_hat[ridx, :])

@@ -45,7 +45,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
 
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
 
     all_y = []
     all_masks = []
@@ -95,7 +95,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
 
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),

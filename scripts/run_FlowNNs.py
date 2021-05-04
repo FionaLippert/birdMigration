@@ -76,12 +76,20 @@ def train(cfg: DictConfig, output_dir: str, log):
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    if cfg.edge_type == 'voronoi':
+        if cfg.use_buffers:
+            input_col = 'birds_from_buffer'
+        else:
+            input_col = 'birds'
+    else:
+        input_col = 'birds_km2'
+
+    cfg.datasource.bird_scale = float(normalization.max(input_col))
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    cfg.datasource.bird_scale = float(normalization.max(input_col))
 
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year), cfg.season, seq_len,
@@ -222,10 +230,18 @@ def test(cfg: DictConfig, output_dir: str, log):
     # directory from which model is loaded
     model_dir = osp.join(train_dir, json.dumps(hp_settings))
 
+    if cfg.edge_type == 'voronoi':
+        if cfg.use_buffers:
+            input_col = 'birds_from_buffer'
+        else:
+            input_col = 'birds'
+    else:
+        input_col = 'birds_km2'
+
     # load normalizer
     with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
-    cfg.datasource.bird_scale = float(normalization.max('birds'))
+    cfg.datasource.bird_scale = float(normalization.max(input_col))
 
     # load test data
     test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
