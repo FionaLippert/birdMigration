@@ -851,7 +851,6 @@ class BirdFluxGraphLSTM(MessagePassing):
                               night_i.float().view(-1, 1), night_j.float().view(-1, 1),
                               dusk_i.float().view(-1, 1), dusk_j.float().view(-1, 1),
                               dawn_i.float().view(-1, 1), dawn_j.float().view(-1, 1)]
-        print([f.shape for f in features])
         features = torch.cat(features, dim=1)
 
 
@@ -896,8 +895,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.local_deltas[..., t] = delta
 
         self.fluxes[..., t] = aggr_out
-        print(boundary.shape, aggr_out.shape)
-        pred = x + delta + ~boundary * aggr_out # take messages into account for inner cells only
+        pred = x + delta + ~boundary.view(-1, 1) * aggr_out # take messages into account for inner cells only
 
         return pred, h_t, c_t
 
