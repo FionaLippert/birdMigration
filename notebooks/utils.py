@@ -35,11 +35,11 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         ax[midx].set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale, prediction_col='prediction', boundary=[]):
+def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
     if row['missing'] or row['radar'] in boundary:
         return np.nan
     else:
-        return ((row['gt'] - row[prediction_col] * row['night']) / bird_scale) ** 2
+        return ((row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale) ** 2
 
 def plot_errors(results, bird_scales):
     fig, ax = plt.subplots(figsize=(15, 6))
@@ -126,13 +126,11 @@ def residuals_corr_vs_distance(results, bird_scales, model, radar_df):
             corr.append(r)
             coord1 = np.array([radar_df.query(f'radar == "{r1}"').x, radar_df.query(f'radar == "{r1}"').y])
             coord2 = np.array([radar_df.query(f'radar == "{r2}"').x, radar_df.query(f'radar == "{r2}"').y])
-            dist.append(np.linalg.norm([coord1 - coord2]))
+            dist.append(np.linalg.norm([coord1 - coord2])/1000)
 
     fig, ax = plt.subplots(figsize=(10, 8))
     ax.scatter(dist, corr)
-    ax.set(title=model, xlabel='distance between radars', ylabel='correlation coefficient')
-    ax.set_yticklabels(radars, rotation=0)
-    ax.set_xticklabels(radars, rotation=90)
+    ax.set(title=model, xlabel='distance between radars [km]', ylabel='correlation coefficient')
     return fig
 
 def plot_average_errors(results, bird_scales, boundary=[]):
