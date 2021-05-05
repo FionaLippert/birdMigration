@@ -282,6 +282,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
     areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
+    print(areas)
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict

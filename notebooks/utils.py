@@ -41,6 +41,12 @@ def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
     else:
         return ((row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale) ** 2
 
+def compute_error(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
+    if row['missing'] or row['radar'] in boundary:
+        return np.nan
+    else:
+        return (row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale
+
 def plot_errors(results, bird_scales={}):
     fig, ax = plt.subplots(figsize=(15, 6))
     for idx, m in enumerate(results.keys()):
@@ -72,20 +78,18 @@ def plot_errors(results, bird_scales={}):
     ax.set(xlabel='forecast horizon [h]', ylabel='RMSE')#, ylim=(0, 0.1))
     return fig
 
-def plot_errors_per_radar(results, bird_scales, model):
+def plot_errors_per_radar(results, model, bird_scales={}):
     fig, ax = plt.subplots(figsize=(15, 6))
 
-    results[model]['error'] = results[model].apply(lambda row: compute_mse(row, bird_scales[model]), axis=1)
-    rmse = results[model].groupby('radar').error.aggregate(np.nanmean).apply(np.sqrt)
-    radars = list(results[model].groupby('radar').groups.keys())
+    results[model]['error'] = results[model].apply(lambda row: compute_error(row, bird_scales.get(model, 1)),
+                                                   axis=1)
 
-    df = pd.DataFrame(dict(RMSE=rmse, radar=radars))
-    sb.barplot(x='radar', y='RMSE', data=df, capsize=.2, ci='sd', ax=ax)
+    sb.barplot(x='radar', y='error', data=results[model].dropna(), ax=ax, color='#6699cc')
     plt.grid()
-    ax.set(ylabel='RMSE')
+    ax.set(ylabel='residuals')
     return fig
 
-def residuals_corr(results, bird_scales, models, radar_df):
+def residuals_corr(results, models, radar_df, bird_scales={}):
     #radars = results[model].radar.unique()
     radars = radar_df.sort_values(by=['lat'], ascending=False).radar.values
     N = len(radars)
@@ -93,16 +97,16 @@ def residuals_corr(results, bird_scales, models, radar_df):
     fig, ax = plt.subplots(1, len(models), figsize=(10*len(models), 8))
     for i, m in enumerate(models):
         corr = np.zeros((N, N))
-        for i, r1 in enumerate(radars):
-            for j, r2 in enumerate(radars):
-                data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales[m]),
+        for ri, r1 in enumerate(radars):
+            for rj, r2 in enumerate(radars):
+                data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales.get(m, 1)),
                                                                        axis=1).to_numpy()
-                data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales[m]),
+                data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales.get(m, 1)),
                                                                        axis=1).to_numpy()
 
                 mask = np.logical_and(np.isfinite(data1), np.isfinite(data2))
                 r, p = sp.stats.pearsonr(data1[mask], data2[mask])
-                corr[i, j] = r
+                corr[ri, rj] = r
 
 
         sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax[i])
@@ -118,9 +122,9 @@ def residuals_corr_vs_distance(results, bird_scales, models, radar_df):
     for i, m in enumerate(models):
         corr = []
         dist = []
-        for i, r1 in enumerate(radars):
-            for j in range(i):
-                r2 = radars[j]
+        for ri, r1 in enumerate(radars):
+            for rj in range(i):
+                r2 = radars[rj]
                 data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales[m]),
                                                                        axis=1).to_numpy()
                 data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales[m]),
@@ -156,7 +160,7 @@ def plot_average_errors(results, bird_scales={}, boundary=[]):
         rmse = results[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
-        print(np.mean(rmse), np.std(rmse))
+        #print(np.mean(rmse), np.std(rmse))
 
     df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
     g = sb.barplot(x='model', y='RMSE', data=df, ci='sd', ax=ax)
