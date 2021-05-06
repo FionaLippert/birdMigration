@@ -287,7 +287,6 @@ def test(cfg: DictConfig, output_dir: str, log):
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
     areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
-    print(areas)
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
@@ -357,6 +356,9 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.model.name == 'BirdFluxGraphLSTM':
         with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
             pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
+
+    with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
+        pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
 
     # create dataframe containing all results
     for k, v in results.items():

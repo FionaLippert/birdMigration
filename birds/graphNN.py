@@ -1444,9 +1444,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         reverse_fluxes = fluxes.permute(1, 0, 2)
         deltas = fluxes + reverse_fluxes
-        target = torch.zeros(deltas.shape).to(device)
+        _, deltas = dense_to_sparse(deltas)
 
-        constraints = torch.mean((deltas - target)**2)
+        constraints = torch.mean(deltas**2)
         if daymask:
             mask = data.local_night & ~data.missing
         else:
