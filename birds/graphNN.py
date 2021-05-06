@@ -874,6 +874,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             #flux[self.mask_back] = - flux[self.mask_forth]
             print(edge_index)
             print(self.edges)
+            flux = A_flux[self.edges[0], self.edges[1]]
+            print(flux)
             assert 0
 
         self.local_fluxes[..., t] = flux
