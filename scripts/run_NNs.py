@@ -353,9 +353,9 @@ def test(cfg: DictConfig, output_dir: str, log):
                     results['fluxes'].append(fluxes[ridx].view(-1))
                     results['local_deltas'].append(local_deltas[ridx].view(-1))
 
-    if cfg.model.name == 'BirdFluxGraphLSTM':
-        with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
-            pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
+        if cfg.model.name == 'BirdFluxGraphLSTM':
+            with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
+                pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
 
     with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
