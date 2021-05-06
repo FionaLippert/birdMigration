@@ -828,7 +828,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 t=t-self.t_context,
                                                 boundary=data.boundary,
                                                 night=data.local_night[:, t],
-                                                night_previous=data.local_night[:, t])
+                                                night_previous=data.local_night[:, t-1])
 
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes

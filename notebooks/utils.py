@@ -12,16 +12,21 @@ import seaborn as sb
 import scipy as sp
 import pandas as pd
 
-def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False):
+def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False, trial='all', boundary=[]):
 
     fig, ax = plt.subplots(1, len(results), figsize=(len(results) * 6, 6))
     for midx, m in enumerate(results.keys()):
-        gt = results[m]['gt_km2']
-        mask = results[m]['night'] & ~results[m]['missing'] & results[m]['gt_km2'] > min
+        if type(trial) == int:
+            df = results[m].query(f'trial == {trial}')
+        else:
+            df = results[m]
+        df = df[~df.radar.isin(boundary)]
+        gt = df['gt_km2']
+        mask = df['night'] & ~df['missing'] & df['gt_km2'] > min
         gt = gt[mask].values
         gt = np.power(gt, 1/root_transform)
 
-        pred = results[m]['prediction_km2']
+        pred = df['prediction_km2']
         pred = pred[mask].values
         pred = np.power(np.maximum(pred, 0), 1/root_transform)
 
