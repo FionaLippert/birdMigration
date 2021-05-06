@@ -25,7 +25,7 @@ def MSE(output, gt, mask):
     return mse
 
 def MSE_root_transformed(output, gt, mask, root=3):
-    errors = (torch.pow(output, 1/root) - torch.pow(gt, 1/root))**2
+    errors = (torch.pow(output.relu(), 1/root) - torch.pow(gt, 1/root))**2
     errors = errors[mask]
     mse = errors.mean()
     return mse

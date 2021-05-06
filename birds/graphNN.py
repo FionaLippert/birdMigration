@@ -1108,6 +1108,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             birds = self.mlp_aggr(aggr_out).sigmoid()
             pred = birds + delta
 
+
         self.fluxes[..., t] = flux
         self.local_deltas[..., t] = delta
 
