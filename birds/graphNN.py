@@ -732,6 +732,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
+        self.enforce_conservation = kwargs.get('enforce_conservation', False)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -863,13 +864,14 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         flux = self.fc_edge_out(flux) #.tanh()
 
-        # # enforce fluxes to be symmetric along edges
-        # A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
-        # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
-        # A_flux = A_flux - A_flux.T
-        # edge_index, flux = dense_to_sparse(A_flux)
-        # flux = flux.view(-1, 1)
-        # #flux[self.mask_back] = - flux[self.mask_forth]
+        if self.enforce_conservation:
+            # enforce fluxes to be symmetric along edges
+            A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
+            A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
+            A_flux = A_flux - A_flux.T
+            edge_index, flux = dense_to_sparse(A_flux)
+            flux = flux.view(-1, 1)
+            #flux[self.mask_back] = - flux[self.mask_forth]
 
         self.local_fluxes[..., t] = flux
 

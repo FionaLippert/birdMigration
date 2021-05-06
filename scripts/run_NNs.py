@@ -48,6 +48,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
     fixed_boundary = cfg.model.get('fixed_boundary', False)
+    enforce_conservation = cfg.model.get('enforce_conservation', False)
 
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
 
@@ -144,7 +145,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                           n_env=2+len(cfg.datasource.env_vars),
                           fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0),
                           edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
-                          use_acc_vars=cfg.model.get('use_acc_vars', False))
+                          use_acc_vars=cfg.model.get('use_acc_vars', False),
+                          enforce_conservation=enforce_conservation)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
