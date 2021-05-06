@@ -869,14 +869,10 @@ class BirdFluxGraphLSTM(MessagePassing):
             A_flux = to_dense_adj(self.edges, edge_attr=flux).squeeze()
             A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
             A_flux = A_flux - A_flux.T
-            edge_index, flux = dense_to_sparse(A_flux)
-            flux = flux.view(-1, 1)
-            #flux[self.mask_back] = - flux[self.mask_forth]
-            print(edge_index)
-            print(self.edges)
+            #edge_index, flux = dense_to_sparse(A_flux)
+
             flux = A_flux[self.edges[0], self.edges[1]]
-            print(flux)
-            assert 0
+            flux = flux.view(-1, 1)
 
         self.local_fluxes[..., t] = flux
 
