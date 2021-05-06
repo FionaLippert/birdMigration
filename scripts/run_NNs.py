@@ -3,6 +3,7 @@ from birds.graphNN import *
 import torch
 from torch.optim import lr_scheduler
 from torch_geometric.data import DataLoader
+from torch_geometric.utils import to_dense_adj
 from omegaconf import DictConfig, OmegaConf
 import hydra
 import itertools as it
@@ -22,6 +23,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'GraphLSTM': BirdDynamicsGraphLSTM,
                  'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
                  'BirdFluxGraphLSTM': BirdFluxGraphLSTM}
+
 
 
 
@@ -116,7 +118,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
 
-
+    if cfg.get('root_transformed_loss', False):
+        loss_func = utils.MSE_root_transformed
+    else:
+        loss_func = utils.MSE
 
     best_val_loss = np.inf
     best_hp_settings = None
@@ -148,17 +153,17 @@ def train(cfg: DictConfig, output_dir: str, log):
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
                 if cfg.model.name == 'BirdFluxGraphLSTM':
-                    loss = train_fluxes(model, train_loader, optimizer, utils.MSE, device,
+                    loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                         conservation_constraint=hp_settings['conservation_constraint'],
                                         teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0))
                 else:
-                    loss = train_dynamics(model, train_loader, optimizer, utils.MSE, device, teacher_forcing=tf,
+                    loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                                       daymask=cfg.model.get('force_zeros', 0))
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 model.eval()
-                val_loss = test_dynamics(model, val_loader, utils.MSE, device, bird_scale=1,
+                val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
                                          daymask=cfg.model.get('force_zeros', 0))
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
@@ -307,6 +312,8 @@ def test(cfg: DictConfig, output_dir: str, log):
         #     if param.requires_grad:
         #         print(name, param.data)
 
+        local_fluxes = {}
+
         for nidx, data in enumerate(test_loader):
             nidx += seq_shift
             data = data.to(device)
@@ -325,6 +332,9 @@ def test(cfg: DictConfig, output_dir: str, log):
             if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
+            if cfg.model.name == 'BirdFluxGraphLSTM':
+                local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
+                                    data.num_nodes, data.num_nodes, -1).cpu()
 
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, context:])
@@ -344,6 +354,9 @@ def test(cfg: DictConfig, output_dir: str, log):
                     results['fluxes'].append(fluxes[ridx].view(-1))
                     results['local_deltas'].append(local_deltas[ridx].view(-1))
 
+    if cfg.model.name == 'BirdFluxGraphLSTM':
+        with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
+            pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
 
     # create dataframe containing all results
     for k, v in results.items():

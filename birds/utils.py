@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import pyplot as plt
 import os.path as osp
+import torch
 
 def val_test_split(dataloader, val_ratio, random_seed):
     rng = np.random.default_rng(random_seed)
@@ -19,6 +20,12 @@ def val_test_split(dataloader, val_ratio, random_seed):
 
 def MSE(output, gt, mask):
     errors = (output - gt)**2
+    errors = errors[mask]
+    mse = errors.mean()
+    return mse
+
+def MSE_root_transformed(output, gt, mask, root=3):
+    errors = (torch.pow(output, 1/root) - torch.pow(gt, 1/root))**2
     errors = errors[mask]
     mse = errors.mean()
     return mse

@@ -35,8 +35,8 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         ax[midx].set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
-    if row['missing'] or row['radar'] in boundary:
+def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[], bird_thr=0):
+    if row['missing'] or (row['radar'] in boundary) or row['gt_km2'] < bird_thr:
         return np.nan
     else:
         return ((row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale) ** 2
@@ -47,13 +47,15 @@ def compute_error(row, bird_scale, prediction_col='prediction_km2', boundary=[])
     else:
         return (row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale
 
-def plot_errors(results, bird_scales={}):
+def plot_errors(results, bird_scales={}, boundary=[], bird_thr=0):
     fig, ax = plt.subplots(figsize=(15, 6))
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
 
             results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                                    'constant_prediction'), axis=1)
+                                                                                    'constant_prediction',
+                                                                                    boundary=boundary,
+                                                                                    bird_thr=bird_thr), axis=1)
             mse = results[m].groupby(['horizon', 'trial']).constant_error.mean().apply(np.sqrt)
             mean_mse = mse.groupby('horizon').aggregate(np.mean)
             ax.plot(mean_mse, label='constant prediction')
@@ -65,7 +67,9 @@ def plot_errors(results, bird_scales={}):
             for i, tidx in enumerate(start_night):
                 ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
 
-        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1)), axis=1)
+        results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
+                                                                       boundary=boundary,
+                                                                       bird_thr=bird_thr), axis=1)
         mse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
         std_mse = mse.groupby('horizon').aggregate(np.nanstd)
@@ -99,9 +103,9 @@ def residuals_corr(results, models, radar_df, bird_scales={}):
         corr = np.zeros((N, N))
         for ri, r1 in enumerate(radars):
             for rj, r2 in enumerate(radars):
-                data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales.get(m, 1)),
+                data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_error(row, bird_scales.get(m, 1)),
                                                                        axis=1).to_numpy()
-                data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales.get(m, 1)),
+                data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_error(row, bird_scales.get(m, 1)),
                                                                        axis=1).to_numpy()
 
                 mask = np.logical_and(np.isfinite(data1), np.isfinite(data2))
@@ -115,7 +119,7 @@ def residuals_corr(results, models, radar_df, bird_scales={}):
         ax[i].set_xticklabels(radars, rotation=90)
     return fig
 
-def residuals_corr_vs_distance(results, bird_scales, models, radar_df):
+def residuals_corr_vs_distance(results, models, radar_df, bird_scales={}):
     #radars = results[model].radar.unique()
     radars = radar_df.sort_values(by=['lat'], ascending=False).radar.values
     fig, ax = plt.subplots(1, len(models), figsize=(10 * len(models), 8))
@@ -123,11 +127,11 @@ def residuals_corr_vs_distance(results, bird_scales, models, radar_df):
         corr = []
         dist = []
         for ri, r1 in enumerate(radars):
-            for rj in range(i):
+            for rj in range(ri):
                 r2 = radars[rj]
-                data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_mse(row, bird_scales[m]),
+                data1 = results[m].query(f'radar == "{r1}"').apply(lambda row: compute_error(row, bird_scales.get(m, 1)),
                                                                        axis=1).to_numpy()
-                data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_mse(row, bird_scales[m]),
+                data2 = results[m].query(f'radar == "{r2}"').apply(lambda row: compute_error(row, bird_scales.get(m, 1)),
                                                                        axis=1).to_numpy()
 
                 mask = np.logical_and(np.isfinite(data1), np.isfinite(data2))
@@ -141,7 +145,7 @@ def residuals_corr_vs_distance(results, bird_scales, models, radar_df):
         ax[i].set(title=m, xlabel='distance between radars [km]', ylabel='correlation coefficient')
     return fig
 
-def plot_average_errors(results, bird_scales={}, boundary=[]):
+def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(3*len(results), 4))
     rmse_list = []
@@ -149,14 +153,14 @@ def plot_average_errors(results, bird_scales={}, boundary=[]):
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
             results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                'constant_prediction', boundary=boundary), axis=1)
+                                                                'constant_prediction', boundary=boundary, bird_thr=bird_thr), axis=1)
             rmse = results[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
             rmse_list.append(rmse.values)
             labels.append(['constant'] * len(rmse))
 
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                       boundary=boundary), axis=1)
+                                                                       boundary=boundary, bird_thr=bird_thr), axis=1)
         rmse = results[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
@@ -172,7 +176,7 @@ def plot_average_errors(results, bird_scales={}, boundary=[]):
     ax.set(ylabel='RMSE')
     return fig
 
-def plot_average_errors_comparison(models, results1, results2, bird_scales1, bird_scales2, group_names):
+def plot_average_errors_comparison(models, results1, results2, group_names, bird_scales1={}, bird_scales2={}):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(10, 4))
     rmse_list = []
@@ -180,10 +184,10 @@ def plot_average_errors_comparison(models, results1, results2, bird_scales1, bir
     groups = []
     for idx, m in enumerate(models):
         if m == 'GAM':
-            results1[m]['constant_prediction_other'] = results2[m]['constant_prediction'] / bird_scales2[m] * bird_scales1[m]
-            results1[m]['constant_error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m],
+            results1[m]['constant_prediction_other'] = results2[m]['constant_prediction'] / bird_scales2.get(m,1) * bird_scales1.get(m, 1)
+            results1[m]['constant_error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
                                                                                     'constant_prediction'), axis=1)
-            results1[m]['constant_error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m],
+            results1[m]['constant_error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
                                                                          'constant_prediction_other'), axis=1)
             rmse = results1[m].groupby(['trial']).constant_error.mean().apply(np.sqrt)
             rmse_list.append(rmse.values)
@@ -196,14 +200,14 @@ def plot_average_errors_comparison(models, results1, results2, bird_scales1, bir
             groups.append([group_names[1]] * len(rmse))
 
 
-        results1[m]['error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m]), axis=1)
+        results1[m]['error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1)), axis=1)
         rmse = results1[m].groupby(['trial']).error.mean().apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
         groups.append([group_names[0]] * len(rmse))
 
-        results1[m]['prediction_other'] = results2[m]['prediction'] / bird_scales2[m] * bird_scales1[m]
-        results1[m]['error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1[m],
+        results1[m]['prediction_other'] = results2[m]['prediction_km2'] / bird_scales2.get(m, 1) * bird_scales1.get(m, 1)
+        results1[m]['error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
                                                                                'prediction_other'), axis=1)
         rmse = results1[m].groupby(['trial']).error_other.mean().apply(np.sqrt)
         rmse_list.append(rmse.values)
@@ -216,7 +220,7 @@ def plot_average_errors_comparison(models, results1, results2, bird_scales1, bir
     plt.grid()
     return fig
 
-def plot_example_prediction(results, radar, seqID, bird_scales={}, max=1):
+def plot_example_prediction(results, radar, seqID, bird_scales={}, max=1, min=0):
 
     fig, ax = plt.subplots(figsize=(15, 6))
     for i, m in enumerate(results.keys()):
@@ -240,7 +244,7 @@ def plot_example_prediction(results, radar, seqID, bird_scales={}, max=1):
     start_night = np.where(r0['night'].iloc[:-1].values & ~r0['night'].iloc[1:].values)[0]
     for i, tidx in enumerate(start_night):
         ax.fill_between([tidx + 1, end_night[i]], 0, max, color='lightgray')
-    ax.set(ylim=(0, max), xlim=(-1, 40), xlabel='forcasting horizon [h]', ylabel='normalized bird density')
+    ax.set(ylim=(min, max), xlim=(-1, 40), xlabel='forcasting horizon [h]', ylabel='bird density')
     ax.set_title(f'{r0.datetime.values[0]} to {r0.datetime.values[-1]}')
     plt.legend()
     return fig
