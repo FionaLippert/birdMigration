@@ -872,6 +872,9 @@ class BirdFluxGraphLSTM(MessagePassing):
             edge_index, flux = dense_to_sparse(A_flux)
             flux = flux.view(-1, 1)
             #flux[self.mask_back] = - flux[self.mask_forth]
+            print(edge_index)
+            print(self.edges)
+            assert 0
 
         self.local_fluxes[..., t] = flux
 
