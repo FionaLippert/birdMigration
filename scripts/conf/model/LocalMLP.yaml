@@ -29,3 +29,4 @@ epochs: 100
 horizon: 24
 force_zeros: false
 use_acc_vars: true
+root_transformed_loss: false

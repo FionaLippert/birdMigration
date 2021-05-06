@@ -45,3 +45,4 @@ fixed_boundary: false
 force_zeros: false
 use_encoder: true
 context: 24
+root_transformed_loss: true

@@ -118,7 +118,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
 
-    if cfg.get('root_transformed_loss', False):
+    if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
     else:
         loss_func = utils.MSE

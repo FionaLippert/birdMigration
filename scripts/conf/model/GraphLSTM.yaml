@@ -44,4 +44,5 @@ context: 24
 fixed_boundary: false
 force_zeros: false
 use_encoder: false
+root_transformed_loss: true
 
