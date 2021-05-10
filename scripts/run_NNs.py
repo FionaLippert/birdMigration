@@ -19,6 +19,7 @@ import pandas as pd
 
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
+                 'LSTM': LSTM,
                  'LocalLSTM': LocalLSTM,
                  'GraphLSTM': BirdDynamicsGraphLSTM,
                  'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
