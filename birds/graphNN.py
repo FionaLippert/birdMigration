@@ -1066,7 +1066,7 @@ class BlackBoxGraphLSTM(MessagePassing):
 
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
-
+        print(aggr_out.shape)
         if self.edge_type == 'voronoi':
             inputs = torch.cat([aggr_out, coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
                                 dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
