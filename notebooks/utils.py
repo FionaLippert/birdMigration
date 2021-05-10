@@ -119,12 +119,14 @@ def residuals_corr(results, models, radar_df, bird_scales={}):
 
 
         if len(models) == 1:
-            sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax)
+            axis = ax
         else:
-            sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax[i])
-        ax[i].set(title=m)
-        ax[i].set_yticklabels(radars, rotation=0)
-        ax[i].set_xticklabels(radars, rotation=90)
+            axis = ax[i]
+
+        sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=axis)
+        axis.set(title=m)
+        axis.set_yticklabels(radars, rotation=0)
+        axis.set_xticklabels(radars, rotation=90)
     return fig
 
 def residuals_corr_vs_distance(results, models, radar_df, bird_scales={}):

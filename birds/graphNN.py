@@ -1047,6 +1047,7 @@ class BlackBoxGraphLSTM(MessagePassing):
         features = [h_t_i[-1], h_t_j[-1], coords_i, coords_j, env_i, env_previous_j, edge_attr,
                               night_i.float().view(-1, 1), night_previous_j.float().view(-1, 1)]
         features = torch.cat(features, dim=1)
+        print(features.shape)
 
 
         msg = self.fc_edge_in(features).relu()
@@ -1057,6 +1058,7 @@ class BlackBoxGraphLSTM(MessagePassing):
             msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
         msg = self.fc_edge_out(msg) #.tanh()
+        print(msg.shape)
 
         return msg
 
@@ -1070,6 +1072,7 @@ class BlackBoxGraphLSTM(MessagePassing):
             inputs = torch.cat([aggr_out, coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs).relu()
+        print(inputs.shape)
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
