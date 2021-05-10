@@ -1190,9 +1190,9 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
 
         node_states = torch.cat([x, data.env[..., 0],
-                                 data.night[..., 0].float().view(-1, 1),
-                                 data.dusk[..., 0].float().view(-1, 1),
-                                 data.dawn[..., 0].float().view(-1, 1)], dim=1)
+                                 data.local_night[..., 0].float().view(-1, 1),
+                                 data.local_dusk[..., 0].float().view(-1, 1),
+                                 data.local_dawn[..., 0].float().view(-1, 1)], dim=1)
         h_t[0] = self.node2hidden(node_states)
         c_t[0] = self.node2hidden(node_states)
 
