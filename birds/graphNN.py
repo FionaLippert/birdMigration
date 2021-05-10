@@ -864,18 +864,18 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         flux = self.fc_edge_out(flux) #.tanh()
 
-        # if self.enforce_conservation:
-        #     # enforce fluxes to be symmetric along edges
-        #     flux = flux.relu() # bird density flying from node j to node i should be positive
-        #     A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
-        #     A_outflux = A_influx.T # matrix of outfluxes
-        #     A_flux = A_influx - A_outflux # matrix of total fluxes
-        #     # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
-        #     # A_flux = A_flux - A_flux.T
-        #     #edge_index, flux = dense_to_sparse(A_flux)
-        #
-        #     flux = A_flux[self.edges[0], self.edges[1]]
-        #     flux = flux.view(-1, 1)
+        if self.enforce_conservation:
+            # enforce fluxes to be symmetric along edges
+            flux = flux.relu() # bird density flying from node j to node i should be positive
+            A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
+            A_outflux = A_influx.T # matrix of outfluxes
+            A_flux = A_influx - A_outflux # matrix of total fluxes
+            # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
+            # A_flux = A_flux - A_flux.T
+            #edge_index, flux = dense_to_sparse(A_flux)
+
+            flux = A_flux[self.edges[0], self.edges[1]]
+            flux = flux.view(-1, 1)
 
         self.local_fluxes[..., t] = flux
 
