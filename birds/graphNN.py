@@ -863,11 +863,10 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_edge_out(flux) #.tanh()
-        print(flux)
 
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
-            flux = flux.relu() # bird density flying from node j to node i should be positive
+            flux = flux.sigmoid() # bird density flying from node j to node i should be positive
             A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             A_outflux = A_influx.T # matrix of outfluxes
             A_flux = A_influx - A_outflux # matrix of total fluxes
