@@ -227,7 +227,9 @@ class Spatial:
 
         rad = np.arctan2(y, x)
         deg = np.rad2deg(rad)
-        deg = (deg + 360) % 360
+
+        # make sure angle is between 0 and 360 degree
+        deg = (deg + 180) % 360 + 180
 
         return deg
 
