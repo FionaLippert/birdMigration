@@ -20,12 +20,12 @@ def run(cfg: DictConfig):
             run_GBT.run(cfg, output_dir, log)
         elif cfg.model.name == 'GAM':
             run_GAM.run(cfg, output_dir, log)
-        elif cfg.model.name in ['LSTM', 'LocalMLP', 'LocalLSTM', 'GraphLSTM', 'GraphLSTM_transformed', 'BirdFluxGraphLSTM']:
-            run_NNs.run(cfg, output_dir, log)
         elif cfg.model.name in ['BirdFlowGraphLSTM']:
             run_FlowNNs.run(cfg, output_dir, log)
         elif cfg.model.name == 'HA':
             run_HA.run(cfg, output_dir, log)
+        else:
+            run_NNs.run(cfg, output_dir, log)
 
     except Exception:
         print(traceback.format_exc(), file=log)

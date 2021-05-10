@@ -118,7 +118,10 @@ def residuals_corr(results, models, radar_df, bird_scales={}):
                 corr[ri, rj] = r
 
 
-        sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax[i])
+        if len(models) == 1:
+            sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax)
+        else:
+            sb.heatmap(pd.DataFrame(corr), cmap='RdBu_r', ax=ax[i])
         ax[i].set(title=m)
         ax[i].set_yticklabels(radars, rotation=0)
         ax[i].set_xticklabels(radars, rotation=90)
