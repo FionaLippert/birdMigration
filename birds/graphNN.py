@@ -37,16 +37,16 @@ class LSTM(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_in = 5 + kwargs.get('n_env', 4)
-        self.n_out = kwargs.get('n_nodes', 22)
+        self.n_nodes = kwargs.get('n_nodes', 22)
         self.n_layers = kwargs.get('n_layers', 1)
         self.force_zeros = kwargs.get('force_zeros', False)
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
 
-        self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.fc_in = torch.nn.Linear(self.n_in*self.n_nodes, self.n_hidden)
         self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(self.n_hidden, self.n_hidden) for l in range(self.n_layers)])
-        self.fc_out = torch.nn.Linear(self.n_hidden, self.n_out)
+        self.fc_out = torch.nn.Linear(self.n_hidden, self.n_nodes)
 
 
     def forward(self, data, teacher_forcing=0):
