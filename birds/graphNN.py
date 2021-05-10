@@ -944,7 +944,7 @@ class BlackBoxGraphLSTM(MessagePassing):
         self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                              for _ in range(self.n_fc_layers - 1)])
-        self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+        self.fc_edge_out = torch.nn.Linear(self.n_hidden, self.n_hidden)
 
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
@@ -1049,7 +1049,6 @@ class BlackBoxGraphLSTM(MessagePassing):
         features = [h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr,
                               night_i.float().view(-1, 1), night_previous_j.float().view(-1, 1)]
         features = torch.cat(features, dim=1)
-        print(features.shape)
 
 
         msg = self.fc_edge_in(features).relu()
@@ -1060,13 +1059,11 @@ class BlackBoxGraphLSTM(MessagePassing):
             msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
         msg = self.fc_edge_out(msg) #.tanh()
-        print(msg.shape)
 
         return msg
 
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
-        print(aggr_out.shape)
         if self.edge_type == 'voronoi':
             inputs = torch.cat([aggr_out, coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
                                 dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
@@ -1074,7 +1071,6 @@ class BlackBoxGraphLSTM(MessagePassing):
             inputs = torch.cat([aggr_out, coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs).relu()
-        print(inputs.shape)
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
