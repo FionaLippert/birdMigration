@@ -1013,7 +1013,9 @@ class BlackBoxGraphLSTM(MessagePassing):
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
-                                                h_t=h_t, c_t=c_t, areas=data.areas,
+                                                h_t=h_t, c_t=c_t,
+                                                h=h_t[-1],
+                                                areas=data.areas,
                                                 edge_attr=edge_attr,
                                                 dusk=data.local_dusk[:, t-1],
                                                 dawn=data.local_dawn[:, t],
@@ -1037,14 +1039,14 @@ class BlackBoxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, h_t_i, h_t_j, coords_i, coords_j, env_i, env_previous_j, edge_attr, t,
+    def message(self, h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr, t,
                 night_i, night_previous_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
 
-        features = [h_t_i[-1], h_t_j[-1], coords_i, coords_j, env_i, env_previous_j, edge_attr,
+        features = [h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr,
                               night_i.float().view(-1, 1), night_previous_j.float().view(-1, 1)]
         features = torch.cat(features, dim=1)
         print(features.shape)
