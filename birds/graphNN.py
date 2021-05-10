@@ -1131,6 +1131,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 4 + kwargs.get('n_env', 4)
+        self.n_node_features_in = 4 + kwargs.get('n_env', 4)
         self.n_edge_in = 6 + 2*kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
@@ -1139,7 +1140,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
-            self.n_node_in += 1
+            self.n_node_features_in += 1
             self.n_edge_in += 1
 
         torch.manual_seed(kwargs.get('seed', 1234))
@@ -1158,7 +1159,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
                                                torch.nn.ReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
-        self.input2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+        self.input2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_features_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
                                                torch.nn.ReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
