@@ -79,6 +79,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      n_dummy_radars=cfg.n_dummy_radars)
                   for year in cfg.datasource.training_years]
     boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
+    n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
 
@@ -143,6 +144,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             print(cfg.datasource.env_vars)
             model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
                           n_env=2+len(cfg.datasource.env_vars),
+                          n_nodes=n_nodes,
                           fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0),
                           edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
                           use_acc_vars=cfg.model.get('use_acc_vars', False),

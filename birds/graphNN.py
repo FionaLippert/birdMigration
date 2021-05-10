@@ -30,18 +30,23 @@ class LSTM(torch.nn.Module):
        out_channels (int): number of nodes x number of outputs per node
        timesteps (int): length of forecasting horizon
    """
-    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, n_layers=1, dropout_p=0, seed=1234):
+    def __init__(self, **kwargs):
         super(LSTM, self).__init__()
 
-        torch.manual_seed(seed)
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_in = 5 + kwargs.get('n_env', 4)
+        self.n_out = kwargs.get('n_nodes', 22)
+        self.n_layers = kwargs.get('n_layers', 1)
+        self.force_zeros = kwargs.get('force_zeros', False)
 
-        self.fc_in = torch.nn.Linear(in_channels, hidden_channels)
-        self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(hidden_channels, hidden_channels) for l in range(n_layers)])
-        self.fc_out = torch.nn.Linear(hidden_channels, out_channels)
+        torch.manual_seed(kwargs.get('seed', 1234))
 
-        self.timesteps = timesteps
-        self.hidden_channels = hidden_channels
-        self.n_layers = n_layers
+
+        self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(self.n_hidden, self.n_hidden) for l in range(self.n_layers)])
+        self.fc_out = torch.nn.Linear(self.n_hidden, self.n_out)
 
 
     def forward(self, data, teacher_forcing=0):
@@ -49,8 +54,8 @@ class LSTM(torch.nn.Module):
         x = data.x[:, 0]
         # states = torch.zeros(1, self.hidden_channels).to(x.device)
         # hidden = torch.zeros(1, self.hidden_channels).to(x.device)
-        h_t = [torch.zeros(1, self.hidden_channels).to(x.device) for l in range(self.n_layers)]
-        c_t = [torch.zeros(1, self.hidden_channels).to(x.device) for l in range(self.n_layers)]
+        h_t = [torch.zeros(1, self.n_hidden).to(x.device) for l in range(self.n_layers)]
+        c_t = [torch.zeros(1, self.n_hidden).to(x.device) for l in range(self.n_layers)]
 
         #hidden = None
 
@@ -65,6 +70,7 @@ class LSTM(torch.nn.Module):
             inputs = torch.cat([data.coords.flatten(),
                                 data.env[..., t+1].flatten(),
                                 data.local_dusk[:, t].float().flatten(),
+                                data.local_dawn[:, t+1].float().flatten(),
                                 x], dim=0).view(1, -1)
 
             # multi-layer LSTM
@@ -73,10 +79,11 @@ class LSTM(torch.nn.Module):
             for l in range(1, self.n_layers):
                 h_t[l], c_t[l] = self.lstm_layers[l](h_t[l-1], (h_t[l], c_t[l]))
 
-            x = self.fc_out(h_t[-1]).sigmoid().view(-1)
+            x = x + self.fc_out(h_t[-1]).tanh().view(-1)
 
-            # for locations where it is night: set birds in the air to zero
-            x = x * data.local_night[:, t+1]
+            if self.force_zeros:
+                # for locations where it is night: set birds in the air to zero
+                x = x * data.local_night[:, t+1]
 
             y_hat.append(x)
 
