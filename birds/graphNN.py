@@ -878,7 +878,6 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = flux.view(-1, 1)
 
         self.local_fluxes[..., t] = flux
-        assert 0
 
         return flux
 
