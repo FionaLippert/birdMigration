@@ -863,6 +863,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_edge_out(flux) #.tanh()
+        print(flux)
 
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
@@ -870,6 +871,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             A_outflux = A_influx.T # matrix of outfluxes
             A_flux = A_influx - A_outflux # matrix of total fluxes
+            print(A_influx)
+            print(A_flux)
             # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
             # A_flux = A_flux - A_flux.T
             #edge_index, flux = dense_to_sparse(A_flux)
@@ -878,6 +881,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = flux.view(-1, 1)
 
         self.local_fluxes[..., t] = flux
+        assert 0
 
         return flux
 
@@ -1130,8 +1134,8 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_node_in = 5 + kwargs.get('n_env', 4)
-        self.n_edge_in = 8 + 2*kwargs.get('n_env', 4)
+        self.n_node_in = 4 + kwargs.get('n_env', 4)
+        self.n_edge_in = 6 + 2*kwargs.get('n_env', 4)
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
@@ -1145,18 +1149,25 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         torch.manual_seed(kwargs.get('seed', 1234))
 
 
-        self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+
+        self.edge_input2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.aggr2hidden = torch.nn.Linear(self.n_hidden*2, self.n_hidden)
+        self.fc_edge_in = torch.nn.Linear(3 * self.n_hidden, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                         for _ in range(self.n_fc_layers - 1)])
         self.fc_edge_out = torch.nn.Linear(self.n_hidden, self.n_hidden)
-
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
                                                torch.nn.ReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+        self.input2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden*2, self.n_hidden*2) for _ in range(self.n_lstm_layers)])
 
         self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
@@ -1171,17 +1182,24 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
 
         # measurement at t=0
         x = data.x[..., 0].view(-1, 1)
-
-        # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+        y_hat = []
+        y_hat.append(x)
 
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-        y_hat = []
-        y_hat.append(x)
+        # initialize lstm variables
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+
+        node_states = torch.cat([x, data.env[..., 0],
+                                 data.night[..., 0].float().view(-1, 1),
+                                 data.dusk[..., 0].float().view(-1, 1),
+                                 data.dawn[..., 0].float().view(-1, 1)], dim=1)
+        h_t[0] = self.node2hidden(node_states)
+        c_t[0] = self.node2hidden(node_states)
+
 
         for t in range(self.timesteps):
 
@@ -1193,7 +1211,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
 
-                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+                x, h_t, c_t = self.propagate(edge_index, coords=coords,
                                              edge_attr=edge_attr, h_t=h_t, c_t=c_t, areas=data.areas,
                                              dusk=data.local_dusk[:, t],
                                              dawn=data.local_dawn[:, t+1],
@@ -1213,15 +1231,16 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, edge_attr):
+    def message(self, h_t_i, h_t_j, coords_i, coords_j, env_i, env_j, edge_attr):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
+        features = torch.cat([coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
         #msg = self.mlp_edge(features).relu()
 
-        msg = self.fc_edge_in(features).relu()
+        features = self.edge_input2hidden(features).relu()
+        msg = self.fc_edge_in(torch.cat([h_t_i, h_t_j, features], dim=1))
         msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
         for l in self.fc_edge_hidden:
@@ -1233,22 +1252,23 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, areas, dusk, dawn, h_t, c_t):
+    def update(self, aggr_out, coords, env, areas, dusk, dawn, h_t, c_t):
 
         # recurrent component
         if self.edge_type == 'voronoi':
-            inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+            inputs = torch.cat([coords, env, dusk.float().view(-1, 1),
                                 dawn.float().view(-1, 1), areas.view(-1, 1)], dim=1)
         else:
-            inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
+            inputs = torch.cat([coords, env, dusk.float().view(-1, 1),
                                 dawn.float().view(-1, 1)], dim=1)
-        inputs = self.node2hidden(inputs).relu()
+        inputs = self.intput2hidden(inputs).relu()
+        inputs = self.aggr2hidden(torch.cat([inputs, aggr_out]))
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         # combine messages from neighbors and recurrent module into single number representing the new bird density
-        pred = self.hidden2birds(torch.cat([aggr_out, h_t[-1]], dim=-1)).sigmoid()
+        pred = self.hidden2birds(h_t[-1]).sigmoid()
 
         return pred, h_t, c_t
 
