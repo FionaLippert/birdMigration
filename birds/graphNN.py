@@ -1107,6 +1107,7 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
         self.context_embedding = torch.nn.Linear(2*self.n_hidden, self.n_hidden)
+        self.attention = torch.nn.Parameter(torch.Tensor(1, 2*self.n_hidden))
 
 
         self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
@@ -1205,7 +1206,7 @@ class AttentionGraphLSTM(MessagePassing):
         features = self.edge2hidden(features)
         context = self.context_embedding(h_i)
 
-        alpha = F.leaky_relu(features + context)
+        alpha = F.leaky_relu(self.attention(torch.cat([features, context], dim=1)))
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
         print(features.shape, alpha.shape)
