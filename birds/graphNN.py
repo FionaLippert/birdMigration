@@ -4,7 +4,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import add_self_loops, degree, to_dense_adj, dense_to_sparse
+from torch_geometric.utils import add_self_loops, degree, to_dense_adj, dense_to_sparse, softmax
 from torch_geometric_temporal.nn.recurrent import DCRNN
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
@@ -1091,8 +1091,8 @@ class AttentionGraphLSTM(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_node_in = 5 + self.n_env + self.n_hidden
-        self.n_edge_in = 8 + 2*self.n_env + 2*self.n_hidden
+        self.n_node_in = 5 + self.n_env
+        self.n_edge_in = 7 + self.n_env + self.n_hidden
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
@@ -1104,28 +1104,19 @@ class AttentionGraphLSTM(MessagePassing):
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
 
-        self.attention_layer = torch.nn.Sequential(
-            torch.nn.Linear(self.n_hidden*2, self.n_hidden),
-            torch.nn.LeakyReLU())
+
+        self.edge2hidden = torch.nn.Embedding(self.n_edge_in, self.n_hidden)
+        self.context_embedding = torch.nn.Embedding(2*self.n_hidden, self.n_hidden)
 
 
-        self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
-        self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
-                                             for _ in range(self.n_fc_layers - 1)])
-        self.fc_edge_out = torch.nn.Linear(self.n_hidden, self.n_hidden)
+        self.node2hidden = torch.nn.Embedding(self.n_node_in, self.n_hidden)
 
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(2*self.n_hidden, 2*self.n_hidden) for _ in range(self.n_lstm_layers)])
 
-        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
-                                               torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
-                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
-
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
-
-        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, 2*self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
                                                 torch.nn.ReLU(),
-                                                torch.nn.Linear(self.n_hidden, 1))
+                                                torch.nn.Linear(2*self.n_hidden, 1))
 
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
@@ -1153,8 +1144,8 @@ class AttentionGraphLSTM(MessagePassing):
             # measurement at t=0
             x = data.x[..., 0].view(-1, 1)
             y_hat.append(x)
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
 
 
         coords = data.coords
@@ -1209,34 +1200,28 @@ class AttentionGraphLSTM(MessagePassing):
         # x_j are source features with shape [E, out_channels]
 
 
-        features = [h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr,
-                              night_i.float().view(-1, 1), night_previous_j.float().view(-1, 1)]
-        features = torch.cat(features, dim=1)
+        features = torch.cat([h_j, env_previous_j, night_previous_j.float().view(-1, 1),
+                              edge_attr, coords_i, coords_j], dim=1)
+        features = self.edge2hidden(features)
+        context = self.context_embedding(h_i)
 
-        # attention_weights =
+        alpha = F.leaky_relu(features + context)
+        alpha = softmax(alpha)
+        alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
 
-
-        msg = self.fc_edge_in(features).relu()
-        msg = F.dropout(msg, p=self.dropout_p, training=self.training)
-
-        for l in self.fc_edge_hidden:
-            msg = l(msg).relu()
-            msg = F.dropout(msg, p=self.dropout_p, training=self.training)
-
-        msg = self.fc_edge_out(msg) #.tanh()
-
+        msg = features * alpha.unsqueeze(-1)
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
-        if self.edge_type == 'voronoi':
-            inputs = torch.cat([aggr_out, coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
-        else:
-            inputs = torch.cat([aggr_out, coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+    def update(self, aggr_out, x, coords, env, dusk, dawn, h_t, c_t, night):
+
+
+        inputs = torch.cat([coords, env, dawn.float().view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
-        # TODO add attention mechanism?
-        inputs = self.node2hidden(inputs).relu()
+        # TODO add attention mechanism to take past conditions into account (encoder)?
+        inputs = self.node2hidden(inputs)
+        inputs = torch.cat([aggr_out, inputs], dim=1)
+
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
