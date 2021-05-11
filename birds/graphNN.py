@@ -1210,7 +1210,7 @@ class AttentionGraphLSTM(MessagePassing):
         alpha = (features + context).tanh().mm(self.attention)
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
-        print(features.shape, alpha.shape)
+        print(features.shape, alpha.unsqueeze(-1).shape)
         msg = features * alpha.unsqueeze(-1)
         print(msg.shape)
         return msg
