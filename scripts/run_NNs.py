@@ -40,12 +40,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     use_encoder = cfg.model.get('use_encoder', False)
     context = cfg.model.context
-    if use_encoder:
-        # context = cfg.model.context
-        seq_len = context + cfg.model.horizon
-    else:
-        # context = 0
-        seq_len = cfg.model.horizon
+    seq_len = context + cfg.model.horizon
 
 
     hps = cfg.model.hyperparameters
@@ -233,7 +228,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     fixed_boundary = cfg.model.get('fixed_boundary', False)
     use_encoder = cfg.model.get('use_encoder', False)
 
-    context = cfg.model.context if use_encoder else 0
+    context = cfg.model.context
     seq_len = context + cfg.model.horizon
     seq_shift = context // 24
 
