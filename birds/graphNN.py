@@ -1194,7 +1194,7 @@ class AttentionGraphLSTM(MessagePassing):
 
 
     def message(self, h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr, t,
-                night_i, night_previous_j):
+                night_i, night_previous_j, index):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -1206,7 +1206,7 @@ class AttentionGraphLSTM(MessagePassing):
         context = self.context_embedding(h_i)
 
         alpha = F.leaky_relu(features + context)
-        alpha = softmax(alpha)
+        alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
 
         msg = features * alpha.unsqueeze(-1)
