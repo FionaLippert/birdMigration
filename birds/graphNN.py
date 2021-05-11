@@ -1212,6 +1212,7 @@ class AttentionGraphLSTM(MessagePassing):
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
 
         msg = features * alpha.unsqueeze(-1)
+        print(msg.shape)
         return msg
 
 
