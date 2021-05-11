@@ -1209,7 +1209,7 @@ class AttentionGraphLSTM(MessagePassing):
         print(features.shape, self.attention.shape)
 
         #alpha = F.leaky_relu(self.attention.T * torch.cat([features, context], dim=1)))
-        alpha = self.attention.T * (features + context).tanh()
+        alpha = self.attention * (features + context).tanh()
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
         print(features.shape, alpha.shape)
