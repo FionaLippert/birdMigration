@@ -1208,7 +1208,7 @@ class AttentionGraphLSTM(MessagePassing):
         alpha = F.leaky_relu(features + context)
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
-
+        print(features.shape, alpha.shape)
         msg = features * alpha.unsqueeze(-1)
         return msg
 
