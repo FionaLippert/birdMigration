@@ -1206,13 +1206,11 @@ class AttentionGraphLSTM(MessagePassing):
         features = self.edge2hidden(features)
         context = self.context_embedding(h_i)
 
-        print(features.shape, self.attention.shape)
-
         #alpha = F.leaky_relu(self.attention.T * torch.cat([features, context], dim=1)))
         alpha = (features + context).tanh().mm(self.attention)
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
-        print(features.shape, alpha.shape)
+
         msg = features * alpha.unsqueeze(-1)
         return msg
 
@@ -1221,7 +1219,7 @@ class AttentionGraphLSTM(MessagePassing):
 
 
         inputs = torch.cat([coords, env, dawn.float().view(-1, 1),
-                                dusk.float().view(-1, 1), night.float().view()], dim=1)
+                                dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         # TODO add attention mechanism to take past conditions into account (encoder)?
         inputs = self.node2hidden(inputs)
         inputs = torch.cat([aggr_out, inputs], dim=1)
