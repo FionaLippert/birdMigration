@@ -1085,7 +1085,7 @@ class BlackBoxGraphLSTM(MessagePassing):
 class AttentionGraphLSTM(MessagePassing):
 
     def __init__(self, **kwargs):
-        super(BlackBoxGraphLSTM, self).__init__(aggr='add', node_dim=0)
+        super(AttentionGraphLSTM, self).__init__(aggr='add', node_dim=0)
 
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
