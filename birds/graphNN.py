@@ -1222,6 +1222,7 @@ class AttentionGraphLSTM(MessagePassing):
                                 dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         # TODO add attention mechanism to take past conditions into account (encoder)?
         inputs = self.node2hidden(inputs)
+        print(aggr_out.shape, inputs.shape)
         inputs = torch.cat([aggr_out, inputs], dim=1)
 
 
