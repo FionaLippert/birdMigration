@@ -1105,11 +1105,11 @@ class AttentionGraphLSTM(MessagePassing):
         torch.manual_seed(seed)
 
 
-        self.edge2hidden = torch.nn.Embedding(self.n_edge_in, self.n_hidden)
-        self.context_embedding = torch.nn.Embedding(2*self.n_hidden, self.n_hidden)
+        self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.context_embedding = torch.nn.Linear(2*self.n_hidden, self.n_hidden)
 
 
-        self.node2hidden = torch.nn.Embedding(self.n_node_in, self.n_hidden)
+        self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(2*self.n_hidden, 2*self.n_hidden) for _ in range(self.n_lstm_layers)])
 
