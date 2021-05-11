@@ -812,10 +812,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
-        if self.use_encoder:
-            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
-        else:
-            forecast_horizon = range(1, self.timesteps + 1)
+        forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
         for t in forecast_horizon:
 
