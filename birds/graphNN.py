@@ -731,7 +731,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        # self.n_edge_in = 11 + 3*self.n_env
+        self.n_edge_in = 11 + 3*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
