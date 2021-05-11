@@ -39,11 +39,12 @@ def train(cfg: DictConfig, output_dir: str, log):
     data_root = osp.join(cfg.root, 'data')
 
     use_encoder = cfg.model.get('use_encoder', False)
+    context = cfg.model.context
     if use_encoder:
-        context = cfg.model.context
+        # context = cfg.model.context
         seq_len = context + cfg.model.horizon
     else:
-        context = 0
+        # context = 0
         seq_len = cfg.model.horizon
 
 

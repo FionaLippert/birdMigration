@@ -152,7 +152,7 @@ def residuals_corr_vs_distance(results, models, radar_df, bird_scales={}):
                 dist.append(np.linalg.norm([coord1 - coord2])/1000)
 
         ax[i].scatter(dist, corr)
-        ax[i].set(title=m, xlabel='distance between radars [km]', ylabel='correlation coefficient')
+        ax[i].set(title=m, xlabel='distance between radars [km]', ylabel='correlation coefficient', ylim=(-0.2, 1))
     return fig
 
 def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0):
