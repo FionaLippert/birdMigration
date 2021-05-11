@@ -39,8 +39,9 @@ def train(cfg: DictConfig, output_dir: str, log):
     data_root = osp.join(cfg.root, 'data')
 
     use_encoder = cfg.model.get('use_encoder', False)
-    context = cfg.model.context
+    context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
+    print(seq_len)
 
 
     hps = cfg.model.hyperparameters
@@ -228,7 +229,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     fixed_boundary = cfg.model.get('fixed_boundary', False)
     use_encoder = cfg.model.get('use_encoder', False)
 
-    context = cfg.model.context
+    context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
     seq_shift = context // 24
 
