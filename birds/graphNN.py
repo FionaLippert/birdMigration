@@ -1211,7 +1211,7 @@ class AttentionGraphLSTM(MessagePassing):
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
         print(features.shape, alpha.unsqueeze(-1).shape)
-        msg = features * alpha.unsqueeze(-1)
+        msg = features * alpha
         print(msg.shape)
         return msg
 
