@@ -3,7 +3,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
-from torch_geometric.nn import MessagePassing
+from torch_geometric.nn import MessagePassing, inits
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj, dense_to_sparse, softmax
 from torch_geometric_temporal.nn.recurrent import DCRNN
 from sklearn.preprocessing import MinMaxScaler
@@ -1091,7 +1091,7 @@ class AttentionGraphLSTM(MessagePassing):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_node_in = 5 + self.n_env
+        self.n_node_in = 6 + self.n_env
         self.n_edge_in = 8 + self.n_env + 2*self.n_hidden
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
@@ -1123,6 +1123,29 @@ class AttentionGraphLSTM(MessagePassing):
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
 
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+        inits.glorot(self.edge2hidden.weight)
+        inits.glorot(self.context_embedding.weight)
+        inits.glorot(self.attention)
+        inits.glorot(self.node2hidden)
+        inits.glorot(self.node2hidden)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.hidden2delta.apply(init_weights)
+        self.lstm_layers.apply(init_weights)
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -1158,6 +1181,8 @@ class AttentionGraphLSTM(MessagePassing):
             forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
         else:
             forecast_horizon = range(1, self.timesteps + 1)
+
+        self.alphas = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
 
         for t in forecast_horizon:
 
@@ -1211,6 +1236,7 @@ class AttentionGraphLSTM(MessagePassing):
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
 
+        self.alphas[..., t] = alpha
         msg = features * alpha
         return msg
 
@@ -1218,7 +1244,7 @@ class AttentionGraphLSTM(MessagePassing):
     def update(self, aggr_out, x, coords, env, dusk, dawn, h_t, c_t, night):
 
 
-        inputs = torch.cat([coords, env, dawn.float().view(-1, 1),
+        inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         # TODO add attention mechanism to take past conditions into account (encoder)?
         inputs = self.node2hidden(inputs)
