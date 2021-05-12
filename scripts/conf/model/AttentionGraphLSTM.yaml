@@ -28,6 +28,11 @@ hyperparameters:
     default: 0.9
     search_space:
     - 0.9
+  predict_delta:
+    default: True
+    search_space:
+      - True
+      - False
 epochs: 100
 horizon: 40
 fixed_boundary: false

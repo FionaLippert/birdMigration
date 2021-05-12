@@ -1358,6 +1358,7 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
+        self.predict_delta = kwargs.get('predict_delta', True)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -1516,8 +1517,11 @@ class AttentionGraphLSTM(MessagePassing):
         for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
-        delta = self.hidden2delta(h_t[-1]).tanh()
-        pred = x + delta
+        if self.predict_delta:
+            delta = self.hidden2delta(h_t[-1]).tanh()
+            pred = x + delta
+        else:
+            pred = self.hidden2delta(h_t[-1]).sigmoid()
 
         return pred, h_t, c_t
 
