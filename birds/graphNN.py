@@ -1046,7 +1046,7 @@ class BirdFluxGroundGraphLSTM(MessagePassing):
 
         features = torch.cat([data.env[..., 0], data.coords,
                               data.local_night[..., 0].float().view(-1, 1),
-                              data.day_of_year[..., 0].view(-1, 1)], dim=1)
+                              data.day_of_year[0].repeat(data.x.size(0)).view(-1, 1)], dim=1)
         ground = self.env2ground(features)
 
 
