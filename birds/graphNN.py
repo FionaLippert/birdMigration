@@ -1774,7 +1774,7 @@ class RecurrentEncoder(torch.nn.Module):
         for t in range(self.timesteps):
 
             inputs = torch.cat([data.env[..., t], data.coords, data.x[:, t].view(-1, 1),
-                                data.night.float().view(-1, 1)], dim=1)
+                                data.local_night.float().view(-1, 1)], dim=1)
             inputs = self.node2hidden(inputs).relu()
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
             for l in range(1, self.n_lstm_layers):
