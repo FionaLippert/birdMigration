@@ -27,7 +27,7 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0):
 
     # 25 km buffers around radars
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
-                                     'type' : voronoi.type},
+                                     'observed' : voronoi.observed},
                                      geometry=space.pts_local.buffer(25_000),
                                      crs=space.crs_local)
 
@@ -46,7 +46,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     if data_source == 'radar':
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
-        voronoi_radars = voronoi.query('type == "observed"')
+        voronoi_radars = voronoi.query('observed == True')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
                                                     mask_days=False, radar_names=voronoi_radars.radar)
         data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
@@ -55,8 +55,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
     elif data_source == 'abm':
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
-        voronoi_radars = voronoi.query('type == "observed"')
-        radar_buffers_radars = radar_buffers.query('type == "observed"')
+        voronoi_radars = voronoi.query('observed == True')
+        radar_buffers_radars = radar_buffers.query('observed == True')
         print(radar_buffers)
         print(radar_buffers_radars)
         buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers_radars)
