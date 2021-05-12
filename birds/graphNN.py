@@ -820,7 +820,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         else:
             # start from scratch
             # measurement at t=0
-            x = data.x[..., 0].view(-1, 1)
+            x = data.x[..., self.t_context].view(-1, 1)
             y_hat.append(x)
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
