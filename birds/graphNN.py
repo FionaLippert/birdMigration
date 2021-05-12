@@ -1389,8 +1389,7 @@ class AttentionGraphLSTM(MessagePassing):
     def reset_parameters(self):
         inits.glorot(self.edge2hidden.weight)
         inits.glorot(self.context_embedding.weight)
-        inits.glorot(self.attention1)
-        inits.glorot(self.attention2)
+        inits.glorot(self.attention)
         inits.glorot(self.node2hidden.weight)
 
         def init_weights(m):
