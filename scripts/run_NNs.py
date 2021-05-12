@@ -317,8 +317,8 @@ def test(cfg: DictConfig, output_dir: str, log):
         #         print(name, param.data)
 
         local_fluxes = {}
-        attention_weights_env = {}
-        attention_weights_state = {}
+        attention_weights = {}
+        # attention_weights_state = {}
 
         for nidx, data in enumerate(test_loader):
             nidx += seq_shift
@@ -342,10 +342,10 @@ def test(cfg: DictConfig, output_dir: str, log):
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
             if cfg.model.name == 'AttentionGraphLSTM':
-                attention_weights_env[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas1).view(
+                attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
-                attention_weights_state[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas2).view(
-                    data.num_nodes, data.num_nodes, -1).cpu()
+                # attention_weights_state[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas2).view(
+                #     data.num_nodes, data.num_nodes, -1).cpu()
 
             for ridx, name in radar_index.items():
                 results['gt'].append(y[ridx, context:])
@@ -369,10 +369,10 @@ def test(cfg: DictConfig, output_dir: str, log):
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
                 pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
         if cfg.model.name == 'AttentionGraphLSTM':
-            with open(osp.join(output_dir, f'attention_weights_env_{r}.pickle'), 'wb') as f:
-                pickle.dump(attention_weights_env, f, pickle.HIGHEST_PROTOCOL)
-            with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
-                pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
+            with open(osp.join(output_dir, f'attention_weights_{r}.pickle'), 'wb') as f:
+                pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
+            # with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
+            #     pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
 
     with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
