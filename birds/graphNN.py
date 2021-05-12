@@ -731,7 +731,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 11 + 3*self.n_env
+        self.n_edge_in = 8 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
@@ -852,12 +852,10 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 dawn=data.local_dawn[:, t],
                                                 env=data.env[..., t],
                                                 env_1=data.env[..., t-1],
-                                                env_2=data.env[..., t - 2],
                                                 t=t-self.t_context,
                                                 boundary=data.boundary,
                                                 night=data.local_night[:, t],
-                                                night_1=data.local_night[:, t-1],
-                                                night_2=data.local_night[:, t-2])
+                                                night_1=data.local_night[:, t-1])
 
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
@@ -872,15 +870,17 @@ class BirdFluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_1_j, env_2_j, edge_attr, t,
-                night_i, night_1_j, night_2_j):
+    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
+                night_i, night_1_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
 
-        features = [x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, env_2_j, edge_attr,
-                              night_i.float().view(-1, 1), night_1_j.float().view(-1, 1), night_2_j.float().view(-1, 1)]
+        # features = [x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
+        #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
+                    night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         features = torch.cat(features, dim=1)
 
 
@@ -896,6 +896,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
             flux = flux.sigmoid() # bird density flying from node j to node i should be positive
+            flux = flux * x_j
             A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             A_outflux = A_influx.T # matrix of outfluxes
             A_flux = A_influx - A_outflux # matrix of total fluxes
@@ -1523,19 +1524,40 @@ class RecurrentEncoder(torch.nn.Module):
         super(RecurrentEncoder, self).__init__()
 
         self.timesteps = kwargs.get('timesteps', 12)
-        self.n_in = 3 + kwargs.get('n_env', 4)
+        self.n_in = 4 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
-        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_in, self.n_hidden),
-                                               torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
-                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+        # self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_in, self.n_hidden),
+        #                                        torch.nn.Dropout(p=self.dropout_p),
+        #                                        torch.nn.ReLU(),
+        #                                        torch.nn.Linear(self.n_hidden, self.n_hidden))
+        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden)
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        inits.glorot(self.node2hidden.weight)
+        self.lstm_layers.apply(init_weights)
+
 
     def forward(self, data):
         # initialize lstm variables
@@ -1544,7 +1566,8 @@ class RecurrentEncoder(torch.nn.Module):
 
         for t in range(self.timesteps):
 
-            inputs = torch.cat([data.env[..., t], data.coords, data.x[:, t].view(-1, 1)], dim=1)
+            inputs = torch.cat([data.env[..., t], data.coords, data.x[:, t].view(-1, 1),
+                                data.night.float().view(-1, 1)], dim=1)
             inputs = self.node2hidden(inputs).relu()
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
             for l in range(1, self.n_lstm_layers):
