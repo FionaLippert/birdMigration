@@ -1350,7 +1350,7 @@ class AttentionGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 7 + self.n_env + 2*self.n_hidden
+        self.n_edge_in = 3 + self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
@@ -1363,6 +1363,8 @@ class AttentionGraphLSTM(MessagePassing):
         torch.manual_seed(seed)
 
 
+        # self.edge_env2hidden = torch.nn.Linear(self.n_env_in, self.n_hidden)
+        # self.edge_states2hidden = torch.nn.Linear(self.n_states_in, self.n_hidden)
         self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
         self.context_embedding = torch.nn.Linear(2*self.n_hidden, self.n_hidden)
         self.attention = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
@@ -1372,10 +1374,10 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(2*self.n_hidden, 2*self.n_hidden) for _ in range(self.n_lstm_layers)])
 
-        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, 2*self.n_hidden),
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
                                                 torch.nn.ReLU(),
-                                                torch.nn.Linear(2*self.n_hidden, 1))
+                                                torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
@@ -1387,7 +1389,8 @@ class AttentionGraphLSTM(MessagePassing):
     def reset_parameters(self):
         inits.glorot(self.edge2hidden.weight)
         inits.glorot(self.context_embedding.weight)
-        inits.glorot(self.attention)
+        inits.glorot(self.attention1)
+        inits.glorot(self.attention2)
         inits.glorot(self.node2hidden.weight)
 
         def init_weights(m):
@@ -1476,25 +1479,226 @@ class AttentionGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr, t,
+    def message(self, x_j, h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr, t,
                 night_i, night_previous_j, index):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
+        features = torch.cat([env_previous_j, night_previous_j.float().view(-1, 1),
+                              edge_attr], dim=1)
 
-        features = torch.cat([h_j, env_previous_j, night_previous_j.float().view(-1, 1),
-                              edge_attr, coords_i, coords_j], dim=1)
         features = self.edge2hidden(features)
-        context = self.context_embedding(h_i)
+        context_j = self.context_embedding(h_j)
+        context_i = self.context_embedding(h_i)
 
-        #alpha = F.leaky_relu(self.attention.T * torch.cat([features, context], dim=1)))
-        alpha = (features + context).tanh().mm(self.attention)
+        alpha = (features + context_i + context_j).tanh().mm(self.attention)
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
 
         self.alphas[..., t] = alpha
-        msg = features * alpha
+
+        msg = context_j * alpha
+        return msg
+
+
+    def update(self, aggr_out, x, coords, env, dusk, dawn, h_t, c_t, night):
+
+
+        inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),
+                                dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
+        # TODO add attention mechanism to take past conditions into account (encoder)?
+        inputs = self.node2hidden(inputs)
+
+        inputs = torch.cat([aggr_out, inputs], dim=1)
+
+
+        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        for l in range(1, self.n_lstm_layers):
+            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+
+        delta = self.hidden2delta(h_t[-1]).tanh()
+        pred = x + delta
+
+        return pred, h_t, c_t
+
+
+
+class Attention2GraphLSTM(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(Attention2GraphLSTM, self).__init__(aggr='add', node_dim=0)
+
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_node_in = 6 + self.n_env
+        self.n_edge_in = 7 + self.n_env + 2*self.n_hidden
+        self.n_env_in = 3 + self.n_env
+        self.n_states_in = 3 + 2*self.n_hidden
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
+        self.fixed_boundary = kwargs.get('fixed_boundary', [])
+        self.force_zeros = kwargs.get('force_zeros', True)
+
+        self.use_encoder = kwargs.get('use_encoder', False)
+        self.t_context = kwargs.get('t_context', 0)
+
+        seed = kwargs.get('seed', 1234)
+        torch.manual_seed(seed)
+
+
+        self.edge_env2hidden = torch.nn.Linear(self.n_env_in, self.n_hidden)
+        self.edge_states2hidden = torch.nn.Linear(self.n_states_in, self.n_hidden)
+        # self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.context_embedding1 = torch.nn.Linear(2*self.n_hidden, self.n_hidden)
+        self.context_embedding2 = torch.nn.Linear(2 * self.n_hidden, self.n_hidden)
+        self.attention1 = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+        self.attention2 = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+
+
+        self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(2*self.n_hidden, 2*self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
+                                                torch.nn.Dropout(p=self.dropout_p),
+                                                torch.nn.ReLU(),
+                                                torch.nn.Linear(self.n_hidden, 1))
+
+        if self.use_encoder:
+            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+        inits.glorot(self.edge2hidden.weight)
+        inits.glorot(self.context_embedding.weight)
+        inits.glorot(self.attention1)
+        inits.glorot(self.attention2)
+        inits.glorot(self.node2hidden.weight)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.hidden2delta.apply(init_weights)
+        self.lstm_layers.apply(init_weights)
+
+
+    def forward(self, data, teacher_forcing=0.0):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        self.edges = data.edge_index
+        y_hat = []
+
+        # initialize lstm variables
+        if self.use_encoder:
+            # push context timeseries through encoder to initialize decoder
+            h_t, c_t = self.encoder(data)
+            #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
+            x = data.x[..., self.t_context].view(-1, 1)
+            y_hat.append(x)
+
+        else:
+            # start from scratch
+            # measurement at t=0
+            x = data.x[..., 0].view(-1, 1)
+            y_hat.append(x)
+            h_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+
+
+        if self.use_encoder:
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+        else:
+            forecast_horizon = range(1, self.timesteps + 1)
+
+        self.alphas1 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+        self.alphas2 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+
+        for t in forecast_horizon:
+
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t-1].view(-1, 1) * x + \
+                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+
+            x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+                                                h_t=h_t, c_t=c_t,
+                                                h=h_t[-1],
+                                                areas=data.areas,
+                                                edge_attr=edge_attr,
+                                                dusk=data.local_dusk[:, t-1],
+                                                dawn=data.local_dawn[:, t],
+                                                env=data.env[..., t],
+                                                env_previous=data.env[..., t-1],
+                                                t=t-self.t_context,
+                                                boundary=data.boundary,
+                                                night=data.local_night[:, t],
+                                                night_previous=data.local_night[:, t-1])
+
+            if len(self.fixed_boundary) > 0:
+                # use ground truth for boundary nodes
+                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+
+            if self.force_zeros:
+                x = x * data.local_night[:, t].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_j, h_i, h_j, coords_i, coords_j, env_i, env_previous_j, edge_attr, t,
+                night_i, night_previous_j, index):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        env_features = torch.cat([env_previous_j, night_previous_j.float().view(-1, 1),
+                              edge_attr], dim=1)
+        state_features = torch.cat([x_j, h_j, edge_attr], dim=1)
+        env_features = self.edge_env2hidden(env_features)
+        state_features = self.edge_states2hidden(state_features)
+
+        context1 = self.context_embedding1(h_i)
+        context2 = self.context_embedding2(h_i)
+
+        # alpha = (features + context).tanh().mm(self.attention)
+        # alpha = softmax(alpha, index)
+        # alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
+
+        #alpha = F.leaky_relu(self.attention.T * torch.cat([features, context], dim=1)))
+        alpha1 = (env_features + context1).tanh().mm(self.attention1)
+        alpha1 = softmax(alpha1, index)
+        alpha1 = F.dropout(alpha1, p=self.dropout_p, training=self.training)
+
+        alpha2 = (state_features + context2).tanh().mm(self.attention2)
+        alpha2 = softmax(alpha2, index)
+        alpha2 = F.dropout(alpha2, p=self.dropout_p, training=self.training)
+
+        self.alphas1[..., t] = alpha1
+        self.alphas1[..., t] = alpha2
+        msg = (env_features * alpha1) + (state_features * alpha2)
         return msg
 
 
