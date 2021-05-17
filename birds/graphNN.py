@@ -846,7 +846,9 @@ class BirdFluxGraphLSTM(MessagePassing):
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
-                                                h=h_t, c=c_t, areas=data.areas,
+                                                h_t=h_t, c_t=c_t,
+                                                h=h_t[-1], c=c_t[-1],
+                                                areas=data.areas,
                                                 edge_attr=edge_attr,
                                                 dusk=data.local_dusk[:, t-1],
                                                 dawn=data.local_dawn[:, t],
@@ -886,7 +888,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         inputs = self.fc_edge_in(features).relu()
         #flux = F.dropout(flux, p=self.dropout_p, training=self.training)
-        flux = torch.cat([inputs, h_i[-1], h_j[-1]], dim=1)
+        flux = torch.cat([inputs, h_i, h_j], dim=1)
 
         for l in self.fc_edge_hidden:
             flux = l(flux).relu()
@@ -913,7 +915,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         return flux
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h, c, t, night, boundary):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
 
         if self.edge_type == 'voronoi':
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
@@ -923,17 +925,17 @@ class BirdFluxGraphLSTM(MessagePassing):
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs).relu()
 
-        h[0], c[0] = self.lstm_layers[0](inputs, (h[0], c[0]))
+        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
-            h[l], c[l] = self.lstm_layers[l](h[l - 1], (h[l], c[l]))
+            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
-        delta = self.hidden2delta(h[-1]).tanh()
+        delta = self.hidden2delta(h_t[-1]).tanh()
         self.local_deltas[..., t] = delta
 
         self.fluxes[..., t] = aggr_out
         pred = x + delta + ~boundary.view(-1, 1) * aggr_out # take messages into account for inner cells only
 
-        return pred, h, c
+        return pred, h_t, c_t
 
 
 
