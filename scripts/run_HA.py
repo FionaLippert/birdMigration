@@ -139,12 +139,14 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         for ridx, name in radar_index.items():
             if name in ['nlhrw', 'nldbl']: name = 'nldbl-nlhrw'
-            y_hat = ha[name] * cfg.datasource.bird_scale * local_night[ridx, :]
+            y_hat = ha[name] * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
 
+            y_hat = np.ones(y.shape[1]) * y_hat * local_night[ridx, :].detach().numpy()
+
             results['gt_km2'].append(y[ridx, :])
-            results['prediction_km2'].append([y_hat] * y.shape[1])
+            results['prediction_km2'].append(y_hat)
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])
