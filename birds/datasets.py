@@ -240,6 +240,7 @@ class Normalization:
         self.t_unit = t_unit
         self.edge_type = edge_type
         self.n_dummy_radars = n_dummy_radars
+        self.exclude = exclude
 
         all_dfs = []
         for year in years:
@@ -285,7 +286,7 @@ class Normalization:
         return root_transformed.dropna().max()
 
     def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}',
+        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}_exclude={self.exclude}',
                         self.data_source, self.season, str(year))
 
     @property
