@@ -751,9 +751,9 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
-        self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+        self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(3*self.n_hidden, 3*self.n_hidden)
                                              for _ in range(self.n_fc_layers - 1)])
-        self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+        self.fc_edge_out = torch.nn.Linear(3*self.n_hidden, 1)
 
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
@@ -846,7 +846,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
-                                                h_t=h_t, c_t=c_t, areas=data.areas,
+                                                h=h_t, c=c_t, areas=data.areas,
                                                 edge_attr=edge_attr,
                                                 dusk=data.local_dusk[:, t-1],
                                                 dawn=data.local_dawn[:, t],
@@ -870,7 +870,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
+    def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
                 night_i, night_1_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
@@ -884,8 +884,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         features = torch.cat(features, dim=1)
 
 
-        flux = self.fc_edge_in(features).relu()
-        flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+        inputs = self.fc_edge_in(features).relu()
+        #flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+        flux = torch.cat([inputs, h_i[-1], h_j[-1]], dim=1)
 
         for l in self.fc_edge_hidden:
             flux = l(flux).relu()
@@ -912,7 +913,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         return flux
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h, c, t, night, boundary):
 
         if self.edge_type == 'voronoi':
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
@@ -922,17 +923,17 @@ class BirdFluxGraphLSTM(MessagePassing):
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs).relu()
 
-        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        h[0], c[0] = self.lstm_layers[0](inputs, (h[0], c[0]))
         for l in range(1, self.n_lstm_layers):
-            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+            h[l], c[l] = self.lstm_layers[l](h[l - 1], (h[l], c[l]))
 
-        delta = self.hidden2delta(h_t[-1]).tanh()
+        delta = self.hidden2delta(h[-1]).tanh()
         self.local_deltas[..., t] = delta
 
         self.fluxes[..., t] = aggr_out
         pred = x + delta + ~boundary.view(-1, 1) * aggr_out # take messages into account for inner cells only
 
-        return pred, h_t, c_t
+        return pred, h, c
 
 
 
