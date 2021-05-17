@@ -13,10 +13,12 @@ import itertools as it
 from birds import spatial, datahandling, era5interface, abm
 
 
-def static_features(data_dir, season, year, max_distance, n_dummy_radars=0):
+def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, exclude=[]):
     # load radar info
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
+    radars = {k: v for k, v in radars.items() if not v in exclude}
+    print(radars)
 
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars)
@@ -160,7 +162,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
                      env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
-                     max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi'):
+                     max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi',
+                     exclude=[]):
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
@@ -168,7 +171,7 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
     else:
         radar_year = year
     voronoi, radar_buffers, G, G_max_dist = static_features(data_dir, season, radar_year, max_distance,
-                                                            n_dummy_radars=n_dummy_radars)
+                                                            n_dummy_radars=n_dummy_radars, exclude=exclude)
 
     # save to disk
     voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
@@ -230,7 +233,7 @@ def timeslice(data, start_night, mask, timesteps):
 class Normalization:
     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,
                  env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
-                 edge_type='voronoi', n_dummy_radars=0):
+                 edge_type='voronoi', n_dummy_radars=0, exclude=[]):
         self.root = root
         self.data_source = data_source
         self.season = season
@@ -248,7 +251,7 @@ class Normalization:
                                  radar_years=radar_years,
                                  env_points=env_points, random_seed=seed, max_distance=max_distance,
                                  pref_dirs=pref_dirs, wp_threshold=wp_threshold, t_unit=t_unit, edge_type=edge_type,
-                                 n_dummy_radars=n_dummy_radars)
+                                 n_dummy_radars=n_dummy_radars, exclude=exclude)
 
             # load features
             dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
@@ -337,13 +340,15 @@ class RadarData(InMemoryDataset):
         self.t_unit = kwargs.get('t_unit', '1H')
         self.n_dummy_radars = kwargs.get('n_dummy_radars', 0)
 
+        self.exclude = kwargs.get('exclude', [])
+
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers_root_transform={self.root_transform}_' \
-                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}'
+                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
         else:
             self.processed_dirname = f'measurements=voronoi_cells_root_transform={self.root_transform}_' \
-                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}'
+                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
 
         print(self.preprocessed_dir)
 
@@ -364,7 +369,7 @@ class RadarData(InMemoryDataset):
 
     @property
     def preprocessed_dir(self):
-        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}',
+        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}_exclude={self.exclude}',
                         self.data_source, self.season, self.year)
 
     @property
@@ -392,7 +397,7 @@ class RadarData(InMemoryDataset):
                              radar_years=self.radar_years,
                              env_points=self.env_points, random_seed=self.random_seed, pref_dirs=self.pref_dirs,
                              wp_threshold=self.wp_threshold, max_distance=self.max_distance, t_unit=self.t_unit,
-                             edge_type=self.edge_type, n_dummy_radars=self.n_dummy_radars)
+                             edge_type=self.edge_type, n_dummy_radars=self.n_dummy_radars, exclude=self.exclude)
 
         # load features
         dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir, 'dynamic_features.csv'))
@@ -405,7 +410,8 @@ class RadarData(InMemoryDataset):
             G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
             if not osp.isfile(G_path):
                 prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-                                 radar_years=self.radar_years, max_distance=self.max_distance, process_dynamic=False)
+                                 radar_years=self.radar_years, max_distance=self.max_distance, process_dynamic=False,
+                                 exclude=self.exclude)
             G = nx.read_gpickle(G_path)
 
 
