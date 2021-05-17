@@ -40,19 +40,19 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         ax[midx].set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[], bird_thr=0):
-    if row['missing'] or (row['radar'] in boundary) or row['gt_km2'] < bird_thr:
+def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[], bird_thr=0, night_only=False):
+    if row['missing'] or (row['radar'] in boundary) or row['gt_km2'] < bird_thr or (night_only and not row['night']):
         return np.nan
     else:
-        return ((row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale) ** 2
+        return ((row['gt_km2'] - row[prediction_col]) / bird_scale) ** 2
 
 def compute_error(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
     if row['missing'] or row['radar'] in boundary:
         return np.nan
     else:
-        return (row['gt_km2'] - row[prediction_col] * row['night']) / bird_scale
+        return (row['gt_km2'] - row[prediction_col]) / bird_scale
 
-def plot_errors(results, bird_scales={}, boundary=[], bird_thr=0):
+def plot_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False):
     fig, ax = plt.subplots(figsize=(15, 6))
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
@@ -60,7 +60,8 @@ def plot_errors(results, bird_scales={}, boundary=[], bird_thr=0):
             results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
                                                                                     'constant_prediction',
                                                                                     boundary=boundary,
-                                                                                    bird_thr=bird_thr), axis=1)
+                                                                                    bird_thr=bird_thr,
+                                                                                    night_only=night_only), axis=1)
             mse = results[m].groupby(['horizon', 'trial']).constant_error.mean().apply(np.sqrt)
             mean_mse = mse.groupby('horizon').aggregate(np.mean)
             ax.plot(mean_mse, label='constant prediction')
@@ -74,7 +75,8 @@ def plot_errors(results, bird_scales={}, boundary=[], bird_thr=0):
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
                                                                        boundary=boundary,
-                                                                       bird_thr=bird_thr), axis=1)
+                                                                       bird_thr=bird_thr,
+                                                                       night_only=night_only), axis=1)
         mse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
         std_mse = mse.groupby('horizon').aggregate(np.nanstd)
@@ -155,7 +157,7 @@ def residuals_corr_vs_distance(results, models, radar_df, bird_scales={}):
         ax[i].set(title=m, xlabel='distance between radars [km]', ylabel='correlation coefficient', ylim=(-0.2, 1))
     return fig
 
-def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0):
+def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(3*len(results), 4))
     rmse_list = []
@@ -163,14 +165,16 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0):
     for idx, m in enumerate(results.keys()):
         if m == 'GAM':
             results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                'constant_prediction', boundary=boundary, bird_thr=bird_thr), axis=1)
+                                                                'constant_prediction', boundary=boundary,
+                                                                bird_thr=bird_thr, night_only=night_only), axis=1)
             rmse = results[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
             rmse_list.append(rmse.values)
             labels.append(['constant'] * len(rmse))
 
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                       boundary=boundary, bird_thr=bird_thr), axis=1)
+                                                                       boundary=boundary, bird_thr=bird_thr,
+                                                                       night_only=night_only), axis=1)
         rmse = results[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))

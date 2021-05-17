@@ -139,7 +139,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         for ridx, name in radar_index.items():
             if name in ['nlhrw', 'nldbl']: name = 'nldbl-nlhrw'
-            y_hat = ha[name] * cfg.datasource.bird_scale
+            y_hat = ha[name] * cfg.datasource.bird_scale * local_night[ridx, :]
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
 
