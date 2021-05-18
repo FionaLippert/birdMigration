@@ -1883,7 +1883,7 @@ class RecurrentEncoderSpatial(MessagePassing):
 
         for t in range(self.timesteps):
 
-            x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords,
+            x, h_t, c_t = self.propagate(data.edge_index, x=data.x[:, t], coords=data.coords,
                                          edge_attr=data.edge_attr, h_t=h_t, c_t=c_t,
                                          dusk=data.local_dusk[:, t - 1],
                                          dawn=data.local_dawn[:, t],
