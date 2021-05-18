@@ -346,7 +346,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
             if cfg.model.name == 'AttentionGraphLSTM':
-                attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas).view(
+                attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 # attention_weights_state[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas2).view(
                 #     data.num_nodes, data.num_nodes, -1).cpu()
