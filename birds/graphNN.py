@@ -1885,8 +1885,8 @@ class RecurrentEncoderSpatial(MessagePassing):
 
             x, h_t, c_t = self.propagate(data.edge_index, x=data.x[:, t], coords=data.coords,
                                          edge_attr=data.edge_attr, h_t=h_t, c_t=c_t,
-                                         dusk=data.local_dusk[:, t - 1],
-                                         dawn=data.local_dawn[:, t],
+                                         dusk=data.local_dusk[:, t],
+                                         dawn=data.local_dawn[:, t+1],
                                          env=data.env[..., t],
                                          night=data.local_night[:, t],
                                          t=t)
@@ -1974,7 +1974,7 @@ class RecurrentEncoder(torch.nn.Module):
         for t in range(self.timesteps):
 
             h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
-                                   data.local_dawn[:, t], data.local_dusk[:, t], h_t, c_t)
+                                   data.local_dawn[:, t+1], data.local_dusk[:, t], h_t, c_t)
 
             states.append(h_t[-1])
         states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
