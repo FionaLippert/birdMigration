@@ -277,7 +277,7 @@ class LocalLSTM(MessagePassing):
         if self.use_encoder:
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
-        for t in range(forecast_horizon):
+        for t in forecast_horizon:
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
