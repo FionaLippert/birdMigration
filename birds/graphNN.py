@@ -1916,6 +1916,7 @@ class RecurrentEncoderSpatial(MessagePassing):
         self.alphas[..., t] = alpha
 
         msg = context_j * alpha
+        print(msg.shape)
         return msg
 
     def update(self, aggr_out, env, coords, x, local_night, h_t, c_t):
