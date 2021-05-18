@@ -334,7 +334,7 @@ class LocalLSTM(MessagePassing):
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
         c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
-        for l in range(self.n_layers - 1):
+        for l in range(self.n_lstm_layers - 1):
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         if self.predict_delta:
