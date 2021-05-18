@@ -38,5 +38,6 @@ horizon: 40
 fixed_boundary: false
 force_zeros: false
 use_encoder: false
+encoder_type: temporal
 context: 0
 root_transformed_loss: false
