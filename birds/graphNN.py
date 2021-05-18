@@ -1792,7 +1792,6 @@ class RecurrentEncoderSpatial(MessagePassing):
                         inits.glorot(param)
 
         inits.glorot(self.node2hidden.weight)
-        inits.glorot(self.hidden2hidden.weight)
         self.lstm_layers.apply(init_weights)
         init_weights(self.lstm_in)
 
@@ -1883,7 +1882,6 @@ class RecurrentEncoder(torch.nn.Module):
                         inits.glorot(param)
 
         inits.glorot(self.node2hidden.weight)
-        inits.glorot(self.hidden2hidden.weight)
         self.lstm_layers.apply(init_weights)
 
 
