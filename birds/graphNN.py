@@ -248,6 +248,31 @@ class LocalLSTM(MessagePassing):
             self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
             self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
 
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        inits.glorot(self.fc_in.weight)
+
+        if self.use_encoder:
+            inits.glorot(self.fc_encoder.weight)
+            inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.attention_t)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.mlp_out.apply(init_weights)
+        self.lstm_layers.apply(init_weights)
+        init_weights(self.lstm_in)
+
 
     def forward(self, data, **kwargs):
 
@@ -1399,6 +1424,7 @@ class AttentionGraphLSTM(MessagePassing):
         self.force_zeros = kwargs.get('force_zeros', True)
 
         self.use_encoder = kwargs.get('use_encoder', False)
+        self.encoder_type = kwargs.get('encoder_type', 'temporal')
         self.t_context = kwargs.get('t_context', 0)
         self.predict_delta = kwargs.get('predict_delta', True)
 
@@ -1429,8 +1455,12 @@ class AttentionGraphLSTM(MessagePassing):
                                                 torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
-            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+            if self.encoder_type == 'temporal':
+                self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            else:
+                self.encoder = RecurrentEncoderSpatial(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                                n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
             self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
             self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
 
