@@ -293,7 +293,7 @@ class LocalLSTM(MessagePassing):
                                              env=data.env[..., t+1],
                                              night=data.local_night[:, t+1],
                                              enc_states=enc_states,
-                                             t=t
+                                             t=t-1
                                              )
 
             if self.force_zeros:
