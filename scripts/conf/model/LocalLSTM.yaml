@@ -37,3 +37,5 @@ epochs: 100
 horizon: 40
 force_zeros: false
 root_transformed_loss: true
+use_encoder: false
+t_context: 0
