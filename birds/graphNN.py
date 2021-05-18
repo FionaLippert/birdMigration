@@ -886,7 +886,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         features = torch.cat(features, dim=1)
 
 
-        inputs = self.fc_edge_in(features).relu()
+        inputs = self.fc_edge_in(features)
         #flux = F.dropout(flux, p=self.dropout_p, training=self.training)
         flux = torch.cat([inputs, h_i, h_j], dim=1)
 
@@ -923,7 +923,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         else:
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
-        inputs = self.node2hidden(inputs).relu()
+        inputs = self.node2hidden(inputs)
 
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
@@ -1370,15 +1370,21 @@ class AttentionGraphLSTM(MessagePassing):
         # self.edge_env2hidden = torch.nn.Linear(self.n_env_in, self.n_hidden)
         # self.edge_states2hidden = torch.nn.Linear(self.n_states_in, self.n_hidden)
         self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
-        self.context_embedding = torch.nn.Linear(2*self.n_hidden, self.n_hidden)
-        self.attention = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+        self.context_embedding = torch.nn.Linear(self.n_hidden, self.n_hidden)
+        self.attention_s = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+        self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
 
 
         self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
 
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(2*self.n_hidden, 2*self.n_hidden) for _ in range(self.n_lstm_layers)])
+        if self.use_encoder:
+            self.lstm_in = nn.LSTMCell(3 * self.n_hidden, self.n_hidden)
+        else:
+            self.lstm_in = nn.LSTMCell(2 * self.n_hidden, self.n_hidden)
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _
+                                          in range(self.n_lstm_layers - 1)])
 
-        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
@@ -1386,6 +1392,8 @@ class AttentionGraphLSTM(MessagePassing):
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
 
         self.reset_parameters()
 
@@ -1395,6 +1403,10 @@ class AttentionGraphLSTM(MessagePassing):
         inits.glorot(self.context_embedding.weight)
         inits.glorot(self.attention)
         inits.glorot(self.node2hidden.weight)
+
+        if self.use_encoder:
+            inits.glorot(self.fc_encoder)
+            inits.glorot(self.fc_hidden)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -1409,6 +1421,8 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.hidden2delta.apply(init_weights)
         self.lstm_layers.apply(init_weights)
+        init_weights(self.lstm_in)
+
 
 
     def forward(self, data, teacher_forcing=0.0):
@@ -1417,23 +1431,22 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.edges = data.edge_index
         y_hat = []
+        enc_states = None
 
         # initialize lstm variables
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
-            h_t, c_t = self.encoder(data)
+            enc_states, h_t, c_t = self.encoder(data)
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
-            x = data.x[..., self.t_context].view(-1, 1)
-            y_hat.append(x)
+
 
         else:
             # start from scratch
-            # measurement at t=0
-            x = data.x[..., 0].view(-1, 1)
-            y_hat.append(x)
             h_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
 
+        x = data.x[..., self.t_context].view(-1, 1)
+        y_hat.append(x)
 
         coords = data.coords
         edge_index = data.edge_index
@@ -1445,7 +1458,9 @@ class AttentionGraphLSTM(MessagePassing):
         else:
             forecast_horizon = range(1, self.timesteps + 1)
 
-        self.alphas = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+        self.alphas_s = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+        if self.use_encoder:
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         for t in forecast_horizon:
 
@@ -1467,7 +1482,8 @@ class AttentionGraphLSTM(MessagePassing):
                                                 t=t-self.t_context,
                                                 boundary=data.boundary,
                                                 night=data.local_night[:, t],
-                                                night_previous=data.local_night[:, t-1])
+                                                night_previous=data.local_night[:, t-1],
+                                                enc_states=enc_states)
 
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
@@ -1495,30 +1511,39 @@ class AttentionGraphLSTM(MessagePassing):
         context_j = self.context_embedding(h_j)
         context_i = self.context_embedding(h_i)
 
-        alpha = (features + context_i + context_j).tanh().mm(self.attention)
+        alpha = (features + context_i + context_j).tanh().mm(self.attention_s)
         alpha = softmax(alpha, index)
+        self.alphas_s[..., t] = alpha
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
-
-        self.alphas[..., t] = alpha
 
         msg = context_j * alpha
         return msg
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, h_t, c_t, night):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, h_t, c_t, night, enc_states, t):
 
 
         inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
-        # TODO add attention mechanism to take past conditions into account (encoder)?
         inputs = self.node2hidden(inputs)
 
-        inputs = torch.cat([aggr_out, inputs], dim=1)
+        if self.use_encoder:
+            # temporal attention based on encoder states
+            enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
+            scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
+            alpha = F.softmax(scores, dim=1)
+            self.alphas_t[..., t] = alpha
+            context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
+
+            inputs = torch.cat([aggr_out, inputs, context], dim=1)
+        else:
+            inputs = torch.cat([aggr_out, inputs])
 
 
-        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        for l in range(1, self.n_lstm_layers):
-            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+        h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
+        for l in range(self.n_lstm_layers-1):
+            h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         if self.predict_delta:
             delta = self.hidden2delta(h_t[-1]).tanh()
@@ -1729,9 +1754,9 @@ class Attention2GraphLSTM(MessagePassing):
         return pred, h_t, c_t
 
 
-class RecurrentEncoder(torch.nn.Module):
+class RecurrentEncoderSpatial(MessagePassing):
     def __init__(self, **kwargs):
-        super(RecurrentEncoder, self).__init__()
+        super(RecurrentEncoderSpatial, self).__init__()
 
         self.timesteps = kwargs.get('timesteps', 12)
         self.n_in = 4 + kwargs.get('n_env', 4)
@@ -1745,6 +1770,98 @@ class RecurrentEncoder(torch.nn.Module):
         #                                        torch.nn.Dropout(p=self.dropout_p),
         #                                        torch.nn.ReLU(),
         #                                        torch.nn.Linear(self.n_hidden, self.n_hidden))
+        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden)
+
+        self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers - 1)])
+
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        inits.glorot(self.node2hidden.weight)
+        inits.glorot(self.hidden2hidden.weight)
+        self.lstm_layers.apply(init_weights)
+        init_weights(self.lstm_in)
+
+
+    def forward(self, data):
+        # initialize lstm variables
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+
+        self.alphas = torch.zeros((data.edge_index.size(1), 1, self.timesteps)).to(data.x.device)
+        states = []
+
+        for t in range(self.timesteps):
+
+            x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords,
+                                         edge_attr=data.edge_attr, h_t=h_t, c_t=c_t,
+                                         dusk=data.local_dusk[:, t - 1],
+                                         dawn=data.local_dawn[:, t],
+                                         env=data.env[..., t],
+                                         night=data.local_night[:, t],
+                                         t=t)
+            states.append(h_t[-1])
+        states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
+        return states, h_t, c_t
+
+
+
+    def message(self, env_previous_j, night_previous_j, edge_attr, h_i, h_j, t, index):
+
+        features = torch.cat([env_previous_j, night_previous_j.float().view(-1, 1),
+                              edge_attr], dim=1)
+
+        features = self.edge2hidden(features)
+        context_j = self.context_embedding(h_j)
+        context_i = self.context_embedding(h_i)
+
+        alpha = (features + context_i + context_j).tanh().mm(self.attention)
+        alpha = softmax(alpha, index)
+        alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
+
+        self.alphas[..., t] = alpha
+
+        msg = context_j * alpha
+        return msg
+
+    def update(self, aggr_out, env, coords, x, local_night, h_t, c_t):
+        inputs = torch.cat([env, coords, x.view(-1, 1),
+                            local_night.float().view(-1, 1)], dim=1)
+        inputs = self.node2hidden(inputs)
+        inputs = torch.cat([inputs, aggr_out], dim=1)
+
+        h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
+        for l in range(self.n_lstm_layers - 1):
+            h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
+
+        return h_t, c_t
+
+class RecurrentEncoder(torch.nn.Module):
+    def __init__(self, **kwargs):
+        super(RecurrentEncoder, self).__init__()
+
+        self.timesteps = kwargs.get('timesteps', 12)
+        self.n_in = 6 + kwargs.get('n_env', 4)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+
+        torch.manual_seed(kwargs.get('seed', 1234))
+
         self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden)
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
@@ -1766,6 +1883,7 @@ class RecurrentEncoder(torch.nn.Module):
                         inits.glorot(param)
 
         inits.glorot(self.node2hidden.weight)
+        inits.glorot(self.hidden2hidden.weight)
         self.lstm_layers.apply(init_weights)
 
 
@@ -1774,16 +1892,29 @@ class RecurrentEncoder(torch.nn.Module):
         h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
         c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
 
+        states = []
+
         for t in range(self.timesteps):
 
-            inputs = torch.cat([data.env[..., t], data.coords, data.x[:, t].view(-1, 1),
-                                data.local_night[:, t].float().view(-1, 1)], dim=1)
-            inputs = self.node2hidden(inputs).relu()
-            h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-            for l in range(1, self.n_lstm_layers):
-                h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+            h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
+                                   data.local_dawn[:, t], data.local_dusk[:, t], h_t, c_t)
+
+            states.append(h_t[-1])
+        states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
+        return states, h_t, c_t
+
+
+
+    def update(self, env, coords, x, local_night, local_dawn, local_dusk, h_t, c_t):
+        inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
+                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1)], dim=1)
+        inputs = self.node2hidden(inputs)
+        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        for l in range(1, self.n_lstm_layers):
+            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         return h_t, c_t
+
 
 
 class BirdDynamicsGraphLSTM(MessagePassing):
