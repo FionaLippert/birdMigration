@@ -51,6 +51,10 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         voronoi_radars = voronoi.query('observed == True')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
                                                     mask_days=False, radar_names=voronoi_radars.radar)
+        bird_speed, _, t_range = datahandling.load_season(radar_dir, season, year, 'ff', t_unit=t_unit,
+                                                         mask_days=False, radar_names=voronoi_radars.radar)
+        bird_direction, _, t_range = datahandling.load_season(radar_dir, season, year, 'dd', t_unit=t_unit,
+                                                         mask_days=False, radar_names=voronoi_radars.radar)
         data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
         t_range = t_range.tz_localize('UTC')
 
@@ -95,6 +99,9 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
             df['birds_from_buffer'] = buffer_data[ridx] if row.observed else [np.nan] * len(t_range)
         else:
             df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
+
         df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx
@@ -304,7 +311,11 @@ def angle(coord1, coord2):
 
     return deg
 
-
+def compute_flux(dens, ff, dd, alpha, l=1):
+    # compute number of birds crossing transect of length 'l' [km] and angle 'alpha' per hour
+    mtr = dens * ff * np.cos(np.deg2rad(dd - alpha))
+    flux = mtr * l * 3.6
+    return flux
 
 
 class RadarData(InMemoryDataset):
@@ -428,6 +439,7 @@ class RadarData(InMemoryDataset):
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
 
+
         if self.edge_type == 'voronoi':
             print('Use Voronoi tessellation')
             face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
@@ -530,6 +542,10 @@ class RadarData(InMemoryDataset):
                     dawn=[],
                     missing=[])
 
+        if self.data_source == 'radar':
+            data['speed'] = []
+            data['direction'] = []
+
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
             df = groups.get_group(name).sort_values(by='datetime').reset_index(drop=True)
@@ -541,6 +557,10 @@ class RadarData(InMemoryDataset):
             data['dusk'].append(df.dusk.to_numpy())
             data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
+
+            if self.data_source == 'radar':
+                data['speed'].append(df.bird_speed.to_numpy())
+                data['direction'].append(df.bird_direction.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
@@ -572,6 +592,17 @@ class RadarData(InMemoryDataset):
 
         for k, v in data.items():
             data[k] = reshape(v, nights, mask, self.timesteps)
+
+
+        # TODO compute fluxes along edges
+        if self.data_source == 'radar':
+            for i, j, e_data in G.edges(data=True):
+                vid_interp = (dsi.vid.values.flatten() + dsj.vid.values.flatten()) / 2
+                dd_interp = ((dsi.dd.values.flatten() + 360) % 360 + (dsj.dd.values.flatten() + 360) % 360) / 2
+                ff_interp = (dsi.ff.values.flatten() + dsj.ff.values.flatten()) / 2
+                flux_interp = compute_flux(vid_interp, ff_interp, dd_interp, angle, length)
+                compute_flux(dens, ff, dd, alpha, l=1)
+
 
         tidx = reshape(tidx, nights, mask, self.timesteps)
         dayofyear = reshape(dayofyear, nights, mask, self.timesteps)
