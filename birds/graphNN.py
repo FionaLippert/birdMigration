@@ -1406,8 +1406,8 @@ class AttentionGraphLSTM(MessagePassing):
         inits.glorot(self.node2hidden.weight)
 
         if self.use_encoder:
-            inits.glorot(self.fc_encoder)
-            inits.glorot(self.fc_hidden)
+            inits.glorot(self.fc_encoder.weight)
+            inits.glorot(self.fc_hidden.weight)
 
         def init_weights(m):
             if type(m) == nn.Linear:
