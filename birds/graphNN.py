@@ -1882,7 +1882,7 @@ class RecurrentEncoderSpatial(MessagePassing):
         states = []
 
         for t in range(self.timesteps):
-            print(data.shape)
+            print(data.x.shape)
             print(data.local_dusk.shape)
             print(data.local_dawn.shape)
             print(data.env.shape)
