@@ -1896,9 +1896,9 @@ class RecurrentEncoderSpatial(MessagePassing):
 
 
 
-    def message(self, env_previous_j, night_previous_j, edge_attr, h_i, h_j, t, index):
+    def message(self, env_j, night_j, edge_attr, h_i, h_j, t, index):
 
-        features = torch.cat([env_previous_j, night_previous_j.float().view(-1, 1),
+        features = torch.cat([env_j, night_j.float().view(-1, 1),
                               edge_attr], dim=1)
 
         features = self.edge2hidden(features)
