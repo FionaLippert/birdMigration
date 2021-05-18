@@ -283,22 +283,22 @@ class LocalLSTM(MessagePassing):
                 r = torch.rand(1)
                 if r < teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
-                    x = data.missing[..., t].view(-1, 1) * x + \
-                        ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
+                    x = data.missing[..., t-1].view(-1, 1) * x + \
+                        ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
                 x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, areas=data.areas,
                                              h_t=h_t, c_t=c_t, edge_attr=data.edge_attr,
-                                             dusk=data.local_dusk[:, t],
-                                             dawn=data.local_dawn[:, t+1],
-                                             env=data.env[..., t+1],
-                                             night=data.local_night[:, t+1],
+                                             dusk=data.local_dusk[:, t-1],
+                                             dawn=data.local_dawn[:, t],
+                                             env=data.env[..., t],
+                                             night=data.local_night[:, t],
                                              enc_states=enc_states,
                                              t=t-self.t_context
                                              )
 
             if self.force_zeros:
                 # for locations where it is night: set birds in the air to zero
-                x = x * data.local_night[:, t+1].view(-1, 1)
+                x = x * data.local_night[:, t].view(-1, 1)
 
             y_hat.append(x)
 
