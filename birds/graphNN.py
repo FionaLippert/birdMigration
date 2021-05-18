@@ -215,7 +215,7 @@ class LocalLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 7 + self.n_env
-        self.n_layers = kwargs.get('n_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_layers', 1)
         self.t_context = kwargs.get('t_context', 0)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
@@ -234,7 +234,7 @@ class LocalLSTM(MessagePassing):
         else:
             self.lstm_in = torch.nn.LSTMCell(self.n_hidden, self.n_hidden)
         self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(self.n_hidden, self.n_hidden)
-                                          for _ in range(self.n_layers-1)])
+                                          for _ in range(self.n_lstm_layers-1)])
         #self.fc_out = torch.nn.Linear(self.n_hidden, self.n_out)
         self.mlp_out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                           torch.nn.Dropout(p=self.dropout_p),
