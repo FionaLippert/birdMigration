@@ -276,6 +276,9 @@ class LocalLSTM(MessagePassing):
 
     def forward(self, data, **kwargs):
 
+        x = data.x[..., self.t_context].view(-1, 1)
+        y_hat = [x]
+
         teacher_forcing = kwargs.get('teacher_forcing', 0)
         enc_states = None
         if self.use_encoder:
@@ -287,8 +290,7 @@ class LocalLSTM(MessagePassing):
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_layers)]
 
-        x = data.x[..., self.t_context].view(-1, 1)
-        y_hat = [x]
+
 
         coords = data.coords
         edge_index = data.edge_index
@@ -823,6 +825,10 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                torch.nn.ReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
+        if self.use_encoder:
+            self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
+        else:
+            self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
@@ -833,6 +839,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
 
         self.reset_parameters()
 
@@ -840,6 +849,11 @@ class BirdFluxGraphLSTM(MessagePassing):
     def reset_parameters(self):
         inits.glorot(self.fc_edge_in.weight)
         inits.glorot(self.fc_edge_out.weight)
+
+        if self.use_encoder:
+            inits.glorot(self.fc_encoder.weight)
+            inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.attention_t)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -856,6 +870,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.node2hidden.apply(init_weights)
         self.lstm_layers.apply(init_weights)
         self.hidden2delta.apply(init_weights)
+        init_weights(self.lstm_in)
 
 
 
@@ -869,24 +884,22 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         y_hat = []
+        enc_states = None
 
+        x = data.x[..., self.t_context].view(-1, 1)
+        y_hat.append(x)
 
         # initialize lstm variables
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
-            h_t, c_t = self.encoder(data)
-            #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
-            x = data.x[..., self.t_context].view(-1, 1)
-            y_hat.append(x)
+            enc_states, h_t, c_t = self.encoder(data)
+            # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
             # start from scratch
             # measurement at t=0
-            x = data.x[..., self.t_context].view(-1, 1)
-            y_hat.append(x)
             h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-
 
         coords = data.coords
         edge_index = data.edge_index
@@ -898,6 +911,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+
+        if self.use_encoder:
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         for t in forecast_horizon:
 
@@ -919,7 +935,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 t=t-self.t_context,
                                                 boundary=data.boundary,
                                                 night=data.local_night[:, t],
-                                                night_1=data.local_night[:, t-1])
+                                                night_1=data.local_night[:, t-1],
+                                                enc_states=enc_states)
 
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
@@ -977,7 +994,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         return flux
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary):
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary, enc_states):
 
         if self.edge_type == 'voronoi':
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
@@ -987,11 +1004,22 @@ class BirdFluxGraphLSTM(MessagePassing):
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs)
 
-        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        if self.use_encoder:
+            # temporal attention based on encoder states
+            enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
+            scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
+            alpha = F.softmax(scores, dim=1)
+            self.alphas_t[..., t] = alpha
+            context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
+
+            inputs = torch.cat([inputs, context], dim=1)
+
+        h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
         c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
-        for l in range(1, self.n_lstm_layers):
-            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+        for l in range(self.n_lstm_layers - 1):
+            h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         delta = self.hidden2delta(h_t[-1]).tanh()
         self.local_deltas[..., t] = delta
