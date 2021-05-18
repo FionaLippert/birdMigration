@@ -1437,7 +1437,6 @@ class AttentionGraphLSTM(MessagePassing):
         self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
         self.context_embedding = torch.nn.Linear(self.n_hidden, self.n_hidden)
         self.attention_s = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
-        self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
 
 
         self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
@@ -1463,6 +1462,7 @@ class AttentionGraphLSTM(MessagePassing):
                                                 n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
             self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
             self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
 
         self.reset_parameters()
 
@@ -1471,12 +1471,12 @@ class AttentionGraphLSTM(MessagePassing):
         inits.glorot(self.edge2hidden.weight)
         inits.glorot(self.context_embedding.weight)
         inits.glorot(self.attention_s)
-        inits.glorot(self.attention_t)
         inits.glorot(self.node2hidden.weight)
 
         if self.use_encoder:
             inits.glorot(self.fc_encoder.weight)
             inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.attention_t)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -1832,6 +1832,7 @@ class RecurrentEncoderSpatial(MessagePassing):
 
         self.timesteps = kwargs.get('timesteps', 12)
         self.n_in = 4 + kwargs.get('n_env', 4)
+        self.n_edge_in = 3 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -1846,6 +1847,10 @@ class RecurrentEncoderSpatial(MessagePassing):
 
         self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers - 1)])
+
+        self.edge2hidden = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.context_embedding = torch.nn.Linear(self.n_hidden, self.n_hidden)
+        self.attention_s = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
 
         self.reset_parameters()
 
@@ -1900,7 +1905,7 @@ class RecurrentEncoderSpatial(MessagePassing):
         context_j = self.context_embedding(h_j)
         context_i = self.context_embedding(h_i)
 
-        alpha = (features + context_i + context_j).tanh().mm(self.attention)
+        alpha = (features + context_i + context_j).tanh().mm(self.attention_s)
         alpha = softmax(alpha, index)
         alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
 

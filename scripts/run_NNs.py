@@ -41,6 +41,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     data_root = osp.join(cfg.root, 'data')
 
     use_encoder = cfg.model.get('use_encoder', False)
+    encoder_type = cfg.model.get('encoder_type', 'temporal')
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
     print(seq_len)
@@ -152,7 +153,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                           fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0),
                           edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
                           use_acc_vars=cfg.model.get('use_acc_vars', False),
-                          enforce_conservation=enforce_conservation)
+                          enforce_conservation=enforce_conservation,
+                          encoder_type=encoder_type)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
