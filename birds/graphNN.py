@@ -314,7 +314,8 @@ class LocalLSTM(MessagePassing):
 
 
     def update(self, coords, env, dusk, dawn, h_t, c_t, x, areas, night, enc_states, t):
-
+        print(x.view(-1, 1).shape, coords.shape, env.shape, dusk.view(-1, 1).shape, dawn.view(-1, 1).shape,
+              areas.view(-1,1).shape, night.view(-1, 1).shape)
         inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
                             dawn.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
         inputs = self.fc_in(inputs)
