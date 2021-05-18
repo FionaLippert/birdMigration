@@ -1882,7 +1882,11 @@ class RecurrentEncoderSpatial(MessagePassing):
         states = []
 
         for t in range(self.timesteps):
-
+            print(data.shape)
+            print(data.local_dusk.shape)
+            print(data.local_dawn.shape)
+            print(data.env.shape)
+            print(data.local_night.shape)
             h_t, c_t = self.propagate(data.edge_index, x=data.x[:, t], coords=data.coords,
                                          edge_attr=data.edge_attr, h_t=h_t, c_t=c_t,
                                          dusk=data.local_dusk[:, t],
