@@ -2553,10 +2553,13 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         output = model(data, teacher_forcing) #.view(-1)
         gt = data.y
 
-        observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
-        inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
-        diff = observed_fluxes - inferred_fluxes
-        constraints = (diff[~torch.isnan(diff)]**2).mean()
+        if conservation_constraint > 0:
+            observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+            inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+            diff = observed_fluxes - inferred_fluxes
+            constraints = (diff[~torch.isnan(diff)]**2).mean()
+        else:
+            constraints = 0
 
         if daymask:
             mask = data.local_night & ~data.missing
