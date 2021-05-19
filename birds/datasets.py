@@ -624,7 +624,8 @@ class RadarData(InMemoryDataset):
                 vid_interp = (vid_i + vid_j) / 2
                 dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
                 ff_interp = (ff_i + ff_j) / 2
-                fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle']))
+                length = e_data.get('face_length', 1)
+                fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
             fluxes = torch.tensor(np.stack(fluxes, axis=0))
         else:
             fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
