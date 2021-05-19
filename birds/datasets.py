@@ -489,7 +489,8 @@ class RadarData(InMemoryDataset):
                                             lambda x: np.power(x, 1/self.root_transform))
 
         if self.normalization is not None:
-            cidx = ~dynamic_feature_df.columns.isin([input_col, 'radar', 'night',
+            cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2', 'bird_speed', 'bird_direction',
+                                                     'radar', 'night',
                                                      'dusk', 'dawn', 'datetime', 'missing'])
             dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
                          lambda col: (col - self.normalization.min(col.name)) /
