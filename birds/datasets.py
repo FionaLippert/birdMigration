@@ -605,9 +605,24 @@ class RadarData(InMemoryDataset):
             print('compute fluxes')
             fluxes = []
             for i, j, e_data in G.edges(data=True):
-                vid_interp = (data['birds_km2'][i] + data['birds_km2'][j]) / 2
-                dd_interp = ((data['direction'][i] + 360) % 360 + (data['direction'][j] + 360) % 360) / 2
-                ff_interp = (data['speed'][i] + data['speed'][j]) / 2
+                vid_i = data['birds_km2'][i]
+                vid_j = data['birds_km2'][j]
+                vid_i[np.isnan(vid_i)] = vid_j[np.isnan(vid_i)]
+                vid_j[np.isnan(vid_j)] = vid_i[np.isnan(vid_j)]
+
+                dd_i = data['direction'][i]
+                dd_j = data['direction'][j]
+                dd_i[np.isnan(dd_i)] = dd_j[np.isnan(dd_i)]
+                dd_j[np.isnan(dd_j)] = dd_i[np.isnan(dd_j)]
+
+                ff_i = data['speed'][i]
+                ff_j = data['speed'][j]
+                ff_i[np.isnan(ff_i)] = ff_j[np.isnan(ff_i)]
+                ff_j[np.isnan(ff_j)] = ff_i[np.isnan(ff_j)]
+
+                vid_interp = (vid_i + vid_j) / 2
+                dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
+                ff_interp = (ff_i + ff_j) / 2
                 fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle']))
             fluxes = torch.tensor(np.stack(fluxes, axis=0))
         else:
