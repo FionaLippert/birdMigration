@@ -2556,8 +2556,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
         print(observed_fluxes)
-        print(inferred_fluxes)
         inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+        print(inferred_fluxes)
         constraints = torch.mean((observed_fluxes - inferred_fluxes)**2)
         print(f'MSE fluxes = {constraints}')
 
