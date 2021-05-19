@@ -991,7 +991,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             flux = A_flux[self.edges[0], self.edges[1]]
             flux = flux.view(-1, 1)
-
+        print(f'flux = {flux}')
         self.local_fluxes[..., t] = flux
 
         return flux
