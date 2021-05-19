@@ -354,6 +354,8 @@ class RadarData(InMemoryDataset):
 
         self.exclude = kwargs.get('exclude', [])
 
+        self.compute_fluxes = kwargs.get('compute_fluxes', False)
+
 
         if self.use_buffers:
             self.processed_dirname = f'measurements=from_buffers_root_transform={self.root_transform}_' \
@@ -542,15 +544,17 @@ class RadarData(InMemoryDataset):
                     dawn=[],
                     missing=[])
 
-        # if self.data_source == 'radar':
-        #     data['speed'] = []
-        #     data['direction'] = []
+        if self.data_source == 'radar' and self.compute_fluxes:
+            data['speed'] = []
+            data['direction'] = []
+            data['birds_km2'] = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
             df = groups.get_group(name).sort_values(by='datetime').reset_index(drop=True)
             data['inputs'].append(df[input_col].to_numpy())
             data['targets'].append(df[target_col].to_numpy())
+            data['birds_km2'].append(df.birds_km2.to_numpy())
             data['env'].append(df[env_cols].to_numpy().T)
             data['acc'].append(df[acc_cols].to_numpy().T)
             data['nighttime'].append(df.night.to_numpy())
@@ -558,9 +562,9 @@ class RadarData(InMemoryDataset):
             data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
 
-            # if self.data_source == 'radar':
-            #     data['speed'].append(df.bird_speed.to_numpy())
-            #     data['direction'].append(df.bird_direction.to_numpy())
+            if self.data_source == 'radar' and self.compute_fluxes:
+                data['speed'].append(df.bird_speed.to_numpy())
+                data['direction'].append(df.bird_direction.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
@@ -594,14 +598,18 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps)
 
 
-        # # TODO compute fluxes along edges
-        # if self.data_source == 'radar':
-        #     for i, j, e_data in G.edges(data=True):
-        #         vid_interp = (dsi.vid.values.flatten() + dsj.vid.values.flatten()) / 2
-        #         dd_interp = ((dsi.dd.values.flatten() + 360) % 360 + (dsj.dd.values.flatten() + 360) % 360) / 2
-        #         ff_interp = (dsi.ff.values.flatten() + dsj.ff.values.flatten()) / 2
-        #         flux_interp = compute_flux(vid_interp, ff_interp, dd_interp, angle, length)
-        #         compute_flux(dens, ff, dd, alpha, l=1)
+
+        if self.data_source == 'radar' and self.compute_fluxes:
+            print('compute fluxes')
+            fluxes = []
+            for i, j, e_data in G.edges(data=True):
+                vid_interp = (data['birds_km2'][i] + data['birds_km2'][j]) / 2
+                dd_interp = ((data['direction'][i] + 360) % 360 + (data['direction'][j] + 360) % 360) / 2
+                ff_interp = (data['speed'][i] + data['speed'][j]) / 2
+                fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle']))
+            fluxes = torch.tensor(np.stack(fluxes, axis=0))
+        else:
+            fluxes = None
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps)
@@ -631,7 +639,8 @@ class RadarData(InMemoryDataset):
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
                           local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
-                          missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool))
+                          missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
+                          fluxes=fluxes[:, :, nidx])
                      for nidx in range(N) if data['missing'][:, :, nidx].mean() <= self.missing_data_threshold]
 
         # write data to disk

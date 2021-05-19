@@ -44,7 +44,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     encoder_type = cfg.model.get('encoder_type', 'temporal')
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
-    print(seq_len)
+    compute_fluxes = cfg.model.get('compute_fluxes', False)
 
 
     hps = cfg.model.hyperparameters
@@ -80,7 +80,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      max_distance=cfg.max_distance,
                                      t_unit=cfg.t_unit,
                                      n_dummy_radars=cfg.n_dummy_radars,
-                                     exclude=cfg.exclude)
+                                     exclude=cfg.exclude,
+                                     compute_fluxes=compute_fluxes)
                   for year in cfg.datasource.training_years]
     boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
@@ -119,7 +120,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   max_distance=cfg.max_distance,
                                   t_unit=cfg.t_unit,
                                   n_dummy_radars=cfg.n_dummy_radars,
-                                  exclude=cfg.exclude
+                                  exclude=cfg.exclude,
+                                  compute_fluxes=compute_fluxes
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -240,6 +242,8 @@ def test(cfg: DictConfig, output_dir: str, log):
     seq_len = context + cfg.model.horizon
     seq_shift = context // 24
 
+    compute_fluxes = cfg.model.get('compute_fluxes', False)
+
     # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
                          cfg.model.name, cfg.experiment)
@@ -287,7 +291,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    max_distance=cfg.max_distance,
                                    t_unit=cfg.t_unit,
                                    n_dummy_radars=cfg.n_dummy_radars,
-                                   exclude=cfg.exclude
+                                   exclude=cfg.exclude,
+                                   compute_fluxes=compute_fluxes
                                    )
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
