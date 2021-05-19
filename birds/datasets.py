@@ -506,6 +506,8 @@ class RadarData(InMemoryDataset):
             # dynamic_feature_df['birds_km2'] = dynamic_feature_df.birds_km2 / self.bird_scale
 
             dynamic_feature_df[input_col] = dynamic_feature_df[input_col] / self.bird_scale
+            if input_col != 'birds_km2':
+                dynamic_feature_df['birds_km2'] = dynamic_feature_df['birds_km2'] / self.bird_scale
             #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
 
 

@@ -2554,13 +2554,11 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         output = model(data, teacher_forcing) #.view(-1)
         gt = data.y
 
-        fluxes = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
-                                    data.num_nodes, data.num_nodes, -1)
+        observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+        inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+        constraints = torch.mean((observed_fluxes - inferred_fluxes)**2)
+        print(f'MSE fluxes = {constraints}')
 
-        reverse_fluxes = fluxes.permute(1, 0, 2)
-        deltas = fluxes + reverse_fluxes
-
-        constraints = torch.mean(deltas**2)
         if daymask:
             mask = data.local_night & ~data.missing
         else:
