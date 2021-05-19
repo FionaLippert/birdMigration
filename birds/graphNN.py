@@ -818,7 +818,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.fc_edge_in = torch.nn.Linear(self.n_hidden * 3, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                              for _ in range(self.n_fc_layers - 1)])
-        self.fc_edge_out = torch.nn.Linear(3*self.n_hidden, 1)
+        self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
 
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
@@ -969,7 +969,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         inputs = self.fc_edge_embedding(features)
         #flux = F.dropout(flux, p=self.dropout_p, training=self.training)
         features = torch.cat([inputs, h_i, h_j], dim=1)
-        
+
         flux = self.fc_edge_in(features).relu()
 
         for l in self.fc_edge_hidden:
