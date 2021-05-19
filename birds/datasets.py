@@ -627,7 +627,7 @@ class RadarData(InMemoryDataset):
                 fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle']))
             fluxes = torch.tensor(np.stack(fluxes, axis=0))
         else:
-            fluxes = torch.zeros(len(G.edges()), data[input_col].shape[1], data[input_col].shape[2])
+            fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps)
