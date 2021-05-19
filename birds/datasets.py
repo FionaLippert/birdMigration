@@ -557,7 +557,6 @@ class RadarData(InMemoryDataset):
             df = groups.get_group(name).sort_values(by='datetime').reset_index(drop=True)
             data['inputs'].append(df[input_col].to_numpy())
             data['targets'].append(df[target_col].to_numpy())
-            data['birds_km2'].append(df.birds_km2.to_numpy())
             data['env'].append(df[env_cols].to_numpy().T)
             data['acc'].append(df[acc_cols].to_numpy().T)
             data['nighttime'].append(df.night.to_numpy())
@@ -568,6 +567,7 @@ class RadarData(InMemoryDataset):
             if self.data_source == 'radar' and self.compute_fluxes:
                 data['speed'].append(df.bird_speed.to_numpy())
                 data['direction'].append(df.bird_direction.to_numpy())
+                data['birds_km2'].append(df.birds_km2.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
