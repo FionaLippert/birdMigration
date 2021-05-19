@@ -1637,7 +1637,7 @@ class AttentionGraphLSTM(MessagePassing):
 
             inputs = torch.cat([aggr_out, inputs, context], dim=1)
         else:
-            inputs = torch.cat([aggr_out, inputs])
+            inputs = torch.cat([aggr_out, inputs], dim=1)
 
 
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
