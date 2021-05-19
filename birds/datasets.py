@@ -542,9 +542,9 @@ class RadarData(InMemoryDataset):
                     dawn=[],
                     missing=[])
 
-        if self.data_source == 'radar':
-            data['speed'] = []
-            data['direction'] = []
+        # if self.data_source == 'radar':
+        #     data['speed'] = []
+        #     data['direction'] = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
@@ -558,9 +558,9 @@ class RadarData(InMemoryDataset):
             data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
 
-            if self.data_source == 'radar':
-                data['speed'].append(df.bird_speed.to_numpy())
-                data['direction'].append(df.bird_direction.to_numpy())
+            # if self.data_source == 'radar':
+            #     data['speed'].append(df.bird_speed.to_numpy())
+            #     data['direction'].append(df.bird_direction.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
@@ -594,14 +594,14 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps)
 
 
-        # TODO compute fluxes along edges
-        if self.data_source == 'radar':
-            for i, j, e_data in G.edges(data=True):
-                vid_interp = (dsi.vid.values.flatten() + dsj.vid.values.flatten()) / 2
-                dd_interp = ((dsi.dd.values.flatten() + 360) % 360 + (dsj.dd.values.flatten() + 360) % 360) / 2
-                ff_interp = (dsi.ff.values.flatten() + dsj.ff.values.flatten()) / 2
-                flux_interp = compute_flux(vid_interp, ff_interp, dd_interp, angle, length)
-                compute_flux(dens, ff, dd, alpha, l=1)
+        # # TODO compute fluxes along edges
+        # if self.data_source == 'radar':
+        #     for i, j, e_data in G.edges(data=True):
+        #         vid_interp = (dsi.vid.values.flatten() + dsj.vid.values.flatten()) / 2
+        #         dd_interp = ((dsi.dd.values.flatten() + 360) % 360 + (dsj.dd.values.flatten() + 360) % 360) / 2
+        #         ff_interp = (dsi.ff.values.flatten() + dsj.ff.values.flatten()) / 2
+        #         flux_interp = compute_flux(vid_interp, ff_interp, dd_interp, angle, length)
+        #         compute_flux(dens, ff, dd, alpha, l=1)
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps)
