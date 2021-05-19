@@ -1533,20 +1533,19 @@ class AttentionGraphLSTM(MessagePassing):
         y_hat = []
         enc_states = None
 
+        x = data.x[..., self.t_context].view(-1, 1)
+        y_hat.append(x)
+
         # initialize lstm variables
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
-
         else:
             # start from scratch
-            h_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-
-        x = data.x[..., self.t_context].view(-1, 1)
-        y_hat.append(x)
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
