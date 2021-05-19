@@ -971,12 +971,14 @@ class BirdFluxGraphLSTM(MessagePassing):
         features = torch.cat([inputs, h_i, h_j], dim=1)
 
         flux = self.fc_edge_in(features).relu()
+        print(f'flux before = {flux}')
 
         for l in self.fc_edge_hidden:
             flux = l(flux).relu()
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_edge_out(flux) #.tanh()
+        print(f'flux after = {flux}')
 
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
@@ -991,7 +993,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             flux = A_flux[self.edges[0], self.edges[1]]
             flux = flux.view(-1, 1)
-        print(f'flux = {flux}')
+        print(f'flux final = {flux}')
         self.local_fluxes[..., t] = flux
 
         return flux
@@ -2555,10 +2557,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         gt = data.y
 
         observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
-        print(observed_fluxes)
         inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
         print(inferred_fluxes)
-        constraints = torch.mean((observed_fluxes - inferred_fluxes)**2)
+        constraints = torch.nanmean((observed_fluxes - inferred_fluxes)**2)
         print(f'MSE fluxes = {constraints}')
 
         if daymask:
