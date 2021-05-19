@@ -1603,8 +1603,6 @@ class AttentionGraphLSTM(MessagePassing):
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
-        print(env_previous_j.shape)
-
         features = torch.cat([env_previous_j, night_previous_j.float().view(-1, 1),
                               edge_attr], dim=1)
 
