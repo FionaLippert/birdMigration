@@ -972,10 +972,10 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         inputs = self.fc_edge_embedding(features)
-        #flux = F.dropout(flux, p=self.dropout_p, training=self.training)
         # inputs = torch.cat([inputs, h_i, h_j], dim=1)
 
         flux = self.fc_edge_in(inputs).relu()
+        flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         for l in self.fc_edge_hidden:
             flux = l(flux).relu()
