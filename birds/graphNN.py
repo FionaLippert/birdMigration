@@ -946,6 +946,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
                 perturbation = torch.randn(len(self.fixed_boundary)) * self.perturbation_std + self.perturbation_mean
+                print(perturbation)
                 x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t] + perturbation
 
             if self.force_zeros:
