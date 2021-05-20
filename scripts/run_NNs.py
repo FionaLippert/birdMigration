@@ -61,13 +61,13 @@ def train(cfg: DictConfig, output_dir: str, log):
         hp_space = [[settings.default for settings in hps.values()]]
     param_names = [key for key in cfg.model.hyperparameters]
 
-
+    print('normalize features')
     # initialize normalizer
     normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
                                   cfg.datasource.name, seed=cfg.seed, max_distance=cfg.max_distance,
                                   t_unit=cfg.t_unit, edge_type=cfg.edge_type, n_dummy_radars=cfg.n_dummy_radars,
                                            exclude=cfg.exclude)
-
+    print('load training data')
     # load training data
     train_data = [datasets.RadarData(data_root, year, cfg.season, seq_len,
                                      data_source=cfg.datasource.name,
@@ -105,7 +105,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
 
-    print('normalize features')
     if cfg.root_transform == 0:
         cfg.datasource.bird_scale = float(normalization.max(input_col))
     else:
