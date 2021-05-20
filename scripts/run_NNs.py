@@ -81,12 +81,13 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      t_unit=cfg.t_unit,
                                      n_dummy_radars=cfg.n_dummy_radars,
                                      exclude=cfg.exclude,
-                                     compute_fluxes=compute_fluxes)
+                                     compute_fluxes=compute_fluxes,
+                                     use_nights=cfg.use_nights)
                   for year in cfg.datasource.training_years]
     boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
-    train_loader = DataLoader(train_data, batch_size=1, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
 
     if cfg.edge_type == 'voronoi':
         if cfg.datasource.use_buffers:
@@ -121,7 +122,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   t_unit=cfg.t_unit,
                                   n_dummy_radars=cfg.n_dummy_radars,
                                   exclude=cfg.exclude,
-                                  compute_fluxes=compute_fluxes
+                                  compute_fluxes=compute_fluxes,
+                                  use_nights=cfg.use_nights
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -294,7 +296,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    t_unit=cfg.t_unit,
                                    n_dummy_radars=cfg.n_dummy_radars,
                                    exclude=cfg.exclude,
-                                   compute_fluxes=compute_fluxes
+                                   compute_fluxes=compute_fluxes,
+                                   use_nights=cfg.use_nights
                                    )
     boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)

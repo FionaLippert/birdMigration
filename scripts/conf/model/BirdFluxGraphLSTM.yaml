@@ -50,3 +50,4 @@ enforce_conservation: false
 compute_fluxes: false
 perturbation_std: 0
 perturbation_mean: 0
+batch_size: 1

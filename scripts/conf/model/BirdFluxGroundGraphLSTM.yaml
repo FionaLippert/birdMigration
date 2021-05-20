@@ -47,3 +47,4 @@ use_encoder: false
 context: 0
 root_transformed_loss: false
 enforce_conservation: true
+batch_size: 1

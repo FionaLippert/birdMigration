@@ -41,3 +41,4 @@ use_encoder: false
 encoder_type: temporal
 context: 0
 root_transformed_loss: false
+batch_size: 1

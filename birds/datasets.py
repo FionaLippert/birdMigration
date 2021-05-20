@@ -220,9 +220,22 @@ def rescale(features, min=None, max=None):
         features = np.array(features)
     return (features - min) / (max - min)
 
-def reshape(data, nights, mask, timesteps):
+def reshape(data, nights, mask, timesteps, use_nights=True):
+    if use_nights:
+        reshaped = reshape_nights(data, nights, mask, timesteps)
+    else:
+        reshaped = reshape_t(data, timesteps)
+    return reshaped
+
+def reshape_nights(data, nights, mask, timesteps):
     reshaped = [timeslice(data, night[0], mask, timesteps) for night in nights]
     reshaped = [d for d in reshaped if d.size > 0] # only use sequences that are fully available
+    reshaped = np.stack(reshaped, axis=-1)
+    return reshaped
+
+def reshape_t(data, timesteps):
+
+    reshaped = [data[:, t:t+timesteps+1] for t in range(data.shape[-1] - timesteps - 1)]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
@@ -356,14 +369,11 @@ class RadarData(InMemoryDataset):
 
         self.compute_fluxes = kwargs.get('compute_fluxes', False)
 
+        self.use_nights = kwargs.get('use_nights', True)
 
-        if self.use_buffers:
-            self.processed_dirname = f'measurements=from_buffers_root_transform={self.root_transform}_' \
-                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
-        else:
-            self.processed_dirname = f'measurements=voronoi_cells_root_transform={self.root_transform}_' \
-                                     f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
-
+        measurements = 'from_buffers' if self.use_buffers else 'voronoi_cells'
+        self.processed_dirname = f'measurements={measurements}_root_transform={self.root_transform}_use_nights={self.use_nights}_' \
+                                 f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
         print(self.preprocessed_dir)
 
         super(RadarData, self).__init__(root, transform, pre_transform)
@@ -598,7 +608,7 @@ class RadarData(InMemoryDataset):
             mask = check_all
 
         for k, v in data.items():
-            data[k] = reshape(v, nights, mask, self.timesteps)
+            data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights)
 
 
 
@@ -631,8 +641,8 @@ class RadarData(InMemoryDataset):
             fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
 
-        tidx = reshape(tidx, nights, mask, self.timesteps)
-        dayofyear = reshape(dayofyear, nights, mask, self.timesteps)
+        tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
+        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
 
 
         # set bird densities during the day to zero

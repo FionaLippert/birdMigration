@@ -46,7 +46,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      missing_data_threshold=cfg.missing_data_threshold,
                                      edge_type=cfg.edge_type,
                                      max_distance=cfg.max_distance,
-                                     t_unit=cfg.t_unit
+                                     t_unit=cfg.t_unit,
+                                     use_nights=cfg.use_nights
                                      )
                   for year in cfg.datasource.training_years]
     train_data = torch.utils.data.ConcatDataset(train_data)
@@ -63,7 +64,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   missing_data_threshold=cfg.missing_data_threshold,
                                   edge_type=cfg.edge_type,
                                   max_distance=cfg.max_distance,
-                                  t_unit=cfg.t_unit
+                                  t_unit=cfg.t_unit,
+                                  use_nights=cfg.use_nights
                                   )
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
@@ -177,7 +179,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    missing_data_threshold=cfg.missing_data_threshold,
                                    edge_type=cfg.edge_type,
                                    max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit
+                                   t_unit=cfg.t_unit,
+                                   use_nights=cfg.use_nights
                                    )
     # load additional data
     time = test_data.info['timepoints']

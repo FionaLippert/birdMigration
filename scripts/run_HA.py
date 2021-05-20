@@ -38,7 +38,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      missing_data_threshold=cfg.missing_data_threshold,
                                       edge_type=cfg.edge_type,
                                       max_distance=cfg.max_distance,
-                                          t_unit=cfg.t_unit
+                                          t_unit=cfg.t_unit,
+                                          use_nights=cfg.use_nights
                                           )
                   for year in cfg.datasource.training_years]
 
@@ -108,7 +109,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    missing_data_threshold=cfg.missing_data_threshold,
                                    edge_type=cfg.edge_type,
                                    max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit
+                                   t_unit=cfg.t_unit,
+                                   use_nights=cfg.use_nights
                                    )
     # load additional data
     time = test_data.info['timepoints']

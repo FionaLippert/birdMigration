@@ -38,3 +38,4 @@ epochs: 100
 horizon: 40
 fixed_boundary: false
 force_zeros: false
+batch_size: 1
