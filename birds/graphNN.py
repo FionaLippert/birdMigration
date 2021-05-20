@@ -852,7 +852,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def reset_parameters(self):
-        inits.glorot(self.fc_edge_in.weight)
+        #inits.glorot(self.fc_edge_in.weight)
+        inits.glorot(self.fc_edge_embedding.weight)
         inits.glorot(self.fc_edge_out.weight)
 
         if self.use_encoder:
