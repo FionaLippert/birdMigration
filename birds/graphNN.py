@@ -795,7 +795,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 8 + 2*self.n_env
+        self.n_edge_in = 9 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
@@ -804,6 +804,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
         self.enforce_conservation = kwargs.get('enforce_conservation', False)
+
+        self.perturbation_std = kwargs.get('perturbation_std', 0)
+        self.perturbation_mean = kwargs.get('perturbation_mean', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -815,7 +818,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         self.fc_edge_embedding = torch.nn.Linear(self.n_edge_in, self.n_hidden)
-        self.fc_edge_in = torch.nn.Linear(self.n_hidden * 3, self.n_hidden)
+        # self.fc_edge_in = torch.nn.Linear(self.n_hidden * 3, self.n_hidden)
+        self.fc_edge_in = torch.nn.Linear(self.n_hidden, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                              for _ in range(self.n_fc_layers - 1)])
         self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
@@ -941,7 +945,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
-                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t]
+                perturbation = torch.randn(len(self.fixed_boundary)) * self.perturbation_std + self.perturbation_mean
+                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t] + perturbation
 
             if self.force_zeros:
                 x = x * data.local_night[:, t].view(-1, 1)
@@ -959,18 +964,18 @@ class BirdFluxGraphLSTM(MessagePassing):
         # x_j are source features with shape [E, out_channels]
 
 
-        # features = [x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
-        #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
-        features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
-                    night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        features = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
+                              night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
+        #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         features = torch.cat(features, dim=1)
 
 
         inputs = self.fc_edge_embedding(features)
         #flux = F.dropout(flux, p=self.dropout_p, training=self.training)
-        features = torch.cat([inputs, h_i, h_j], dim=1)
+        # inputs = torch.cat([inputs, h_i, h_j], dim=1)
 
-        flux = self.fc_edge_in(features).relu()
+        flux = self.fc_edge_in(inputs).relu()
 
         for l in self.fc_edge_hidden:
             flux = l(flux).relu()
@@ -981,7 +986,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
             flux = flux.sigmoid() # bird density flying from node j to node i should be positive
-            flux = flux * x_j
+            #flux = flux * x_j
             A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             A_outflux = A_influx.T # matrix of outfluxes
             A_flux = A_influx - A_outflux # matrix of total fluxes

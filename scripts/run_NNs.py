@@ -243,6 +243,8 @@ def test(cfg: DictConfig, output_dir: str, log):
     seq_shift = context // 24
 
     compute_fluxes = cfg.model.get('compute_fluxes', False)
+    p_std = cfg.model.get('perturbation_std', 0)
+    p_mean = cfg.model.get('perturbation_mean', 0)
 
     # load best settings from grid search (or setting used for regular training)
     train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
@@ -319,6 +321,8 @@ def test(cfg: DictConfig, output_dir: str, log):
         model.timesteps = cfg.model.horizon
         if fixed_boundary:
             model.fixed_boundary = boundary
+            model.perturbation_mean = p_mean
+            model.perturbation_std = p_std
 
         model.to(device)
         model.eval()

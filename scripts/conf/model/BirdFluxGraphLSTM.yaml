@@ -48,3 +48,5 @@ context: 24
 root_transformed_loss: true
 enforce_conservation: false
 compute_fluxes: false
+perturbation_std: 0
+perturbation_mean: 0
