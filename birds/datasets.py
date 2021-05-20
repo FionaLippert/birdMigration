@@ -235,7 +235,7 @@ def reshape_nights(data, nights, mask, timesteps):
 
 def reshape_t(data, timesteps):
 
-    reshaped = [data[..., t:t+timesteps+1] for t in range(data.shape[-1] - timesteps - 1)]
+    reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1, 4)]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
@@ -671,6 +671,8 @@ class RadarData(InMemoryDataset):
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=fluxes[:, :, nidx])
                      for nidx in range(N) if data['missing'][:, :, nidx].mean() <= self.missing_data_threshold]
+
+        print(f'number of sequences = {len(data_list)}')
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)

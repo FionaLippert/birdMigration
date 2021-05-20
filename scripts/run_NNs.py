@@ -89,6 +89,8 @@ def train(cfg: DictConfig, output_dir: str, log):
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
 
+    print('loaded training data')
+
     if cfg.edge_type == 'voronoi':
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
@@ -103,11 +105,13 @@ def train(cfg: DictConfig, output_dir: str, log):
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
 
+    print('normalize features')
     if cfg.root_transform == 0:
         cfg.datasource.bird_scale = float(normalization.max(input_col))
     else:
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
+    print('load val data')
     # load validation data
     val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, seq_len,
@@ -128,6 +132,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
+    print('loaded val data')
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
