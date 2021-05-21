@@ -6,7 +6,7 @@ hyperparameters:
     search_space:
     - 64
     - 128
-  n_layers:
+  n_lstm_layers:
     default: 1
     search_space:
     - 1

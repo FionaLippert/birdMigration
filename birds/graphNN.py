@@ -137,6 +137,60 @@ class MLP(torch.nn.Module):
 
         return torch.stack(y_hat, dim=1)
 
+class FluxMLP(torch.nn.Module):
+
+    def __init__(self, **kwargs):
+        super(FluxMLP, self).__init__()
+
+        torch.manual_seed(kwargs.get('seed', 1234))
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_in = 9 + 2 * self.n_env
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+
+        self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                        for _ in range(self.n_fc_layers - 1)])
+        self.fc_out = torch.nn.Linear(self.n_hidden, 1)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        inits.glorot(self.fc_in.weight)
+        inits.glorot(self.fc_out.weight)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.fc_hidden.apply(init_weights)
+
+
+    def forward(self, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr):
+
+        features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
+                              coords_j, coords_i, edge_attr], dim=1)
+
+        flux = self.fc_in(features).relu()
+        flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_hidden:
+            flux = l(flux).relu()
+            flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        flux = self.fc_out(flux)
+        flux = flux.sigmoid()
+        return flux
+
 
 class LocalMLP(MessagePassing):
 
@@ -157,6 +211,25 @@ class LocalMLP(MessagePassing):
         self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
                                         for _ in range(self.n_layers - 1)])
         self.fc_out = torch.nn.Linear(self.n_hidden, 1)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        inits.glorot(self.fc_in.weight)
+        inits.glorot(self.fc_out.weight)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.fc_hidden.apply(init_weights)
 
 
     def forward(self, data, **kwargs):
@@ -215,7 +288,7 @@ class LocalLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 7 + self.n_env
-        self.n_lstm_layers = kwargs.get('n_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.t_context = kwargs.get('t_context', 0)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
@@ -808,6 +881,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.perturbation_std = kwargs.get('perturbation_std', 0)
         self.perturbation_mean = kwargs.get('perturbation_mean', 0)
 
+        self.boundary_model = kwargs.get('boundary_model', None)
+
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
             self.n_edge_in += 1 # use face_length as additional feature
@@ -832,6 +907,11 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         if self.use_encoder:
             self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
+            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
         else:
             self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
@@ -841,12 +921,12 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
-        if self.use_encoder:
-            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
-                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
-            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
-            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
-            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+        if self.boundary_model == 'LocalLSTM':
+            kwargs['fixed_boundary'] = []
+            self.boundary_lstm = LocalLSTM(**kwargs)
+        elif self.boundary_model == 'FluxMLP':
+            self.flux_mlp = FluxMLP(**kwargs)
+
 
         self.reset_parameters()
 
@@ -921,6 +1001,10 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
+        if self.boundary_model == 'LocalLSTM':
+            boundary_pred = self.boundary_lstm(data, teacher_forcing)
+            x[self.fixed_boundary, 0] = boundary_pred[self.fixed_boundary, 0]
+
         for t in forecast_horizon:
 
             r = torch.rand(1)
@@ -947,7 +1031,10 @@ class BirdFluxGraphLSTM(MessagePassing):
             if len(self.fixed_boundary) > 0:
                 # use ground truth for boundary nodes
                 perturbation = torch.randn(len(self.fixed_boundary)).to(x.device) * self.perturbation_std + self.perturbation_mean
-                x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t] + perturbation
+                if self.boundary_model == 'LocalLSTM':
+                    x[self.fixed_boundary, 0] = boundary_pred[self.fixed_boundary, t-self.t_context] + perturbation
+                else:
+                    x[self.fixed_boundary, 0] = data.y[self.fixed_boundary, t] + perturbation
 
             if self.force_zeros:
                 x = x * data.local_night[:, t].view(-1, 1)
@@ -989,6 +1076,12 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = flux.sigmoid() # bird density flying from node j to node i should be positive
             #flux = flux * x_j
             A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
+
+            # TODO set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
+            if self.boundary_model == 'FluxMLP':
+                edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
+                A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
+
             A_outflux = A_influx.T # matrix of outfluxes
             A_flux = A_influx - A_outflux # matrix of total fluxes
             # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
@@ -1033,7 +1126,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.local_deltas[..., t] = delta
 
         self.fluxes[..., t] = aggr_out
-        pred = x + delta + ~boundary.view(-1, 1) * aggr_out # take messages into account for inner cells only
+        pred = x + delta + aggr_out # take messages into account for inner cells only
 
         return pred, h_t, c_t
 
