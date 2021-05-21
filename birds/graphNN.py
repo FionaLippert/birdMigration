@@ -1002,7 +1002,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred = self.boundary_lstm(data, teacher_forcing)
+            boundary_pred = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
             x[self.fixed_boundary, 0] = boundary_pred[self.fixed_boundary, 0]
 
         for t in forecast_horizon:
