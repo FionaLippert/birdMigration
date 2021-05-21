@@ -162,7 +162,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                           edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
                           use_acc_vars=cfg.model.get('use_acc_vars', False),
                           enforce_conservation=enforce_conservation,
-                          encoder_type=encoder_type)
+                          encoder_type=encoder_type,
+                          boundary_model=cfg.model.get('boundary_model', None))
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
