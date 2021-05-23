@@ -993,7 +993,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
-        self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+        # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
@@ -1052,14 +1052,14 @@ class BirdFluxGraphLSTM(MessagePassing):
         # x_j are source features with shape [E, out_channels]
 
 
-        features = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
+        inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
                               night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
-        features = torch.cat(features, dim=1)
+        inputs = torch.cat(inputs, dim=1)
 
 
-        inputs = self.fc_edge_embedding(features)
+        inputs = self.fc_edge_embedding(inputs)
         inputs = torch.cat([inputs, h_j], dim=1)
 
         flux = self.fc_edge_in(inputs).relu()
@@ -1082,8 +1082,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                 edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
                 A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
-            A_outflux = A_influx.T # matrix of outfluxes
-            A_flux = A_influx - A_outflux # matrix of total fluxes
+            # A_outflux = A_influx.T # matrix of outfluxes
+            A_flux = A_influx - A_influx.T # matrix of total fluxes
             # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
             # A_flux = A_flux - A_flux.T
             #edge_index, flux = dense_to_sparse(A_flux)
@@ -1125,7 +1125,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         delta = self.hidden2delta(h_t[-1]).tanh()
         self.local_deltas[..., t] = delta
 
-        self.fluxes[..., t] = aggr_out
         pred = x + delta + aggr_out # take messages into account for inner cells only
 
         return pred, h_t, c_t
