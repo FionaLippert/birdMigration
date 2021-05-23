@@ -358,13 +358,15 @@ def test(cfg: DictConfig, output_dir: str, log):
             local_night = data.local_night.cpu()
             missing = data.missing.cpu()
 
-            if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
+            if cfg.model.name in == 'GraphLSTM':
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
-            if cfg.model.name == 'BirdFluxGraphLSTM':
+            elif cfg.model.name == 'BirdFluxGraphLSTM':
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
-            if cfg.model.name == 'AttentionGraphLSTM':
+                fluxes = local_fluxes[nidx].sum(1)
+                local_deltas = model.local_deltas.cpu()
+            elif cfg.model.name == 'AttentionGraphLSTM':
                 attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 # attention_weights_state[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas2).view(
