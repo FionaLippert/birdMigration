@@ -358,7 +358,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             local_night = data.local_night.cpu()
             missing = data.missing.cpu()
 
-            if cfg.model.name in == 'GraphLSTM':
+            if cfg.model.name == 'GraphLSTM':
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
             elif cfg.model.name == 'BirdFluxGraphLSTM':
