@@ -340,6 +340,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         #         print(name, param.data)
 
         local_fluxes = {}
+        radar_fluxes = {}
         attention_weights = {}
         # attention_weights_state = {}
 
@@ -364,6 +365,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             elif cfg.model.name == 'BirdFluxGraphLSTM':
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
+                radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
+                    data.num_nodes, data.num_nodes, -1).cpu()
                 fluxes = local_fluxes[nidx].sum(1)
                 local_deltas = model.local_deltas.cpu()
             elif cfg.model.name == 'AttentionGraphLSTM':
@@ -393,6 +396,8 @@ def test(cfg: DictConfig, output_dir: str, log):
         if cfg.model.name == 'BirdFluxGraphLSTM':
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
                 pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
+            with open(osp.join(output_dir, f'radar_fluxes_{r}.pickle'), 'wb') as f:
+                pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
         if cfg.model.name == 'AttentionGraphLSTM':
             with open(osp.join(output_dir, f'attention_weights_{r}.pickle'), 'wb') as f:
                 pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
