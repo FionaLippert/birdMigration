@@ -2267,9 +2267,12 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         if conservation_constraint > 0:
             observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+            print('observed fluxes', observed_fluxes)
             inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+            print('inferred fluxes', inferred_fluxes)
             diff = observed_fluxes - inferred_fluxes
             constraints = (diff[~torch.isnan(diff)]**2).mean()
+            print('constraints', constraints)
         else:
             constraints = 0
 
