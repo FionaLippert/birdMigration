@@ -147,7 +147,7 @@ class FluxMLP(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 9 + 2 * self.n_env
+        self.n_in = 10 + 2 * self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
 
         self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
@@ -175,12 +175,12 @@ class FluxMLP(torch.nn.Module):
         self.fc_hidden.apply(init_weights)
 
 
-    def forward(self, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr):#, day_of_year):
+    def forward(self, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr, day_of_year):
 
-        # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
-        #                       coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
         features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
-                              coords_j, coords_i, edge_attr], dim=1)
+                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+        # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
+        #                       coords_j, coords_i, edge_attr], dim=1)
 
         flux = self.fc_in(features).relu()
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
@@ -1032,7 +1032,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 boundary=data.boundary,
                                                 night=data.local_night[:, t],
                                                 night_1=data.local_night[:, t-1],
-                                                #day_of_year=data.day_of_year[t],
+                                                day_of_year=data.day_of_year[t],
                                                 enc_states=enc_states)
 
             if self.fixed_boundary:
@@ -1053,7 +1053,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j, boundary): #, day_of_year):
+                night_i, night_1_j, boundary, day_of_year):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -1091,7 +1091,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                 edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
                                             night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
                                             coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
-                                            edge_attr[self.boundary_edge_index])#, day_of_year.repeat(self.boundary.sum()))
+                                            edge_attr[self.boundary_edge_index], day_of_year.repeat(self.boundary.sum()))
                 #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
                 self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
