@@ -84,7 +84,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      compute_fluxes=compute_fluxes,
                                      use_nights=cfg.use_nights)
                   for year in cfg.datasource.training_years]
-    boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
+    # boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
     train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
@@ -158,7 +158,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
                           n_env=2+len(cfg.datasource.env_vars),
                           n_nodes=n_nodes,
-                          fixed_boundary=boundary if fixed_boundary else [], force_zeros=cfg.model.get('force_zeros', 0),
+                          fixed_boundary=fixed_boundary, force_zeros=cfg.model.get('force_zeros', 0),
                           edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
                           use_acc_vars=cfg.model.get('use_acc_vars', False),
                           enforce_conservation=enforce_conservation,
@@ -304,7 +304,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    compute_fluxes=compute_fluxes,
                                    use_nights=cfg.use_nights
                                    )
-    boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
+    # boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
         _, test_loader = utils.val_test_split(test_loader, cfg.datasource.val_test_split, cfg.seed)
@@ -328,7 +328,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         # adjust model settings for testing
         model.timesteps = cfg.model.horizon
         if fixed_boundary:
-            model.fixed_boundary = boundary
+            model.fixed_boundary = True
             model.perturbation_mean = p_mean
             model.perturbation_std = p_std
 
