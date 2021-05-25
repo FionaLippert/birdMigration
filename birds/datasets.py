@@ -643,10 +643,10 @@ class RadarData(InMemoryDataset):
             fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
         data['direction'] = rescale(data['direction'], min=0, max=360)
-        data['direction'][torch.isnan(data['direction'])] = -1
+        data['direction'][np.isnan(data['direction'])] = -1
         data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
                                                                                   - self.normalization.min('bird_speed'))
-        data['speed'][torch.isnan(data['speed'])] = -1
+        data['speed'][np.isnan(data['speed'])] = -1
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
