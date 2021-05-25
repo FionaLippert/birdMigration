@@ -52,9 +52,11 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
                                                     mask_days=False, radar_names=voronoi_radars.radar)
         bird_speed, _, t_range = datahandling.load_season(radar_dir, season, year, 'ff', t_unit=t_unit,
-                                                         mask_days=False, radar_names=voronoi_radars.radar)
+                                                         mask_days=False, radar_names=voronoi_radars.radar,
+                                                          interpolate_nans=True)
         bird_direction, _, t_range = datahandling.load_season(radar_dir, season, year, 'dd', t_unit=t_unit,
-                                                         mask_days=False, radar_names=voronoi_radars.radar)
+                                                         mask_days=False, radar_names=voronoi_radars.radar,
+                                                              interpolate_nans=True)
         data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
         t_range = t_range.tz_localize('UTC')
 
@@ -213,9 +215,9 @@ def distance(x1, y1, x2, y2):
 
 def rescale(features, min=None, max=None):
     if min is None:
-        min = np.min(features)
+        min = np.nanmin(features)
     if max is None:
-        max = np.max(features)
+        max = np.nanmax(features)
     if type(features) is not np.ndarray:
         features = np.array(features)
     return (features - min) / (max - min)
@@ -641,8 +643,10 @@ class RadarData(InMemoryDataset):
             fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
         data['direction'] = rescale(data['direction'], min=0, max=360)
+        data['direction'][torch.isnan(data['direction'])] = -1
         data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
                                                                                   - self.normalization.min('bird_speed'))
+        data['speed'][torch.isnan(data['speed'])] = -1
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)

@@ -981,7 +981,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
-            print(enc_states)
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -1128,7 +1127,6 @@ class BirdFluxGraphLSTM(MessagePassing):
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
-            print('------------------', alpha)
             self.alphas_t[..., t] = alpha
             context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
 
@@ -1141,8 +1139,6 @@ class BirdFluxGraphLSTM(MessagePassing):
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         delta = self.hidden2delta(h_t[-1]).tanh()
-        print('##########', delta)
-        print('&&&&&&&&&', aggr_out)
         self.local_deltas[..., t] = delta
 
         pred = x + delta + aggr_out # take messages into account for inner cells only
