@@ -147,7 +147,7 @@ class FluxMLP(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 10 + 2 * self.n_env
+        self.n_in = 9 + 2 * self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
 
         self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
@@ -175,10 +175,12 @@ class FluxMLP(torch.nn.Module):
         self.fc_hidden.apply(init_weights)
 
 
-    def forward(self, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr, day_of_year):
+    def forward(self, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr):#, day_of_year):
 
+        # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
+        #                       coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
         features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
-                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+                              coords_j, coords_i, edge_attr], dim=1)
 
         flux = self.fc_in(features).relu()
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
