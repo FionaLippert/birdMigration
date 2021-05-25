@@ -965,9 +965,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
         self.edges = data.edge_index
-        #self.mask_forth = edges[0] < edges[1]
-        #self.mask_back = edges[1] < edges[0]
-
+        self.boundary_edge_index = torch.tensor([idx for idx in range(self.edges.size(1))
+                                                 if self.edges[0, idx] in self.fixed_boundary])
+        self.boundary_edges = self.edges[:, self.boundary_edge_index]
 
         y_hat = []
         enc_states = None
@@ -993,6 +993,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0), 1)).to(x.device)
+        self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0), 1)).to(x.device)
         # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
@@ -1075,20 +1077,31 @@ class BirdFluxGraphLSTM(MessagePassing):
             # enforce fluxes to be symmetric along edges
             flux = flux.sigmoid() # bird density flying from node j to node i should be positive
             #flux = flux * x_j
-            A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
+            #A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
+            self.local_fluxes_A[self.edges[0], self.edges[1]] = flux
 
-            # TODO set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
+            # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
             if self.boundary_model == 'FluxMLP':
-                edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
-                A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
+                #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
+                edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edges[1]], env_i[self.boundary_edges[0]],
+                                            night_1_j[self.boundary_edges[1]], night_i[self.boundary_edges[0]],
+                                            coords_j[self.boundary_edges[1]], coords_i[self.boundary_edges[0]],
+                                            edge_attr[self.boundary_edge_index])
+                #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
+
+                self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes
+                self.local_fluxes_A[self.fixed_boundary, :] = self.boundary_fluxes_A[self.fixed_boundary, :]
+
 
             # A_outflux = A_influx.T # matrix of outfluxes
-            A_flux = A_influx - A_influx.T # matrix of total fluxes
+            self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
+            #A_flux = A_influx - A_influx.T # matrix of total fluxes
             # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
             # A_flux = A_flux - A_flux.T
             #edge_index, flux = dense_to_sparse(A_flux)
 
-            flux = A_flux[self.edges[0], self.edges[1]]
+            #flux = A_flux[self.edges[0], self.edges[1]]
+            flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
             flux = flux.view(-1, 1)
         self.local_fluxes[..., t] = flux
 
