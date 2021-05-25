@@ -969,7 +969,6 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                  if self.edges[0, idx] in self.fixed_boundary])
         self.boundary_edges = self.edges[:, self.boundary_edge_index]
 
-        print(self.edges.shape, data.x.shape, len(self.fixed_boundary))
 
         y_hat = []
         enc_states = None

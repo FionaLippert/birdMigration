@@ -103,6 +103,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
             df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
 
         df['radar'] = [row.radar] * len(t_range)
+        #df['boundary'] = [row['boundary']] * len(t_range)
 
         # time related variables for radar ridx
         solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
