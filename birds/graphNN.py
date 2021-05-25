@@ -1087,7 +1087,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                             night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
                                             coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
                                             edge_attr[self.boundary_edge_index])
-                print(edge_fluxes.shape)
+                print(edge_fluxes.shape, self.boundary_edge_index.shape)
                 #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
                 self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
