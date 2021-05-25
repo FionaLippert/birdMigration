@@ -330,6 +330,7 @@ def compute_flux(dens, ff, dd, alpha, l=1):
     # compute number of birds crossing transect of length 'l' [km] and angle 'alpha' per hour
     mtr = dens * ff * np.cos(np.deg2rad(dd - alpha))
     flux = mtr * l * 3.6
+    print('radar flux', flux)
     return flux
 
 
@@ -647,6 +648,9 @@ class RadarData(InMemoryDataset):
         data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
                                                                                   - self.normalization.min('bird_speed'))
         data['speed'][np.isnan(data['speed'])] = -1
+
+        print(data['direction'])
+        print(data['speed'])
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
