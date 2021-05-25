@@ -1078,7 +1078,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = flux.sigmoid() # bird density flying from node j to node i should be positive
             #flux = flux * x_j
             #A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
-            self.local_fluxes_A[self.edges[0], self.edges[1]] = flux
+            self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
 
             # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
             if self.boundary_model == 'FluxMLP':
