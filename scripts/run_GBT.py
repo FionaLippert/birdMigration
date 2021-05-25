@@ -228,6 +228,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # create dataframe containing all results
     for k, v in results.items():
         results[k] = np.concatenate(v)
+    results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 

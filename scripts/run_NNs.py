@@ -408,7 +408,8 @@ def test(cfg: DictConfig, output_dir: str, log):
             results[k] = torch.cat(v).detach().numpy()
         else:
             results[k] = np.concatenate(v)
-
+    results['residual'] = results['gt'] - results['prediction']
+    results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 

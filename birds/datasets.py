@@ -640,6 +640,10 @@ class RadarData(InMemoryDataset):
         else:
             fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
+        data['direction'] = rescale(data['direction'], min=0, max=360)
+        data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
+                                                                                  - self.normalization.min('bird_speed'))
+
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
         dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
@@ -669,7 +673,9 @@ class RadarData(InMemoryDataset):
                           local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
-                          fluxes=fluxes[:, :, nidx])
+                          fluxes=fluxes[:, :, nidx],
+                          directions=torch.tensor(data['direction'][:, :, nidx], dtype=torch.float),
+                          speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float))
                      for nidx in range(N) if data['missing'][:, :, nidx].mean() <= self.missing_data_threshold]
 
         print(f'number of sequences = {len(data_list)}')
