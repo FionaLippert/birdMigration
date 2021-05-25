@@ -1083,10 +1083,11 @@ class BirdFluxGraphLSTM(MessagePassing):
             # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
             if self.boundary_model == 'FluxMLP':
                 #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
-                edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edges[1]], env_i[self.boundary_edges[0]],
-                                            night_1_j[self.boundary_edges[1]], night_i[self.boundary_edges[0]],
-                                            coords_j[self.boundary_edges[1]], coords_i[self.boundary_edges[0]],
+                edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
+                                            night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
+                                            coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
                                             edge_attr[self.boundary_edge_index])
+                print(edge_fluxes.shape)
                 #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
                 self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes
@@ -1101,7 +1102,9 @@ class BirdFluxGraphLSTM(MessagePassing):
             #edge_index, flux = dense_to_sparse(A_flux)
 
             #flux = A_flux[self.edges[0], self.edges[1]]
+            print(self.local_fluxes_A.shape)
             flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
+            print(flux.shape)
             flux = flux.view(-1, 1)
         self.local_fluxes[..., t] = flux
 
