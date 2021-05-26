@@ -451,7 +451,8 @@ class RadarData(InMemoryDataset):
 
         for idx in range(edge_index.size(1)):
             edge = edge_index[:, idx]
-            print(voronoi.iloc[edge[0]].radar, voronoi.iloc[edge[1]].radar)
+            print(edge, edge[0], edge[1])
+        print(voronoi.radar)
 
         # get distances, angles and face lengths between radars
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
