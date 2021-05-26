@@ -318,7 +318,7 @@ class LocalLSTM(MessagePassing):
 
         if self.use_encoder:
             self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
-            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+            self.encoder = RecurrentEncoder2(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
             self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
             self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
@@ -1736,6 +1736,72 @@ class RecurrentEncoder(torch.nn.Module):
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
                             local_dusk.float().view(-1, 1), local_night.float().view(-1, 1),
                             directions.view(-1, 1), speeds.view(-1, 1)], dim=1)
+        inputs = self.node2hidden(inputs)
+        h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
+        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
+        for l in range(1, self.n_lstm_layers):
+            h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+
+        return h_t, c_t
+
+
+class RecurrentEncoder2(torch.nn.Module):
+    def __init__(self, **kwargs):
+        super(RecurrentEncoder2, self).__init__()
+
+        self.timesteps = kwargs.get('timesteps', 12)
+        self.n_in = 6 + kwargs.get('n_env', 4)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+
+        torch.manual_seed(kwargs.get('seed', 1234))
+
+        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden)
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        inits.glorot(self.node2hidden.weight)
+        self.lstm_layers.apply(init_weights)
+
+
+    def forward(self, data):
+        # initialize lstm variables
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+
+        states = []
+
+        for t in range(self.timesteps):
+            h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
+                                   data.local_dawn[:, t], data.local_dusk[:, t], h_t, c_t)
+
+            states.append(h_t[-1])
+        states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
+        return states, h_t, c_t
+
+
+
+    def update(self, env, coords, x, local_night, local_dawn, local_dusk, h_t, c_t):
+        inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
+                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
