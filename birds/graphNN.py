@@ -2256,7 +2256,7 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
     return loss_all
 
 def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation_constraint=0.01,
-                 teacher_forcing=1.0, daymask=True):
+                 teacher_forcing=1.0, daymask=True, boundary_constraint_only=False):
     model.to(device)
     model.train()
     loss_all = 0
@@ -2272,6 +2272,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
             # print('inferred fluxes', inferred_fluxes)
             diff = observed_fluxes - inferred_fluxes
+            if boundary_constraint_only:
+                diff = diff[model.boundary_edge_index]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
             # print('constraints', constraints)
         else:
@@ -2284,6 +2286,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
+        print(loss_func(output, gt, mask), constraints)
         loss = loss_func(output, gt, mask) + conservation_constraint * constraints
 
         loss.backward()
