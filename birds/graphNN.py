@@ -2286,7 +2286,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
-        print(diff.size(), loss_func(output, gt, mask).detach().numpy(), constraints.detach().numpy())
+        print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
         loss = loss_func(output, gt, mask) + conservation_constraint * constraints
 
         loss.backward()
