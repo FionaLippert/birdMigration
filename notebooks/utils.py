@@ -198,7 +198,8 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_
     ax.set(ylabel='RMSE')
     return fig
 
-def plot_average_errors_comparison(models, results1, results2, group_names, bird_scales1={}, bird_scales2={}):
+def plot_average_errors_comparison(models, results1, results2, group_names, bird_scales1={}, bird_scales2={},
+                                   boundary=[], night_only=False):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(10, 4))
     rmse_list = []
@@ -208,30 +209,36 @@ def plot_average_errors_comparison(models, results1, results2, group_names, bird
         if m == 'GAM':
             results1[m]['constant_prediction_other'] = results2[m]['constant_prediction'] / bird_scales2.get(m,1) * bird_scales1.get(m, 1)
             results1[m]['constant_error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
-                                                                                    'constant_prediction'), axis=1)
+                                                                                    'constant_prediction',
+                                                                                      boundary=boundary,
+                                                                                      night_only=night_only), axis=1)
             results1[m]['constant_error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
-                                                                         'constant_prediction_other'), axis=1)
-            rmse = results1[m].groupby(['trial']).constant_error.mean().apply(np.sqrt)
+                                                                         'constant_prediction_other', boundary=boundary,
+                                                                                            night_only=night_only), axis=1)
+            rmse = results1[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
             rmse_list.append(rmse.values)
             labels.append(['constant'] * len(rmse))
             groups.append([group_names[0]] * len(rmse))
 
-            rmse = results1[m].groupby(['trial']).constant_error_other.mean().apply(np.sqrt)
+            rmse = results1[m].groupby(['trial']).constant_error_other.aggregate(np.nanmean).apply(np.sqrt)
             rmse_list.append(rmse.values)
             labels.append(['constant'] * len(rmse))
             groups.append([group_names[1]] * len(rmse))
 
 
-        results1[m]['error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1)), axis=1)
-        rmse = results1[m].groupby(['trial']).error.mean().apply(np.sqrt)
+        results1[m]['error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1), boundary=boundary,
+                                                                         night_only=night_only), axis=1)
+        rmse = results1[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
         groups.append([group_names[0]] * len(rmse))
 
         results1[m]['prediction_other'] = results2[m]['prediction_km2'] / bird_scales2.get(m, 1) * bird_scales1.get(m, 1)
         results1[m]['error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
-                                                                               'prediction_other'), axis=1)
-        rmse = results1[m].groupby(['trial']).error_other.mean().apply(np.sqrt)
+                                                                               'prediction_other',
+                                                                               boundary=boundary,
+                                                                               night_only=night_only), axis=1)
+        rmse = results1[m].groupby(['trial']).error_other.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
         groups.append([group_names[1]] * len(rmse))

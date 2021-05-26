@@ -145,10 +145,10 @@ class FluxMLP(torch.nn.Module):
         torch.manual_seed(kwargs.get('seed', 1234))
 
         self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_hidden = 64 #kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 10 + 2 * self.n_env
-        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
 
         self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
         self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
@@ -190,7 +190,7 @@ class FluxMLP(torch.nn.Module):
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
-        flux = flux.relu()
+        flux = flux.sigmoid()
         return flux
 
 
@@ -1080,7 +1080,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
-            flux = flux.relu() # bird density flying from node j to node i should be positive
+            flux = flux.sigmoid() # bird density flying from node j to node i should be positive
             #flux = flux * x_j
             #A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
