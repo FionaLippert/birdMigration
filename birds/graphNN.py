@@ -1097,7 +1097,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
             if self.boundary_model == 'LocalLSTM':
-                h_t[-1] = h_t[-1] * ~data.boundary + boundary_h[..., t-self.t_context-1] * data.boundary
+                print(h_t[-1].shape, data.boundary.shape)
+                h_t[-1] = h_t[-1] * ~data.boundary.squeeze() + boundary_h[..., t-self.t_context-1] * data.boundary.squeeze()
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
