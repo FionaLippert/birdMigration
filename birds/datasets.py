@@ -449,6 +449,10 @@ class RadarData(InMemoryDataset):
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()
 
+        for idx in range(edge_index.size(1)):
+            i, j = edge_index[:, idx]
+            print(voronoi.iloc[i].radar, voronoi.iloc[j].radar)
+
         # get distances, angles and face lengths between radars
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)

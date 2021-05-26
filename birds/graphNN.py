@@ -1088,6 +1088,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
             if self.boundary_model == 'FluxMLP':
                 #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
+                # TODO use attention weighted encoder sequence as additional input?
                 edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
                                             night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
                                             coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
