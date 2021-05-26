@@ -241,7 +241,7 @@ class FluxMLP2(torch.nn.Module):
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
-        features = self.fc_amb(features)
+        features = self.fc_emb(features)
         features = torch.cat([features, h_i], dim=1)
         flux = self.fc_in(features)
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
