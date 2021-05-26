@@ -356,6 +356,8 @@ class LocalLSTM(MessagePassing):
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
         self.use_encoder = kwargs.get('use_encoder', False)
+        self.use_mtr_features = kwargs.get('use_mtr_features', False)
+        self.return_hidden_states = kwargs.get('return_hidden_states', False)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -379,8 +381,12 @@ class LocalLSTM(MessagePassing):
 
         if self.use_encoder:
             self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
-            self.encoder = RecurrentEncoder2(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
-                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            if self.use_mtr_features:
+                self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                                n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            else:
+                self.encoder = RecurrentEncoder2(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                                 n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
             self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
             self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
 
@@ -440,7 +446,10 @@ class LocalLSTM(MessagePassing):
         if self.use_encoder:
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
+        all_h = torch.zeros(data.x.size(0), self.n_hidden, self.timesteps).to(x.device)
+
         for t in forecast_horizon:
+            all_h[..., t-1-self.t_context] = h_t[-1]
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
@@ -466,7 +475,11 @@ class LocalLSTM(MessagePassing):
             y_hat.append(x)
 
         prediction = torch.cat(y_hat, dim=-1)
-        return prediction
+
+        if self.return_hidden_states:
+            return prediction, all_h
+        else:
+            return prediction
 
 
     def message(self, edge_attr):
@@ -986,7 +999,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         if self.boundary_model == 'LocalLSTM':
             kwargs['fixed_boundary'] = []
-            self.boundary_lstm = LocalLSTM(**kwargs)
+            self.boundary_lstm = LocalLSTM(**kwargs, return_hidden_states=True, use_mtr_features=True)
         elif self.boundary_model == 'FluxMLP':
             if self.use_encoder:
                 self.flux_mlp = FluxMLP2(**kwargs)
@@ -1072,7 +1085,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
+            boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
@@ -1082,6 +1095,9 @@ class BirdFluxGraphLSTM(MessagePassing):
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].view(-1, 1) * x + \
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+
+            if self.boundary_model == 'LocalLSTM':
+                h_t[-1][data.boundary] = boundary_h[data.boundary, :, t-self.t_context-1]
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
