@@ -174,7 +174,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                 if cfg.model.name == 'BirdFluxGraphLSTM':
                     loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                         conservation_constraint=hp_settings['conservation_constraint'],
-                                        teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0))
+                                        teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
+                                        boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
                 else:
                     loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                                       daymask=cfg.model.get('force_zeros', 0))
