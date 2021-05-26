@@ -190,7 +190,7 @@ class FluxMLP(torch.nn.Module):
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
-        flux = flux.sigmoid()
+        flux = flux.relu()
         return flux
 
 
@@ -1080,7 +1080,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         if self.enforce_conservation:
             # enforce fluxes to be symmetric along edges
-            flux = flux.sigmoid() # bird density flying from node j to node i should be positive
+            flux = flux.relu() # bird density flying from node j to node i should be positive
             #flux = flux * x_j
             #A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
@@ -1093,7 +1093,6 @@ class BirdFluxGraphLSTM(MessagePassing):
                                             night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
                                             coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
                                             edge_attr[self.boundary_edge_index], day_of_year.repeat(self.boundary_edge_index.size()))
-                print(edge_fluxes.detach())
                 #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
                 self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
