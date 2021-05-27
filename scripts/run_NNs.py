@@ -322,6 +322,9 @@ def test(cfg: DictConfig, output_dir: str, log):
     if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
         results['fluxes'] = []
         results['local_deltas'] = []
+    if cfg.model.name == 'BirdFluxGraphLSTM':
+        results['influxes'] = []
+        results['outfluxes'] = []
 
     for r in range(cfg.repeats):
         model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
@@ -368,7 +371,9 @@ def test(cfg: DictConfig, output_dir: str, log):
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                     data.num_nodes, data.num_nodes, -1).cpu()
-                fluxes = local_fluxes[nidx].sum(1)
+                fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
+                influxes = local_fluxes[nidx].sum(1)
+                outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
                 local_deltas = model.local_deltas.cpu()
             elif cfg.model.name == 'AttentionGraphLSTM':
                 attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
@@ -393,6 +398,9 @@ def test(cfg: DictConfig, output_dir: str, log):
                 if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
                     results['fluxes'].append(fluxes[ridx].view(-1))
                     results['local_deltas'].append(local_deltas[ridx].view(-1))
+                if cfg.model.name == 'BirdFluxGraphLSTM':
+                    results['influxes'].append(influxes[ridx].view(-1))
+                    results['outfluxes'].append(outfluxes[ridx].view(-1))
 
         if cfg.model.name == 'BirdFluxGraphLSTM':
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:

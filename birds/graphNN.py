@@ -1086,8 +1086,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
         self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
-        self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
-        self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
+        # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
+        # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
 
@@ -1170,53 +1170,43 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         flux = self.fc_edge_out(flux) #.tanh()
 
-        if self.enforce_conservation:
-            # enforce fluxes to be symmetric along edges
-            flux = flux.sigmoid() # bird density flying from node j to node i should be positive
-            #flux = flux * x_j
-            #A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
-            self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
+        # enforce fluxes to be symmetric along edges
+        flux = flux.sigmoid() # bird density flying from node j to node i should be positive
+        #flux = flux * x_j
+        # self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
 
-            # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
-            if self.boundary_model == 'FluxMLP':
-                #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
-                # TODO use attention weighted encoder sequence as additional input?
-                if self.use_encoder:
-                    # boundary_fluxes = self.flux_mlp(h_i[self.boundary_edges], env_1_j[self.boundary_edges], env_i[self.boundary_edges],
-                    #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
-                    #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
-                    #                             edge_attr[self.boundary_edges],
-                    #                             day_of_year.repeat(self.boundary_edges.size()))
-                    boundary_fluxes = self.flux_mlp(h_i, env_1_j,
-                                                    env_i,
-                                                    night_1_j, night_i,
-                                                    coords_j, coords_i,
-                                                    edge_attr,
-                                                    day_of_year.repeat(self.edges.size(1)))
-                else:
-                    # boundary_fluxes = self.flux_mlp(env_1_j[self.boundary_edges], env_i[self.boundary_edges],
-                    #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
-                    #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
-                    #                             edge_attr[self.boundary_edges], day_of_year.repeat(self.boundary_edges.size()))
-                    boundary_fluxes = self.flux_mlp(env_1_j, env_i,
-                                                    night_1_j, night_i,
-                                                    coords_j, coords_i,
-                                                    edge_attr,
-                                                    day_of_year.repeat(self.edges.size(1)))
+        if self.boundary_model == 'FluxMLP':
+            #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
+            # TODO use attention weighted encoder sequence as additional input?
+            if self.use_encoder:
+                # boundary_fluxes = self.flux_mlp(h_i[self.boundary_edges], env_1_j[self.boundary_edges], env_i[self.boundary_edges],
+                #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
+                #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
+                #                             edge_attr[self.boundary_edges],
+                #                             day_of_year.repeat(self.boundary_edges.size()))
+                boundary_fluxes = self.flux_mlp(h_i, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i,
+                                                edge_attr, day_of_year.repeat(self.edges.size(1)))
+            else:
+                # boundary_fluxes = self.flux_mlp(env_1_j[self.boundary_edges], env_i[self.boundary_edges],
+                #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
+                #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
+                #                             edge_attr[self.boundary_edges], day_of_year.repeat(self.boundary_edges.size()))
+                boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i,
+                                                edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-                flux = ~self.boundary_edges.view(-1, 1) * flux + self.boundary_edges.view(-1, 1) * boundary_fluxes
-                #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
+            flux = ~self.boundary_edges.view(-1, 1) * flux + self.boundary_edges.view(-1, 1) * boundary_fluxes
+            #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
-                # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
-                # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
+            # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
+            # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
-            flux = flux - flux[self.reverse_edges]
-
-            # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
-            # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
-
-            flux = flux.view(-1, 1)
         self.local_fluxes[..., t] = flux
+        flux = flux - flux[self.reverse_edges]
+
+        # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
+        # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
+
+        flux = flux.view(-1, 1)
 
         return flux
 
@@ -2441,6 +2431,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         if conservation_constraint > 0:
             observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+            observed_fluxes = observed_fluxes - observed_fluxes.permute(1, 0, 2)
             # print('observed fluxes', observed_fluxes)
             inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
             # print('inferred fluxes', inferred_fluxes)
