@@ -1115,7 +1115,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 day_of_year=data.day_of_year[t],
                                                 enc_states=enc_states)
 
-            if self.fixed_boundary:
+            # if self.fixed_boundary:
                 # # use ground truth for boundary nodes
                 # perturbation = torch.randn(data.boundary.sum()).to(x.device) * self.perturbation_std + self.perturbation_mean
                 # if self.boundary_model == 'LocalLSTM':
