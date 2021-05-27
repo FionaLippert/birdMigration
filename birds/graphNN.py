@@ -252,7 +252,6 @@ class FluxMLP2(torch.nn.Module):
 
         flux = self.fc_out(flux)
         flux = flux.sigmoid()
-        print('boundary flux', flux)
         return flux
 
 
@@ -1195,7 +1194,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                 #                             edge_attr[self.boundary_edges], day_of_year.repeat(self.boundary_edges.size()))
                 boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
-
+            print(~self.boundary_edges.view(-1,1))
             flux = ~self.boundary_edges.view(-1, 1) * flux + self.boundary_edges.view(-1, 1) * boundary_fluxes
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
