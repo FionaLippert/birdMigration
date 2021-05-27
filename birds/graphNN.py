@@ -1133,7 +1133,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j):#, boundary, day_of_year):
+                night_i, night_1_j, boundary, day_of_year):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
