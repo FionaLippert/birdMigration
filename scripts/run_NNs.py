@@ -367,6 +367,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
             elif cfg.model.name == 'BirdFluxGraphLSTM':
+                print(model.local_fluxes)
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
