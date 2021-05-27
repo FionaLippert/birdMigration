@@ -997,14 +997,14 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 torch.nn.ReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
-        if self.boundary_model == 'LocalLSTM':
-            kwargs['fixed_boundary'] = []
-            self.boundary_lstm = LocalLSTM(**kwargs, return_hidden_states=True, use_mtr_features=True)
-        elif self.boundary_model == 'FluxMLP':
-            if self.use_encoder:
-                self.flux_mlp = FluxMLP2(**kwargs)
-            else:
-                self.flux_mlp = FluxMLP(**kwargs)
+        # if self.boundary_model == 'LocalLSTM':
+        #     kwargs['fixed_boundary'] = []
+        #     self.boundary_lstm = LocalLSTM(**kwargs, return_hidden_states=True, use_mtr_features=True)
+        # elif self.boundary_model == 'FluxMLP':
+        #     if self.use_encoder:
+        #         self.flux_mlp = FluxMLP2(**kwargs)
+        #     else:
+        #         self.flux_mlp = FluxMLP(**kwargs)
 
 
         self.reset_parameters()
@@ -1084,9 +1084,9 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
-        if self.boundary_model == 'LocalLSTM':
-            boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
-            x[data.boundary, 0] = boundary_pred[data.boundary, 0]
+        # if self.boundary_model == 'LocalLSTM':
+        #     boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
+        #     x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
 
@@ -1096,8 +1096,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                 x = data.missing[..., t-1].view(-1, 1) * x + \
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
-            if self.boundary_model == 'LocalLSTM':
-                h_t[-1] = h_t[-1] * ~data.boundary.view(-1, 1) + boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
+            # if self.boundary_model == 'LocalLSTM':
+            #     h_t[-1] = h_t[-1] * ~data.boundary.view(-1, 1) + boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
@@ -1116,12 +1116,12 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 enc_states=enc_states)
 
             if self.fixed_boundary:
-                # use ground truth for boundary nodes
-                perturbation = torch.randn(data.boundary.sum()).to(x.device) * self.perturbation_std + self.perturbation_mean
-                if self.boundary_model == 'LocalLSTM':
-                    x[data.boundary, 0] = boundary_pred[data.boundary, t-self.t_context] + perturbation
-                else:
-                    x[data.boundary, 0] = data.y[data.boundary, t] + perturbation
+                # # use ground truth for boundary nodes
+                # perturbation = torch.randn(data.boundary.sum()).to(x.device) * self.perturbation_std + self.perturbation_mean
+                # if self.boundary_model == 'LocalLSTM':
+                #     x[data.boundary, 0] = boundary_pred[data.boundary, t-self.t_context] + perturbation
+                # else:
+                #     x[data.boundary, 0] = data.y[data.boundary, t] + perturbation
 
             if self.force_zeros:
                 x = x * data.local_night[:, t].view(-1, 1)
@@ -1165,26 +1165,26 @@ class BirdFluxGraphLSTM(MessagePassing):
             #A_influx = to_dense_adj(self.edges, edge_attr=flux).squeeze() # matrix of influxes
             self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
 
-            # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
-            if self.boundary_model == 'FluxMLP':
-                #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
-                # TODO use attention weighted encoder sequence as additional input?
-                if self.use_encoder:
-                    edge_fluxes = self.flux_mlp(h_i[self.boundary_edge_index], env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
-                                                night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
-                                                coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
-                                                edge_attr[self.boundary_edge_index],
-                                                day_of_year.repeat(self.boundary_edge_index.size()))
-                else:
-                    edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
-                                                night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
-                                                coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
-                                                edge_attr[self.boundary_edge_index], day_of_year.repeat(self.boundary_edge_index.size()))
-                #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
-
-                self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
-                self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
-
+            # # set A_influx[self.boundary, :] (birds flying from boundary cell to other cell) based on boundary model
+            # if self.boundary_model == 'FluxMLP':
+            #     #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
+            #     # TODO use attention weighted encoder sequence as additional input?
+            #     if self.use_encoder:
+            #         edge_fluxes = self.flux_mlp(h_i[self.boundary_edge_index], env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
+            #                                     night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
+            #                                     coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
+            #                                     edge_attr[self.boundary_edge_index],
+            #                                     day_of_year.repeat(self.boundary_edge_index.size()))
+            #     else:
+            #         edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
+            #                                     night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
+            #                                     coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
+            #                                     edge_attr[self.boundary_edge_index], day_of_year.repeat(self.boundary_edge_index.size()))
+            #     #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
+            #
+            #     self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
+            #     self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
+            #
 
             # A_outflux = A_influx.T # matrix of outfluxes
             self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T

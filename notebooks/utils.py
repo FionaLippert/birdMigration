@@ -189,11 +189,11 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_
         #print(np.mean(rmse), np.std(rmse))
 
     df = pd.DataFrame(dict(RMSE=np.concatenate(rmse_list), model=np.concatenate(labels)))
-    #g = sb.barplot(x='model', y='RMSE', data=df, ci='sd', ax=ax)
-    g = sb.boxplot(x='model', y='RMSE', data=df, ax=ax)
-    # for p in g.patches:
-    #     g.annotate(format(p.get_height(), '.4f'), (p.get_x() + p.get_width() / 2., p.get_height()), ha='center',
-    #                 va='center', xytext=(0, -20), textcoords='offset points', size=20)
+    g = sb.barplot(x='model', y='RMSE', data=df, ci='sd', ax=ax)
+    # g = sb.boxplot(x='model', y='RMSE', data=df, ax=ax)
+    for p in g.patches:
+        g.annotate(format(p.get_height(), '.4f'), (p.get_x() + p.get_width() / 2., p.get_height()), ha='center',
+                    va='center', xytext=(0, -20), textcoords='offset points', size=20)
 
     plt.grid()
     ax.set(ylabel='RMSE')
