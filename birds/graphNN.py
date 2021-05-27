@@ -1053,7 +1053,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.reverse_edge_index = torch.zeros(n_edges, dtype=torch.long)
         for idx in range(n_edges):
             for jdx in range(n_edges):
-                if self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0]):
+                if (self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0])).all():
                     self.reverse_edge_index[idx] = jdx
 
 
