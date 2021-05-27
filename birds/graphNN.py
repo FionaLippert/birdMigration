@@ -1044,10 +1044,17 @@ class BirdFluxGraphLSTM(MessagePassing):
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
         self.edges = data.edge_index
-        self.boundary_edge_index = torch.tensor([idx for idx in range(self.edges.size(1))
+        n_edges = self.edges.size(1)
+        self.boundary_edge_index = torch.tensor([idx for idx in range(n_edges)
                                                  if data.boundary[self.edges[0, idx]]])
         self.boundary_edges = self.edges[:, self.boundary_edge_index]
         self.boundary = data.boundary
+
+        self.reverse_edge_index = torch.zeros(n_edges, dtype=torch.long)
+        for idx in range(n_edges):
+            for jdx in range(n_edges):
+                if self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0]):
+                    self.reverse_edge_index[idx] = jdx
 
 
         y_hat = []
@@ -1185,16 +1192,11 @@ class BirdFluxGraphLSTM(MessagePassing):
                 self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
                 self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
+            flux = flux - flux[self.reverse_edge_index]
 
-            # A_outflux = A_influx.T # matrix of outfluxes
-            self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
-            #A_flux = A_influx - A_influx.T # matrix of total fluxes
-            # A_flux = torch.triu(A_flux, diagonal=1) # values on diagonal are zero
-            # A_flux = A_flux - A_flux.T
-            #edge_index, flux = dense_to_sparse(A_flux)
+            # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
+            # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
 
-            #flux = A_flux[self.edges[0], self.edges[1]]
-            flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
             flux = flux.view(-1, 1)
         self.local_fluxes[..., t] = flux
 
