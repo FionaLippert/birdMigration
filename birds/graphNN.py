@@ -1192,7 +1192,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                     night_1_j, night_i,
                                                     coords_j, coords_i,
                                                     edge_attr,
-                                                    day_of_year.repeat(self.edges.size()))
+                                                    day_of_year.repeat(self.edges.size(1)))
                 else:
                     # boundary_fluxes = self.flux_mlp(env_1_j[self.boundary_edges], env_i[self.boundary_edges],
                     #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
@@ -1202,7 +1202,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                     night_1_j, night_i,
                                                     coords_j, coords_i,
                                                     edge_attr,
-                                                    day_of_year.repeat(self.edges.size()))
+                                                    day_of_year.repeat(self.edges.size(1)))
 
                 flux = ~self.boundary_edges * flux + self.boundary_edges * boundary_fluxes
                 #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
