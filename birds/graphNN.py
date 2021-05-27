@@ -1172,6 +1172,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         # enforce fluxes to be symmetric along edges
         flux = flux.sigmoid() # bird density flying from node j to node i should be positive
+        print('before boundary model', flux)
         #flux = flux * x_j
         # self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
 
@@ -1199,7 +1200,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
-
+        print('after boundary model', flux)
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 
