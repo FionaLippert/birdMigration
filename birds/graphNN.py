@@ -1043,18 +1043,23 @@ class BirdFluxGraphLSTM(MessagePassing):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
-        self.edges = data.edge_index
-        n_edges = self.edges.size(1)
-        self.boundary_edge_index = torch.tensor([idx for idx in range(n_edges)
-                                                 if data.boundary[self.edges[0, idx]]])
-        self.boundary_edges = self.edges[:, self.boundary_edge_index]
-        self.boundary = data.boundary
+        # self.edges = data.edge_index
+        # n_edges = self.edges.size(1)
+        # self.boundary_edge_index = torch.tensor([idx for idx in range(n_edges)
+        #                                          if data.boundary[self.edges[0, idx]]])
+        # self.boundary_edges = self.edges[:, self.boundary_edge_index]
+        # self.boundary = data.boundary
+        #
+        # self.reverse_edge_index = torch.zeros(n_edges, dtype=torch.long)
+        # for idx in range(n_edges):
+        #     for jdx in range(n_edges):
+        #         if (self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0])).all():
+        #             self.reverse_edge_index[idx] = jdx
 
-        self.reverse_edge_index = torch.zeros(n_edges, dtype=torch.long)
-        for idx in range(n_edges):
-            for jdx in range(n_edges):
-                if (self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0])).all():
-                    self.reverse_edge_index[idx] = jdx
+        self.edges = data.edge_index
+        self.boundary_edges = data.boundary_edge_index
+        self.reverse_edges = data.reverse_edge_index
+        self.boundary = data.boundary
 
 
         y_hat = []
@@ -1177,22 +1182,24 @@ class BirdFluxGraphLSTM(MessagePassing):
                 #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
                 # TODO use attention weighted encoder sequence as additional input?
                 if self.use_encoder:
-                    edge_fluxes = self.flux_mlp(h_i[self.boundary_edge_index], env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
+                    boundary_fluxes = self.flux_mlp(h_i[self.boundary_edge_index], env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
                                                 night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
                                                 coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
                                                 edge_attr[self.boundary_edge_index],
                                                 day_of_year.repeat(self.boundary_edge_index.size()))
                 else:
-                    edge_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
+                    boundary_fluxes = self.flux_mlp(env_1_j[self.boundary_edge_index], env_i[self.boundary_edge_index],
                                                 night_1_j[self.boundary_edge_index], night_i[self.boundary_edge_index],
                                                 coords_j[self.boundary_edge_index], coords_i[self.boundary_edge_index],
                                                 edge_attr[self.boundary_edge_index], day_of_year.repeat(self.boundary_edge_index.size()))
+
+                flux[self.boundary_edges] = boundary_fluxes
                 #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
-                self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
-                self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
+                # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
+                # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
-            flux = flux - flux[self.reverse_edge_index]
+            flux = flux - flux[self.reverse_edges]
 
             # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
             # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]

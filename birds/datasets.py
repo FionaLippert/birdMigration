@@ -448,6 +448,18 @@ class RadarData(InMemoryDataset):
         # extract edges from graph
         edges = torch.tensor(list(G.edges()), dtype=torch.long)
         edge_index = edges.t().contiguous()
+        n_edges = edge_index.size(1)
+
+        # boundary radars
+        boundary = voronoi['boundary'].to_numpy()
+        boundary_edges = torch.tensor([(boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
+                                            for idx in range(n_edges)])
+
+        reverse_edges = torch.zeros(n_edges, dtype=torch.long)
+        for idx in range(n_edges):
+            for jdx in range(n_edges):
+                if (edge_index[:, idx] == torch.flip(edge_index[:, jdx], dims=[0])).all():
+                    reverse_edges[idx] = jdx
 
 
         # get distances, angles and face lengths between radars
@@ -549,7 +561,6 @@ class RadarData(InMemoryDataset):
             areas = np.ones(len(static))
         coords = static[coord_cols].to_numpy()
         dayofyear = dayofyear / max(dayofyear)
-        boundary = voronoi['boundary'].to_numpy()
 
         data = dict(inputs=[],
                     targets=[],
@@ -670,6 +681,8 @@ class RadarData(InMemoryDataset):
                           env=torch.tensor(data['env'][..., nidx], dtype=torch.float),
                           acc=torch.tensor(data['acc'][..., nidx], dtype=torch.float),
                           edge_index=edge_index,
+                          reverse_edge_index=reverse_edges,
+                          boundary_edge_index=boundary_edges,
                           edge_attr=edge_attr,
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
