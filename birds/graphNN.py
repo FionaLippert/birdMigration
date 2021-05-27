@@ -2437,7 +2437,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             # print('inferred fluxes', inferred_fluxes)
             diff = observed_fluxes - inferred_fluxes
             if boundary_constraint_only:
-                diff = diff[model.boundary_edge_index]
+                diff = diff[data.boundary_edges]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
             # print('constraints', constraints)
         else:
