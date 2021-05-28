@@ -575,13 +575,17 @@ class RadarData(InMemoryDataset):
                     nighttime=[],
                     dusk=[],
                     dawn=[],
-                    missing=[])
+                    missing=[],
+                    speed = [],
+                    direction = [],
+                    birds_km2 = [],
+                    bird_uv = [])
 
-        if self.data_source == 'radar' and self.compute_fluxes:
-            data['speed'] = []
-            data['direction'] = []
-            data['birds_km2'] = []
-            data['bird_uv'] = []
+        # if self.data_source == 'radar' and self.compute_fluxes:
+        #     data['speed'] = []
+        #     data['direction'] = []
+        #     data['birds_km2'] = []
+        #     data['bird_uv'] = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
