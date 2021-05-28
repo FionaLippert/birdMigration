@@ -637,6 +637,7 @@ class RadarData(InMemoryDataset):
         if self.data_source == 'radar' and self.compute_fluxes:
             print('compute fluxes')
             fluxes = []
+            mtr = []
             for i, j, e_data in G.edges(data=True):
                 vid_i = data['birds_km2'][i]
                 vid_j = data['birds_km2'][j]
@@ -658,9 +659,12 @@ class RadarData(InMemoryDataset):
                 ff_interp = (ff_i + ff_j) / 2
                 length = e_data.get('face_length', 1)
                 fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
+                mtr.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], 1))
             fluxes = torch.tensor(np.stack(fluxes, axis=0))
+            mtr = torch.tensor(np.stack(mtr, axis=0))
         else:
             fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
+            mtr = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
         data['direction'] = rescale(data['direction'], min=0, max=360)
         data['direction'][np.isnan(data['direction'])] = -1
@@ -701,6 +705,7 @@ class RadarData(InMemoryDataset):
                           local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=fluxes[:, :, nidx],
+                          mtr=mtr[:, :, nidx],
                           directions=torch.tensor(data['direction'][:, :, nidx], dtype=torch.float),
                           speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float),
                           bird_uv=torch.tensor(data['bird_uv'][..., nidx], dtype=torch.float))

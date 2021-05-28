@@ -1829,9 +1829,11 @@ class RecurrentEncoder(torch.nn.Module):
         states = []
 
         for t in range(self.timesteps):
+            # h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
+            #                        data.local_dawn[:, t], data.local_dusk[:, t], data.directions[:, t],
+            #                        data.speeds[:, t], h_t, c_t)
             h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
-                                   data.local_dawn[:, t], data.local_dusk[:, t], data.directions[:, t],
-                                   data.speeds[:, t], h_t, c_t)
+                                   data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t], h_t, c_t)
 
             states.append(h_t[-1])
         states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
@@ -1839,10 +1841,9 @@ class RecurrentEncoder(torch.nn.Module):
 
 
 
-    def update(self, env, coords, x, local_night, local_dawn, local_dusk, directions, speeds, h_t, c_t):
+    def update(self, env, coords, x, local_night, local_dawn, local_dusk, bird_uv, h_t, c_t):
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
-                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1),
-                            directions.view(-1, 1), speeds.view(-1, 1)], dim=1)
+                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv], dim=1)
         inputs = self.node2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
