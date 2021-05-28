@@ -49,14 +49,18 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         print(f'load radar data')
         radar_dir = osp.join(data_dir, 'radar')
         voronoi_radars = voronoi.query('observed == True')
-        birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, 'vid', t_unit=t_unit,
-                                                    mask_days=False, radar_names=voronoi_radars.radar)
-        bird_speed, _, t_range = datahandling.load_season(radar_dir, season, year, 'ff', t_unit=t_unit,
-                                                         mask_days=False, radar_names=voronoi_radars.radar,
+        birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, ['vid'],
+                                                         t_unit=t_unit, mask_days=False, radar_names=voronoi_radars.radar)
+
+        radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['ff', 'dd', 'u', 'v'],
+                                                         t_unit=t_unit, mask_days=False, radar_names=voronoi_radars.radar,
                                                           interpolate_nans=True)
-        bird_direction, _, t_range = datahandling.load_season(radar_dir, season, year, 'dd', t_unit=t_unit,
-                                                         mask_days=False, radar_names=voronoi_radars.radar,
-                                                              interpolate_nans=True)
+
+        bird_speed = radar_data[:, 0, :]
+        bird_direction = radar_data[:, 1, :]
+        bird_u = radar_data[:, 2, :]
+        bird_v = radar_data[:, 3, :]
+
         data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
         t_range = t_range.tz_localize('UTC')
 
@@ -103,6 +107,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
             df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
 
         df['radar'] = [row.radar] * len(t_range)
 
@@ -575,6 +581,7 @@ class RadarData(InMemoryDataset):
             data['speed'] = []
             data['direction'] = []
             data['birds_km2'] = []
+            data['bird_uv'] = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
@@ -592,6 +599,7 @@ class RadarData(InMemoryDataset):
                 data['speed'].append(df.bird_speed.to_numpy())
                 data['direction'].append(df.bird_direction.to_numpy())
                 data['birds_km2'].append(df.birds_km2.to_numpy())
+                data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
@@ -659,6 +667,7 @@ class RadarData(InMemoryDataset):
         data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
                                                                                   - self.normalization.min('bird_speed'))
         data['speed'][np.isnan(data['speed'])] = -1
+        data['bird_uv'][np.isnan(data['bird_uv'])] = 0 #TODO necessary?
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
@@ -693,7 +702,8 @@ class RadarData(InMemoryDataset):
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=fluxes[:, :, nidx],
                           directions=torch.tensor(data['direction'][:, :, nidx], dtype=torch.float),
-                          speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float))
+                          speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float),
+                          bird_uv=torch.tensor(data['bird_uv'][..., nidx], dtype=torch.float))
                      for nidx in range(N) if data['missing'][:, :, nidx].mean() <= self.missing_data_threshold]
 
         print(f'number of sequences = {len(data_list)}')

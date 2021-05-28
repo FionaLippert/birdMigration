@@ -37,12 +37,12 @@ def to_latlon(coords):
     return (coords[1], coords[0])
 
 
-def resample(f, start, end, var, unit, mask_days, interpolate_nans):
+def resample(f, start, end, vars, unit, mask_days, interpolate_nans):
     ds = xr.open_dataset(f)
     if mask_days:
         # only keep data at times between civil dusk and dawn (6 degrees below horizon)
         ds = ds.where(ds.solarpos < -6)
-    ds = ds.sel(time=slice(start, end))[var]
+    ds = ds.sel(time=slice(start, end))[vars]
     with warnings.catch_warnings():
         warnings.filterwarnings(action='ignore', message='Mean of empty slice')
         ds = ds.resample(time=unit, skipna=True).reduce(np.nanmean)
@@ -53,9 +53,9 @@ def resample(f, start, end, var, unit, mask_days, interpolate_nans):
     return ds
 
 
-def load_data(path, var='vid', start=None, end=None, t_unit='1H', mask_days=True, interpolate_nans=False):
+def load_data(path, vars=['vid'], start=None, end=None, t_unit='1H', mask_days=True, interpolate_nans=False):
     files = glob.glob(os.path.join(path, '*.nc'))
-    data = {get_name(f): resample(f, start, end, var, t_unit, mask_days, interpolate_nans) for f in files}
+    data = {get_name(f): resample(f, start, end, vars, t_unit, mask_days, interpolate_nans) for f in files}
     names = {get_coords(f): get_name(f) for f in files}
     t_range = pd.date_range(start, end, freq=t_unit)
     return data, names, t_range
@@ -65,7 +65,7 @@ def load_radars(path):
     radars = {get_coords(f): get_name(f) for f in files}
     return radars
 
-def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True, radar_names=[], interpolate_nans=False):
+def load_season(root, season, year, vars=['vid'], t_unit='1H', mask_days=True, radar_names=[], interpolate_nans=False):
     path = os.path.join(root, season, year)
 
     if season == 'spring':
@@ -76,11 +76,11 @@ def load_season(root, season, year, var='vid', t_unit='1H', mask_days=True, rada
         start = f'{year}-08-01 12:00:00' #+00:00'
         end = f'{year}-11-15 12:00:00' #+00:00'
 
-    dataset, radars, t_range = load_data(path, var, start, end, t_unit, mask_days, interpolate_nans)
+    dataset, radars, t_range = load_data(path, vars, start, end, t_unit, mask_days, interpolate_nans)
 
     if len(radar_names) == 0:
         radar_names = radars.values()
-    data = np.stack([dataset[radar].data.flatten() for radar in radar_names], axis=0)
+    data = np.stack([dataset[radar].to_array().squeeze() for radar in radar_names], axis=0)
 
     return data, radars, t_range
 
