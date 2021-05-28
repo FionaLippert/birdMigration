@@ -944,7 +944,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 9 + 2*self.n_env
+        self.n_edge_in = 10 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
@@ -1119,6 +1119,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 edge_attr=edge_attr,
                                                 dusk=data.local_dusk[:, t-1],
                                                 dawn=data.local_dawn[:, t],
+                                                dawn_1=data.local_dawn[:, t-1],
                                                 env=data.env[..., t],
                                                 env_1=data.env[..., t-1],
                                                 t=t-self.t_context,
@@ -1146,14 +1147,18 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j, boundary, day_of_year):
+                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
 
 
-        inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
-                              night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        # inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
+        #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
+        #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
+        inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr,
+                  night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
+                  dawn_i.float().view(-1, 1), dawn_1_j.float().view(-1, 1)]
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         inputs = torch.cat(inputs, dim=1)
