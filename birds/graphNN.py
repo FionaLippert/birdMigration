@@ -1192,14 +1192,15 @@ class BirdFluxGraphLSTM(MessagePassing):
                 #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
                 #                             edge_attr[self.boundary_edges],
                 #                             day_of_year.repeat(self.boundary_edges.size()))
-                boundary_fluxes = self.flux_mlp(h_i, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i,
+                boundary_fluxes = self.flux_mlp(h_i, env_1_j, env_i, night_1_j, night_i, dawn_i, dawn_1_j,
+                                                coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
             else:
                 # boundary_fluxes = self.flux_mlp(env_1_j[self.boundary_edges], env_i[self.boundary_edges],
                 #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
                 #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
                 #                             edge_attr[self.boundary_edges], day_of_year.repeat(self.boundary_edges.size()))
-                boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, dawn_i, dawn_1_j,
+                boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i,
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
