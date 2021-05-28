@@ -204,7 +204,7 @@ class FluxMLP2(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = 64 #kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 10 + 2 * self.n_env
+        self.n_in = 12 + 2 * self.n_env
         self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
 
         self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
@@ -234,10 +234,12 @@ class FluxMLP2(torch.nn.Module):
         self.fc_hidden.apply(init_weights)
 
 
-    def forward(self, h_i, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr, day_of_year):
+    def forward(self, h_i, env_1_j, env_i, night_1_j, night_i, dawn_i, dawn_1_j,
+                coords_j, coords_i, edge_attr, day_of_year):
 
         features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
-                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1),
+                              dawn_i.float().view(-1, 1), dawn_1_j.float().view(-1, 1)], dim=1)
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
@@ -1197,7 +1199,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                 #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
                 #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
                 #                             edge_attr[self.boundary_edges], day_of_year.repeat(self.boundary_edges.size()))
-                boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i,
+                boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, dawn_i, dawn_1_j,
+                                                coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
             flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
