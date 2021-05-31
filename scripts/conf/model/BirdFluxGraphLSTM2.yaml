@@ -1,5 +1,5 @@
 # @package _group_
-name: BirdFluxGraphLSTM
+name: BirdFluxGraphLSTM2
 hyperparameters:
   n_hidden:
     default: 128
