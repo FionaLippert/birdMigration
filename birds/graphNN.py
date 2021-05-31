@@ -1209,6 +1209,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             print(self.boundary_edges.view(-1, 1).shape)
             print(boundary_fluxes.shape)
             print(flux.shape)
+            print(torch.logical_not(self.boundary_edges.view(-1, 1)) + self.boundary_edges.view(-1, 1))
             flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
             # print(boundary_fluxes[self.boundary_edges])
