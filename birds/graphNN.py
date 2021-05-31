@@ -1205,7 +1205,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-            print('before', boundary_fluxes.detach())
+            print('before', boundary_fluxes[self.boundary_edges, :].detach())
             print('before2', (self.boundary_edges.view(-1, 1) * boundary_fluxes).detach())
             print(self.boundary_edges.view(-1, 1).shape)
             print(boundary_fluxes.shape)
