@@ -283,16 +283,22 @@ def load_sim_results(path):
     files = glob.glob(osp.join(path, '*.pkl'))
     traj = []
     states = []
+    directions = []
+    speeds = []
     for file in files:
         with open(file, 'rb') as f:
             result = pickle.load(f)
             traj.append(result['trajectories'])
             states.append(result['states'])
+            directions.append(result['directions'])
+            speeds.append(result['ground_speeds'])
 
     traj = np.concatenate(traj, axis=1)
     states = np.concatenate(states, axis=1)
+    directions = np.concatenate(directions, axis=1)
+    speeds = np.concatenate(speeds, axis=1)
     time = result['time']
-    return traj, states, time
+    return traj, states, directions, speeds, time
 
 def background_map(ax, countries, departure_area, extent=[0.36, 46.36, 16.07, 55.40]):
 

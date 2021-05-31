@@ -960,6 +960,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.perturbation_mean = kwargs.get('perturbation_mean', 0)
 
         self.boundary_model = kwargs.get('boundary_model', None)
+        self.fix_boundary_fluxes = kwargs.get('fix_boundary_fluxes', False)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -1129,7 +1130,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 night=data.local_night[:, t],
                                                 night_1=data.local_night[:, t-1],
                                                 day_of_year=data.day_of_year[t],
-                                                enc_states=enc_states)
+                                                enc_states=enc_states,
+                                                radar_fluxes=data.fluxes[:, t])
 
             if self.fixed_boundary:
                 # # use ground truth for boundary nodes
@@ -1149,7 +1151,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j):
+                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j, radar_fluxes):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -1212,6 +1214,9 @@ class BirdFluxGraphLSTM(MessagePassing):
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
+
+        if self.fix_boundary_fluxes:
+            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.fix_boundary_fluxes * radar_fluxes
 
         # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
         # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
@@ -2766,7 +2771,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             if boundary_constraint_only:
                 diff = diff[data.boundary_edges]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
-            # print('constraints', constraints)
+            print('constraints', constraints)
         else:
             constraints = 0
 

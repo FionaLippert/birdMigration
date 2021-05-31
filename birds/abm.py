@@ -377,6 +377,18 @@ def aggregate(trajectories, states, grid, t_range, state):
         names.append(name_t)
     return grid_counts, names
 
+def aggregate_directions(trajectories, states, grid, t_range, state):
+    names = []
+    grid_counts = grid.to_crs('epsg:4326')    # to lonlat crs
+    for t in t_range:
+        merged = gpd.sjoin(get_points(trajectories[t], states[t], state), grid_counts, how='left', op='within')
+        merged[f'n_birds_{t}'] = 1
+        dissolve = merged.dissolve(by="index_right", aggfunc="count")
+        name_t = f'n_birds_{t}'
+        grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
+        names.append(name_t)
+    return grid_counts, names
+
 
 def bird_flows(trajectories, states, tidx, grid):
     mask = np.where(states[tidx] == 1)
