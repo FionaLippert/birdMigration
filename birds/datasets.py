@@ -552,20 +552,22 @@ class RadarData(InMemoryDataset):
         #            [var for var in self.env_vars if not var in ['u', 'v']]
         env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
         acc_cols = ['acc_rain', 'acc_wind']
-        coord_cols = ['x', 'y']
+        # coord_cols = ['x', 'y']
+        coord_cols = ['lon', 'lat']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
         dayofyear = pd.DatetimeIndex(time).dayofyear.values
         tidx = np.arange(len(time))
 
         # normalize static features
-        cidx = ['area_km2', *coord_cols]
-        static = voronoi.loc[:, cidx].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
-        if self.edge_type == 'voronoi':
-            areas = static.area_km2.to_numpy()
-        else:
-            areas = np.ones(len(static))
-        coords = static[coord_cols].to_numpy()
+        #cidx = ['area_km2']#, *coord_cols]
+        areas = voronoi[['area_km2']].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0).to_numpy()
+
+        if self.edge_type != 'voronoi':
+            areas = np.ones(areas.shape)
+
+        coords = voronoi[[coord_cols]].apply(lambda col: np.radians(col)).to_numpy()
+
         dayofyear = dayofyear / max(dayofyear)
 
         data = dict(inputs=[],
