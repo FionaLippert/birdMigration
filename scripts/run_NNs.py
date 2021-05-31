@@ -46,7 +46,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
     compute_fluxes = cfg.model.get('compute_fluxes', False)
-    birds_per_km2 = cfg.model.get('birds_per_km2', False)
+    birds_per_km2 = cfg.get('birds_per_km2', False)
 
 
     hps = cfg.model.hyperparameters
@@ -249,7 +249,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     fixed_boundary = cfg.model.get('fixed_boundary', False)
     use_encoder = cfg.model.get('use_encoder', False)
-    birds_per_km2 = cfg.model.get('birds_per_km2', False)
+    birds_per_km2 = cfg.get('birds_per_km2', False)
 
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
