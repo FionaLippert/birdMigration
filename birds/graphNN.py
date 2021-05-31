@@ -1275,7 +1275,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 11 + 2*self.n_env
+        self.n_edge_in = 10 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
@@ -1485,7 +1485,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         # inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
         #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
         #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
-        inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr[:, :2],
+        inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
                   night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
