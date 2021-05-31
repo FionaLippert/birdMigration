@@ -1205,6 +1205,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
+            print('before', boundary_fluxes[self.boundary_edges].detach())
+
             flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
             # print(boundary_fluxes[self.boundary_edges])
@@ -1212,6 +1214,9 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
+
+            print('after', flux[self.boundary_edges].detach())
+
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 

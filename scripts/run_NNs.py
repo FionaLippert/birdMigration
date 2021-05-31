@@ -175,7 +175,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
-                if cfg.model.name == 'BirdFluxGraphLSTM':
+                if 'BirdFluxGraphLSTM' in cfg.model.name:
                     loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                         conservation_constraint=hp_settings['conservation_constraint'],
                                         teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
@@ -325,10 +325,10 @@ def test(cfg: DictConfig, output_dir: str, log):
     # load models and predict
     results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
-    if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
+    if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
         results['fluxes'] = []
         results['local_deltas'] = []
-    if cfg.model.name == 'BirdFluxGraphLSTM':
+    if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
         results['influxes'] = []
         results['outfluxes'] = []
 
@@ -373,7 +373,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             if cfg.model.name == 'GraphLSTM':
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
-            elif cfg.model.name == 'BirdFluxGraphLSTM':
+            elif cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
@@ -416,7 +416,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                     results['influxes'].append(influxes[ridx].view(-1))
                     results['outfluxes'].append(outfluxes[ridx].view(-1))
 
-        if cfg.model.name == 'BirdFluxGraphLSTM':
+        if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
                 pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
             with open(osp.join(output_dir, f'radar_fluxes_{r}.pickle'), 'wb') as f:
@@ -452,4 +452,3 @@ def run(cfg: DictConfig, output_dir: str, log):
         train(cfg, output_dir, log)
     elif cfg.action.name == 'testing':
         test(cfg, output_dir, log)
-
