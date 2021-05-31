@@ -45,6 +45,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
     compute_fluxes = cfg.model.get('compute_fluxes', False)
+    birds_per_km2 = cfg.model.get('birds_per_km2', False)
 
 
     hps = cfg.model.hyperparameters
@@ -82,7 +83,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      n_dummy_radars=cfg.n_dummy_radars,
                                      exclude=cfg.exclude,
                                      compute_fluxes=compute_fluxes,
-                                     use_nights=cfg.use_nights)
+                                     use_nights=cfg.use_nights,
+                                     birds_per_km2=birds_per_km2)
                   for year in cfg.datasource.training_years]
     # boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
@@ -126,7 +128,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   n_dummy_radars=cfg.n_dummy_radars,
                                   exclude=cfg.exclude,
                                   compute_fluxes=compute_fluxes,
-                                  use_nights=cfg.use_nights
+                                  use_nights=cfg.use_nights,
+                                  birds_per_km2=birds_per_km2
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -245,6 +248,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     fixed_boundary = cfg.model.get('fixed_boundary', False)
     use_encoder = cfg.model.get('use_encoder', False)
+    birds_per_km2 = cfg.model.get('birds_per_km2', False)
 
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
@@ -303,7 +307,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    n_dummy_radars=cfg.n_dummy_radars,
                                    exclude=cfg.exclude,
                                    compute_fluxes=compute_fluxes,
-                                   use_nights=cfg.use_nights
+                                   use_nights=cfg.use_nights,
+                                   birds_per_km2=birds_per_km2
                                    )
     # boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
@@ -345,6 +350,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
         local_fluxes = {}
         radar_fluxes = {}
+        radar_mtr = {}
         attention_weights = {}
         # attention_weights_state = {}
 
@@ -371,12 +377,14 @@ def test(cfg: DictConfig, output_dir: str, log):
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                     data.num_nodes, data.num_nodes, -1).cpu()
+                radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
+                    data.num_nodes, data.num_nodes, -1).cpu()
                 fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
                 diff = data.fluxes[..., model.t_context:-1] - \
                        (model.local_fluxes  - model.local_fluxes[data.reverse_edges])[..., 1:]
                 diff = diff[data.boundary_edges]
-                print(diff)
-                print('---------', (diff[~torch.isnan(diff)]**2).mean())
+                # print(diff)
+                # print('---------', (diff[~torch.isnan(diff)]**2).mean())
                 influxes = local_fluxes[nidx].sum(1)
                 outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
                 local_deltas = model.local_deltas.cpu()
@@ -412,6 +420,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
             with open(osp.join(output_dir, f'radar_fluxes_{r}.pickle'), 'wb') as f:
                 pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
+            with open(osp.join(output_dir, f'radar_mtr_{r}.pickle'), 'wb') as f:
+                pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
         if cfg.model.name == 'AttentionGraphLSTM':
             with open(osp.join(output_dir, f'attention_weights_{r}.pickle'), 'wb') as f:
                 pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)

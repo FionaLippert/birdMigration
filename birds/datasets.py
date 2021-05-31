@@ -373,6 +373,8 @@ class RadarData(InMemoryDataset):
         self.t_unit = kwargs.get('t_unit', '1H')
         self.n_dummy_radars = kwargs.get('n_dummy_radars', 0)
 
+        self.birds_per_km2 = kwargs.get('birds_per_km2', False)
+
         self.exclude = kwargs.get('exclude', [])
 
         self.compute_fluxes = kwargs.get('compute_fluxes', False)
@@ -381,7 +383,7 @@ class RadarData(InMemoryDataset):
 
         measurements = 'from_buffers' if self.use_buffers else 'voronoi_cells'
         self.processed_dirname = f'measurements={measurements}_root_transform={self.root_transform}_use_nights={self.use_nights}_' \
-                                 f'edges={self.edge_type}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
+                                 f'edges={self.edge_type}_birds_km2={self.birds_per_km2}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
         print(self.preprocessed_dir)
 
         super(RadarData, self).__init__(root, transform, pre_transform)
@@ -499,7 +501,7 @@ class RadarData(InMemoryDataset):
         #     if self.use_buffers:
         #         dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
 
-        if self.edge_type == 'voronoi':
+        if self.edge_type == 'voronoi' and not self.birds_per_km2:
             if self.use_buffers:
                 input_col = 'birds_from_buffer'
             else:
@@ -672,6 +674,7 @@ class RadarData(InMemoryDataset):
             data['speed'] = torch.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
             data['bird_uv'] = torch.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
 
+        data['direction'] = (data['direction'] + 360) % 360
         data['direction'] = rescale(data['direction'], min=0, max=360)
         data['direction'][np.isnan(data['direction'])] = -1
         data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')

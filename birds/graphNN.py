@@ -234,12 +234,11 @@ class FluxMLP2(torch.nn.Module):
         self.fc_hidden.apply(init_weights)
 
 
-    def forward(self, h_i, env_1_j, env_i, night_1_j, night_i, dawn_i, dawn_1_j,
+    def forward(self, h_i, x_i, env_1_j, env_i, night_1_j, night_i,
                 coords_j, coords_i, edge_attr, day_of_year):
 
-        features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
-                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1),
-                              dawn_i.float().view(-1, 1), dawn_1_j.float().view(-1, 1)], dim=1)
+        features = torch.cat([x_i.view(-1, 1), env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
+                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
@@ -253,7 +252,8 @@ class FluxMLP2(torch.nn.Module):
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
-        flux = flux.sigmoid()
+        flux = flux.relu()
+        #flux = flux.sigmoid()
         return flux
 
 
@@ -1159,8 +1159,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
         #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
         inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr,
-                  night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
-                  dawn_i.float().view(-1, 1), dawn_1_j.float().view(-1, 1)]
+                  night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         inputs = torch.cat(inputs, dim=1)
@@ -1192,7 +1191,326 @@ class BirdFluxGraphLSTM(MessagePassing):
                 #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
                 #                             edge_attr[self.boundary_edges],
                 #                             day_of_year.repeat(self.boundary_edges.size()))
-                boundary_fluxes = self.flux_mlp(h_i, env_1_j, env_i, night_1_j, night_i, dawn_i, dawn_1_j,
+                boundary_fluxes = self.flux_mlp(h_i, x_i, env_1_j, env_i, night_1_j, night_i,
+                                                coords_j, coords_i,
+                                                edge_attr, day_of_year.repeat(self.edges.size(1)))
+            else:
+                # boundary_fluxes = self.flux_mlp(env_1_j[self.boundary_edges], env_i[self.boundary_edges],
+                #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
+                #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
+                #                             edge_attr[self.boundary_edges], day_of_year.repeat(self.boundary_edges.size()))
+                boundary_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i,
+                                                coords_j, coords_i,
+                                                edge_attr, day_of_year.repeat(self.edges.size(1)))
+
+            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
+                   self.boundary_edges.view(-1, 1) * boundary_fluxes
+            print(boundary_fluxes[self.boundary_edges])
+            #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
+
+            # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
+            # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
+        self.local_fluxes[..., t] = flux
+        flux = flux - flux[self.reverse_edges]
+
+        # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
+        # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
+
+        flux = flux.view(-1, 1)
+
+        return flux
+
+
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary, enc_states):
+
+        if self.edge_type == 'voronoi':
+            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+        else:
+            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+                                dusk.float().view(-1, 1), night.float().view()], dim=1)
+        inputs = self.node2hidden(inputs)
+
+        if self.use_encoder:
+            # temporal attention based on encoder states
+            enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
+            scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
+            alpha = F.softmax(scores, dim=1)
+            self.alphas_t[..., t] = alpha
+            context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
+
+            inputs = torch.cat([inputs, context], dim=1)
+
+        h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
+        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
+        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
+        for l in range(self.n_lstm_layers - 1):
+            h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
+
+        delta = self.hidden2delta(h_t[-1]).tanh()
+        self.local_deltas[..., t] = delta
+
+        pred = x + delta + aggr_out # take messages into account for inner cells only
+
+        return pred, h_t, c_t
+
+
+
+class BirdFluxGraphLSTM2(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(BirdFluxGraphLSTM2, self).__init__(aggr='add', node_dim=0)
+
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_node_in = 6 + self.n_env
+        self.n_edge_in = 11 + 2*self.n_env
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
+        self.fixed_boundary = kwargs.get('fixed_boundary', False)
+        self.force_zeros = kwargs.get('force_zeros', True)
+
+        self.use_encoder = kwargs.get('use_encoder', False)
+        self.t_context = kwargs.get('t_context', 0)
+        self.enforce_conservation = kwargs.get('enforce_conservation', False)
+
+        self.perturbation_std = kwargs.get('perturbation_std', 0)
+        self.perturbation_mean = kwargs.get('perturbation_mean', 0)
+
+        self.boundary_model = kwargs.get('boundary_model', None)
+
+        self.edge_type = kwargs.get('edge_type', 'voronoi')
+
+
+        seed = kwargs.get('seed', 1234)
+        torch.manual_seed(seed)
+
+
+        self.fc_edge_embedding = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.fc_edge_in = torch.nn.Linear(self.n_hidden * 2, self.n_hidden)
+        # self.fc_edge_in = torch.nn.Linear(self.n_hidden, self.n_hidden)
+        self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                             for _ in range(self.n_fc_layers - 1)])
+        self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+
+
+        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.ReLU(),
+                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        if self.use_encoder:
+            self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
+            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+        else:
+            self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                                torch.nn.Dropout(p=self.dropout_p),
+                                                torch.nn.ReLU(),
+                                                torch.nn.Linear(self.n_hidden, 1))
+
+        if self.boundary_model == 'LocalLSTM':
+            kwargs['fixed_boundary'] = []
+            self.boundary_lstm = LocalLSTM(**kwargs, return_hidden_states=True, use_mtr_features=True)
+        elif self.boundary_model == 'FluxMLP':
+            if self.use_encoder:
+                self.flux_mlp = FluxMLP2(**kwargs)
+            else:
+                self.flux_mlp = FluxMLP(**kwargs)
+
+
+        self.reset_parameters()
+
+
+    def reset_parameters(self):
+        inits.glorot(self.fc_edge_in.weight)
+        inits.glorot(self.fc_edge_embedding.weight)
+        inits.glorot(self.fc_edge_out.weight)
+
+        if self.use_encoder:
+            inits.glorot(self.fc_encoder.weight)
+            inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.attention_t)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.fc_edge_hidden.apply(init_weights)
+        self.node2hidden.apply(init_weights)
+        self.lstm_layers.apply(init_weights)
+        self.hidden2delta.apply(init_weights)
+        init_weights(self.lstm_in)
+
+
+
+    def forward(self, data, teacher_forcing=0.0):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        # self.edges = data.edge_index
+        # n_edges = self.edges.size(1)
+        # self.boundary_edge_index = torch.tensor([idx for idx in range(n_edges)
+        #                                          if data.boundary[self.edges[0, idx]]])
+        # self.boundary_edges = self.edges[:, self.boundary_edge_index]
+        # self.boundary = data.boundary
+        #
+        # self.reverse_edge_index = torch.zeros(n_edges, dtype=torch.long)
+        # for idx in range(n_edges):
+        #     for jdx in range(n_edges):
+        #         if (self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0])).all():
+        #             self.reverse_edge_index[idx] = jdx
+
+        self.edges = data.edge_index
+        self.boundary_edges = data.boundary_edges
+        self.reverse_edges = data.reverse_edges
+        self.boundary = data.boundary
+
+
+        y_hat = []
+        enc_states = None
+
+        x = data.x[..., self.t_context].view(-1, 1)
+        y_hat.append(x)
+
+        # initialize lstm variables
+        if self.use_encoder:
+            # push context timeseries through encoder to initialize decoder
+            enc_states, h_t, c_t = self.encoder(data)
+            # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
+
+        else:
+            # start from scratch
+            # measurement at t=0
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+
+
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
+        # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
+        # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+
+        forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+
+        if self.use_encoder:
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
+
+        if self.boundary_model == 'LocalLSTM':
+            boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
+            x[data.boundary, 0] = boundary_pred[data.boundary, 0]
+
+        for t in forecast_horizon:
+
+            r = torch.rand(1)
+            if r < teacher_forcing:
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t-1].view(-1, 1) * x + \
+                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+
+            if self.boundary_model == 'LocalLSTM':
+                h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
+                          boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
+
+            x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+                                                h_t=h_t, c_t=c_t,
+                                                h=h_t[-1], c=c_t[-1],
+                                                areas=data.areas,
+                                                edge_attr=edge_attr,
+                                                dusk=data.local_dusk[:, t-1],
+                                                dawn=data.local_dawn[:, t],
+                                                dawn_1=data.local_dawn[:, t-1],
+                                                env=data.env[..., t],
+                                                env_1=data.env[..., t-1],
+                                                t=t-self.t_context,
+                                                boundary=data.boundary,
+                                                night=data.local_night[:, t],
+                                                night_1=data.local_night[:, t-1],
+                                                day_of_year=data.day_of_year[t],
+                                                enc_states=enc_states)
+
+            if self.fixed_boundary:
+                # # use ground truth for boundary nodes
+                perturbation = torch.randn(data.boundary.sum()).to(x.device) * self.perturbation_std + self.perturbation_mean
+                if self.boundary_model == 'LocalLSTM':
+                    x[data.boundary, 0] = boundary_pred[data.boundary, t-self.t_context] + perturbation
+                else:
+                    x[data.boundary, 0] = data.y[data.boundary, t] + perturbation
+
+            if self.force_zeros:
+                x = x * data.local_night[:, t].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
+                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+
+        # inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
+        #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
+        #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
+        inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr[:, :2],
+                  night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
+        #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        inputs = torch.cat(inputs, dim=1)
+
+
+        inputs = self.fc_edge_embedding(inputs)
+        inputs = torch.cat([inputs, h_j], dim=1)
+
+        flux = self.fc_edge_in(inputs).relu()
+        flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_edge_hidden:
+            flux = l(flux).relu()
+            flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        flux = self.fc_edge_out(flux) #.tanh()
+
+        # enforce fluxes to be symmetric along edges
+        flux = flux.sigmoid() # bird density flying from node j to node i should be positive
+        #flux = flux * x_j
+        # self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
+
+        if self.boundary_model == 'FluxMLP':
+            #edge_fluxes = self.flux_mlp(env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr)
+            # TODO use attention weighted encoder sequence as additional input?
+            if self.use_encoder:
+                # boundary_fluxes = self.flux_mlp(h_i[self.boundary_edges], env_1_j[self.boundary_edges], env_i[self.boundary_edges],
+                #                             night_1_j[self.boundary_edges], night_i[self.boundary_edges],
+                #                             coords_j[self.boundary_edges], coords_i[self.boundary_edges],
+                #                             edge_attr[self.boundary_edges],
+                #                             day_of_year.repeat(self.boundary_edges.size()))
+                boundary_fluxes = self.flux_mlp(h_i, x_i, env_1_j, env_i, night_1_j, night_i,
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
             else:
@@ -1223,12 +1541,9 @@ class BirdFluxGraphLSTM(MessagePassing):
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary, enc_states):
 
-        if self.edge_type == 'voronoi':
-            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
-                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
-        else:
-            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
-                                dusk.float().view(-1, 1), night.float().view()], dim=1)
+
+        inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+                            dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs)
 
         if self.use_encoder:
