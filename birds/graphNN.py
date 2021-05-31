@@ -1062,7 +1062,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.edges = data.edge_index
         self.boundary_edges = data.boundary_edges.bool()
         self.reverse_edges = data.reverse_edges
-        self.boundary = data.boundary
+        self.boundary = data.boundary.bool()
 
 
         y_hat = []
@@ -1108,8 +1108,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             r = torch.rand(1)
             if r < teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].view(-1, 1) * x + \
-                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                x = data.missing[..., t-1].bool().view(-1, 1) * x + \
+                    ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
             if self.boundary_model == 'LocalLSTM':
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
@@ -1205,11 +1205,6 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-            print('before', boundary_fluxes[self.boundary_edges, :].detach())
-            print('before2', (self.boundary_edges.view(-1, 1) * boundary_fluxes).detach())
-            print(self.boundary_edges.view(-1, 1).shape)
-            print(boundary_fluxes.shape)
-            print(flux.shape)
 
             flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
@@ -1219,13 +1214,12 @@ class BirdFluxGraphLSTM(MessagePassing):
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
-            print('after', flux.detach())
 
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 
         if self.fix_boundary_fluxes:
-            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.fix_boundary_fluxes * radar_fluxes
+            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
 
         # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
         # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
@@ -1392,9 +1386,9 @@ class BirdFluxGraphLSTM2(MessagePassing):
         #             self.reverse_edge_index[idx] = jdx
 
         self.edges = data.edge_index
-        self.boundary_edges = data.boundary_edges
+        self.boundary_edges = data.boundary_edges.bool()
         self.reverse_edges = data.reverse_edges
-        self.boundary = data.boundary
+        self.boundary = data.boundary.bool()
 
 
         y_hat = []
@@ -2778,7 +2772,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             # print('inferred fluxes', inferred_fluxes)
             diff = observed_fluxes - inferred_fluxes
             if boundary_constraint_only:
-                diff = diff[data.boundary_edges]
+                diff = diff[data.boundary_edges.bool()]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0

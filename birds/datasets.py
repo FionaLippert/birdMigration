@@ -704,7 +704,7 @@ class RadarData(InMemoryDataset):
                           acc=torch.tensor(data['acc'][..., nidx], dtype=torch.float),
                           edge_index=edge_index,
                           reverse_edges=reverse_edges,
-                          boundary_edges=boundary_edges,
+                          boundary_edges=boundary_edges.bool(),
                           edge_attr=edge_attr,
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
@@ -741,5 +741,3 @@ class RadarData(InMemoryDataset):
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
-
-
