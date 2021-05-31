@@ -24,6 +24,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'GraphLSTM': BirdDynamicsGraphLSTM,
                  'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
                  'BirdFluxGraphLSTM': BirdFluxGraphLSTM,
+                 'BirdFluxGraphLSTM2': BirdFluxGraphLSTM2,
                  #'BirdFluxGroundGraphLSTM': BirdFluxGroundGraphLSTM,
                  #'BlackBoxGraphLSTM': BlackBoxGraphLSTM,
                  'AttentionGraphLSTM': AttentionGraphLSTM}
