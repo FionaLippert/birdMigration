@@ -253,7 +253,7 @@ class FluxMLP2(torch.nn.Module):
 
         flux = self.fc_out(flux)
         #flux = flux.relu()
-        #flux = flux.sigmoid()
+        flux = flux.sigmoid()
         return flux
 
 
