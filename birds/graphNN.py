@@ -2771,7 +2771,6 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             if boundary_constraint_only:
                 diff = diff[data.boundary_edges]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
-            print('constraints', constraints)
         else:
             constraints = 0
 
@@ -2783,7 +2782,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
         #print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
-        loss = loss_func(output, gt, mask) + conservation_constraint * constraints
+        constraints = conservation_constraint * constraints
+        print(constraints.detach())
+        loss = loss_func(output, gt, mask) + constraints
 
         loss.backward()
         loss_all += data.num_graphs * loss
