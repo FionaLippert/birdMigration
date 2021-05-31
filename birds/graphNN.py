@@ -239,6 +239,7 @@ class FluxMLP2(torch.nn.Module):
 
         features = torch.cat([x_i.view(-1, 1), env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
                               coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+        print(features)
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
