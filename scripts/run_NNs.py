@@ -372,7 +372,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                     data.num_nodes, data.num_nodes, -1).cpu()
                 fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
-                diff = radar_fluxes[nidx][..., model.t_context:-1] - (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2))[..., 1:]
+                diff = data.fluxes[..., model.t_context:-1] - (model.local_fluxes  - model.local_fluxes.permute(1, 0, 2))[..., 1:]
                 print(diff)
                 print('---------', (diff[~torch.isnan(diff)]**2).mean())
                 influxes = local_fluxes[nidx].sum(1)
