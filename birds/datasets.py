@@ -566,7 +566,7 @@ class RadarData(InMemoryDataset):
         if self.edge_type != 'voronoi':
             areas = np.ones(areas.shape)
 
-        coords = voronoi[[coord_cols]].apply(lambda col: np.radians(col)).to_numpy()
+        coords = voronoi[coord_cols].apply(lambda col: np.radians(col)).to_numpy()
 
         dayofyear = dayofyear / max(dayofyear)
 
