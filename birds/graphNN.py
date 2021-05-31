@@ -1206,7 +1206,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
             print('before', boundary_fluxes[self.boundary_edges].detach())
-
+            print(self.boundary_edges.view(-1, 1).shape)
+            print(self.boundary_fluxes.shape, flux.shape)
             flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
             # print(boundary_fluxes[self.boundary_edges])
@@ -3021,6 +3022,3 @@ if __name__ == '__main__':
         for epoch in range(epochs):
             loss = train(model, train_loader, optimizer, boundaries, loss_func, 'cpu', conservation)
             print(f'epoch {epoch + 1}: loss = {loss/len(train_data)}')
-
-
-
