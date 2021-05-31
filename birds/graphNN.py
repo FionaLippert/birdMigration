@@ -1551,7 +1551,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
 
         inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
-                            dusk.float().view(-1, 1), night.float().view()], dim=1)
+                            dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
         inputs = self.node2hidden(inputs)
 
         if self.use_encoder:
