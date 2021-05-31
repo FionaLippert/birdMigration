@@ -239,7 +239,6 @@ class FluxMLP2(torch.nn.Module):
 
         features = torch.cat([x_i.view(-1, 1), env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
                               coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
-        print(features)
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
@@ -1206,7 +1205,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
-            print(boundary_fluxes[self.boundary_edges])
+            # print(boundary_fluxes[self.boundary_edges])
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
