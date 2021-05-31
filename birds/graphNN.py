@@ -204,7 +204,7 @@ class FluxMLP2(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = 64 #kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 12 + 2 * self.n_env
+        self.n_in = 11 + 2 * self.n_env
         self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
 
         self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
