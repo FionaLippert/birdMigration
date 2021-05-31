@@ -1060,7 +1060,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         #             self.reverse_edge_index[idx] = jdx
 
         self.edges = data.edge_index
-        self.boundary_edges = data.boundary_edges
+        self.boundary_edges = data.boundary_edges.bool()
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary
 
