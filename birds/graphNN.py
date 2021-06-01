@@ -1524,6 +1524,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                           boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
 
+            print('x before', x)
+
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
                                                 h=h_t[-1], c=c_t[-1],
@@ -1552,6 +1554,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
             if self.force_zeros:
                 x = x * data.local_night[:, t].view(-1, 1)
 
+            print('x after', x)
             y_hat.append(x)
 
         prediction = torch.cat(y_hat, dim=-1)
@@ -1613,11 +1616,9 @@ class BirdFluxGraphLSTM2(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-            print('flux before', flux)
             flux = (self.inner_edges.view(-1, 1) + self.inner2boundary_edges.view(-1, 1)) * flux + \
                    self.boundary2inner_edges.view(-1, 1) * boundary_fluxes
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
-            print('flux after', flux)
 
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
