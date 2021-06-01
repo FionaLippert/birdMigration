@@ -630,7 +630,8 @@ class LocalLSTM(MessagePassing):
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
-            self.alphas_t[..., t] = alpha
+            if not self.training:
+                self.alphas_t[..., t] = alpha
             context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
@@ -1342,8 +1343,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
-
-        self.local_fluxes[..., t] = flux
+        if not self.training:
+            self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 
         if self.boundary_model == 'FluxMLPtanh':
@@ -1353,7 +1354,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = self.inner_edges.view(-1, 1) * flux + \
                     self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
                      self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
-            self.local_fluxes[..., t] = flux
+            if not self.training:
+                self.local_fluxes[..., t] = flux
 
         # if self.fix_boundary_fluxes:
         #     flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
@@ -1382,7 +1384,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
-            self.alphas_t[..., t] = alpha
+            if not self.training:
+                self.alphas_t[..., t] = alpha
             context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
@@ -1394,7 +1397,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         delta = self.hidden2delta(h_t[-1]).tanh()
-        self.local_deltas[..., t] = delta
+        if not self.training:
+            self.local_deltas[..., t] = delta
 
         pred = x + delta + aggr_out # take messages into account for inner cells only
         #pred = pred.relu() # enforce positive bird densities
