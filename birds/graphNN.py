@@ -158,8 +158,6 @@ class FluxMLP(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        inits.glorot(self.fc_in.weight)
-        inits.glorot(self.fc_out.weight)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -173,6 +171,8 @@ class FluxMLP(torch.nn.Module):
                         inits.glorot(param)
 
         self.fc_hidden.apply(init_weights)
+        init_weights(self.fc_in)
+        init_weights(self.fc_out)
 
 
     def forward(self, env_1_j, env_i, night_1_j, night_i, coords_j, coords_i, edge_attr, day_of_year):
@@ -216,9 +216,6 @@ class FluxMLP2(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        inits.glorot(self.fc_emb.weight)
-        inits.glorot(self.fc_in.weight)
-        inits.glorot(self.fc_out.weight)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -232,6 +229,9 @@ class FluxMLP2(torch.nn.Module):
                         inits.glorot(param)
 
         self.fc_hidden.apply(init_weights)
+        init_weights(self.fc_in)
+        init_weights(self.fc_out)
+        init_weights(self.fc_emb)
 
 
     def forward(self, h_i, x_i, env_1_j, env_i, night_1_j, night_i,
@@ -279,9 +279,6 @@ class FluxMLP3(torch.nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        inits.glorot(self.fc_emb.weight)
-        inits.glorot(self.fc_in.weight)
-        inits.glorot(self.fc_out.weight)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -295,6 +292,9 @@ class FluxMLP3(torch.nn.Module):
                         inits.glorot(param)
 
         self.fc_hidden.apply(init_weights)
+        init_weights(self.fc_in)
+        init_weights(self.fc_out)
+        init_weights(self.fc_emb)
 
 
     def forward(self, h_i, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
@@ -344,8 +344,6 @@ class LocalMLP(MessagePassing):
         self.reset_parameters()
 
     def reset_parameters(self):
-        inits.glorot(self.fc_in.weight)
-        inits.glorot(self.fc_out.weight)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -359,6 +357,8 @@ class LocalMLP(MessagePassing):
                         inits.glorot(param)
 
         self.fc_hidden.apply(init_weights)
+        init_weights(self.fc_in)
+        init_weights(self.fc_out)
 
 
     def forward(self, data, **kwargs):
@@ -459,12 +459,6 @@ class LocalLSTM(MessagePassing):
         self.reset_parameters()
 
     def reset_parameters(self):
-        inits.glorot(self.fc_in.weight)
-
-        if self.use_encoder:
-            inits.glorot(self.fc_encoder.weight)
-            inits.glorot(self.fc_hidden.weight)
-            inits.glorot(self.attention_t)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -480,6 +474,13 @@ class LocalLSTM(MessagePassing):
         self.mlp_out.apply(init_weights)
         self.lstm_layers.apply(init_weights)
         init_weights(self.lstm_in)
+
+        init_weights(self.fc_in)
+
+        if self.use_encoder:
+            init_weights(self.fc_encoder)
+            init_weights(self.fc_hidden)
+            init_weights(self.attention_t)
 
 
     def forward(self, data, **kwargs):
@@ -1080,14 +1081,6 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def reset_parameters(self):
-        inits.glorot(self.fc_edge_in.weight)
-        inits.glorot(self.fc_edge_embedding.weight)
-        inits.glorot(self.fc_edge_out.weight)
-
-        if self.use_encoder:
-            inits.glorot(self.fc_encoder.weight)
-            inits.glorot(self.fc_hidden.weight)
-            inits.glorot(self.attention_t)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -1105,6 +1098,15 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.lstm_layers.apply(init_weights)
         self.hidden2delta.apply(init_weights)
         init_weights(self.lstm_in)
+
+        init_weights(self.fc_edge_in)
+        init_weights(self.fc_edge_embedding)
+        init_weights(self.fc_edge_out)
+
+        if self.use_encoder:
+            init_weights(self.fc_encoder)
+            init_weights(self.fc_hidden)
+            init_weights(self.attention_t)
 
 
 
@@ -1418,14 +1420,6 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
 
     def reset_parameters(self):
-        inits.glorot(self.fc_edge_in.weight)
-        inits.glorot(self.fc_edge_embedding.weight)
-        inits.glorot(self.fc_edge_out.weight)
-
-        if self.use_encoder:
-            inits.glorot(self.fc_encoder.weight)
-            inits.glorot(self.fc_hidden.weight)
-            inits.glorot(self.attention_t)
 
         def init_weights(m):
             if type(m) == nn.Linear:
@@ -1443,6 +1437,15 @@ class BirdFluxGraphLSTM2(MessagePassing):
         self.lstm_layers.apply(init_weights)
         self.hidden2delta.apply(init_weights)
         init_weights(self.lstm_in)
+
+        init_weights(self.fc_edge_in)
+        init_weights(self.fc_edge_embedding)
+        init_weights(self.fc_edge_out)
+
+        if self.use_encoder:
+            init_weights(self.fc_encoder)
+            init_weights(self.fc_hidden)
+            init_weights(self.attention_t)
 
 
 
