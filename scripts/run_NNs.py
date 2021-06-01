@@ -381,7 +381,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
                     data.num_nodes, data.num_nodes, -1).cpu()
                 fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
-                
+
                 influxes = local_fluxes[nidx].sum(1)
                 outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
                 local_deltas = model.local_deltas.cpu()
