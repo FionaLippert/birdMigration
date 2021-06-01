@@ -572,7 +572,7 @@ class LocalLSTM(MessagePassing):
         else:
             forecast_horizon = range(1, self.timesteps + 1)
 
-        if self.use_encoder:
+        if self.use_encoder and not self.training:
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         all_h = torch.zeros(data.x.size(0), self.n_hidden, self.timesteps).to(x.device)
@@ -1219,17 +1219,13 @@ class BirdFluxGraphLSTM(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
-        # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
-        # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
-        # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+        if not self.training:
+            self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+            self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+            if self.use_encoder:
+                self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
-
-        if self.use_encoder:
-            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
             boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
