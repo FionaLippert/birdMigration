@@ -1344,7 +1344,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         return pred, h_t, c_t
 
 
-
 class BirdFluxGraphLSTM2(MessagePassing):
 
     def __init__(self, **kwargs):
@@ -1355,7 +1354,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 10 + 2*self.n_env
+        self.n_edge_in = 8 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
@@ -1369,9 +1368,12 @@ class BirdFluxGraphLSTM2(MessagePassing):
         self.perturbation_mean = kwargs.get('perturbation_mean', 0)
 
         self.boundary_model = kwargs.get('boundary_model', None)
+        self.fix_boundary_fluxes = kwargs.get('fix_boundary_fluxes', False)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
-
+        if self.edge_type == 'voronoi':
+            self.n_edge_in += 1 # use face_length as additional feature
+            self.n_node_in += 1 # use voronoi cell area as additional feature
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -1414,6 +1416,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
                 self.flux_mlp = FluxMLP2(**kwargs)
             else:
                 self.flux_mlp = FluxMLP(**kwargs)
+        elif self.boundary_model == 'FluxMLPtanh':
+            self.flux_mlp = FluxMLP3(**kwargs)
 
 
         self.reset_parameters()
@@ -1517,8 +1521,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
             r = torch.rand(1)
             if r < teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].view(-1, 1) * x + \
-                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                x = data.missing[..., t-1].bool().view(-1, 1) * x + \
+                    ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
             if self.boundary_model == 'LocalLSTM':
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
@@ -1539,7 +1543,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
                                                 night=data.local_night[:, t],
                                                 night_1=data.local_night[:, t-1],
                                                 day_of_year=data.day_of_year[t],
-                                                enc_states=enc_states)
+                                                enc_states=enc_states)#,
+                                                #radar_fluxes=data.fluxes[:, t])
 
             if self.fixed_boundary:
                 # # use ground truth for boundary nodes
@@ -1558,8 +1563,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j):
+    def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_j, env_1_i, env_1_j, edge_attr, t,
+                night_i, night_j, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j): #, radar_fluxes):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -1568,9 +1573,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
         # inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
         #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
         #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
-        inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
+        inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr,
                   night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
-
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         inputs = torch.cat(inputs, dim=1)
@@ -1614,14 +1618,30 @@ class BirdFluxGraphLSTM2(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
+
             flux = (self.inner_edges.view(-1, 1) + self.inner2boundary_edges.view(-1, 1)) * flux + \
                    self.boundary2inner_edges.view(-1, 1) * boundary_fluxes
+            # print(boundary_fluxes[self.boundary_edges])
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
+
+
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
+
+        if self.boundary_model == 'FluxMLPtanh':
+            boundary_fluxes = self.flux_mlp(h_i, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+                coords_j, coords_i, edge_attr, day_of_year.repeat(self.edges.size(1)))
+
+            flux = self.inner_edges.view(-1, 1) * flux + \
+                    self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
+                     self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
+            self.local_fluxes[..., t] = flux
+
+        # if self.fix_boundary_fluxes:
+        #     flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
 
         # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
         # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
@@ -1633,9 +1653,12 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
     def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary, enc_states):
 
-
-        inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
-                            dusk.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
+        if self.edge_type == 'voronoi':
+            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+                                dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+        else:
+            inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+                                dusk.float().view(-1, 1), night.float().view()], dim=1)
         inputs = self.node2hidden(inputs)
 
         if self.use_encoder:
@@ -1658,10 +1681,10 @@ class BirdFluxGraphLSTM2(MessagePassing):
         delta = self.hidden2delta(h_t[-1]).tanh()
         self.local_deltas[..., t] = delta
 
-        pred = x + delta + aggr_out
+        pred = x + delta + aggr_out # take messages into account for inner cells only
+        #pred = pred.relu() # enforce positive bird densities
 
         return pred, h_t, c_t
-
 
 
 class AttentionGraphLSTM(MessagePassing):
