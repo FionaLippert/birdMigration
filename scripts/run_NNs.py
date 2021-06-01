@@ -196,7 +196,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
 
-                if val_loss < val_losses[r]:
+                if val_loss <= val_losses[r]:
                     # save best model so far
                     torch.save(model.cpu(), osp.join(sub_dir, f'model_{r}.pkl'))
                     val_losses[r] = val_loss
