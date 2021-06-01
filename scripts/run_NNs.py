@@ -409,10 +409,10 @@ def test(cfg: DictConfig, output_dir: str, log):
                 results['horizon'].append(np.arange(y_hat.shape[1]))
                 results['missing'].append(missing[ridx, context:])
 
-                if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM']:
+                if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
                     results['fluxes'].append(fluxes[ridx].view(-1))
                     results['local_deltas'].append(local_deltas[ridx].view(-1))
-                if cfg.model.name == 'BirdFluxGraphLSTM':
+                if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
                     results['influxes'].append(influxes[ridx].view(-1))
                     results['outfluxes'].append(outfluxes[ridx].view(-1))
 
