@@ -1570,7 +1570,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
         inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
                   night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
-        
+
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         inputs = torch.cat(inputs, dim=1)
@@ -2224,8 +2224,8 @@ class RecurrentEncoder(torch.nn.Module):
                     elif 'weight' in name:
                         inits.glorot(param)
 
-        inits.glorot(self.node2hidden.weight)
         self.lstm_layers.apply(init_weights)
+        init_weights(self.node2hidden)
 
 
     def forward(self, data):
@@ -2860,7 +2860,6 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             else:
                 edges = data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges
             diff = diff[edges]
-            print(diff)
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0
@@ -2875,7 +2874,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         #print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
-        print(loss, constraints)
+
         loss = loss + constraints
         loss.backward()
         loss_all += data.num_graphs * loss
