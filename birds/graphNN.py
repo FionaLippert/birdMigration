@@ -291,7 +291,6 @@ class FluxMLP4(torch.nn.Module):
                         inits.glorot(param)
 
         self.fc_hidden.apply(init_weights)
-        init_weights(self.fc_in)
         init_weights(self.fc_out)
         init_weights(self.fc_emb)
 
