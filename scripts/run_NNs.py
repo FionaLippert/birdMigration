@@ -381,11 +381,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                 radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
                     data.num_nodes, data.num_nodes, -1).cpu()
                 fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
-                diff = data.fluxes[..., model.t_context:-1] - \
-                       (model.local_fluxes  - model.local_fluxes[data.reverse_edges])[..., 1:]
-                diff = diff[data.boundary_edges]
-                # print(diff)
-                # print('---------', (diff[~torch.isnan(diff)]**2).mean())
+                
                 influxes = local_fluxes[nidx].sum(1)
                 outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
                 local_deltas = model.local_deltas.cpu()
