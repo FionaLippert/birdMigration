@@ -2859,6 +2859,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             else:
                 edges = data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges
             diff = diff[edges]
+            print(diff)
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0
