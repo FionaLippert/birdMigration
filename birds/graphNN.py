@@ -1060,7 +1060,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         #             self.reverse_edge_index[idx] = jdx
 
         self.edges = data.edge_index
-        self.boundary_edges = data.boundary_edges.bool()
+        self.boundary_edges = data.boundary_edges
+        self.inner_edges = data.inner_edges
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary.bool()
 
@@ -1206,7 +1207,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
 
-            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
+            flux = self.inner_edges.view(-1, 1) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
             # print(boundary_fluxes[self.boundary_edges])
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
@@ -1387,7 +1388,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
         #             self.reverse_edge_index[idx] = jdx
 
         self.edges = data.edge_index
-        self.boundary_edges = data.boundary_edges.bool()
+        self.boundary_edges = data.boundary_edges
+        self.inner_edges = data.inner_edges
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary.bool()
 
@@ -1531,7 +1533,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + \
+            flux = self.inner_edges.view(-1, 1) * flux + \
                    self.boundary_edges.view(-1, 1) * boundary_fluxes
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
@@ -1575,7 +1577,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         delta = self.hidden2delta(h_t[-1]).tanh()
         self.local_deltas[..., t] = delta
 
-        pred = x + delta + aggr_out # take messages into account for inner cells only
+        pred = x + delta + aggr_out
 
         return pred, h_t, c_t
 
@@ -2773,7 +2775,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             # print('inferred fluxes', inferred_fluxes)
             diff = observed_fluxes - inferred_fluxes
             if boundary_constraint_only:
-                diff = diff[data.boundary_edges.bool()]
+                diff = diff[data.boundary_edges]
+            else:
+                diff = diff[torch.logical_or(data.boundary_edges, data.inner_edges)]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0

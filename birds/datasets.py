@@ -462,6 +462,8 @@ class RadarData(InMemoryDataset):
         boundary = voronoi['boundary'].to_numpy()
         boundary_edges = torch.tensor([(boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
                                             for idx in range(n_edges)])
+        inner_edges = torch.tensor([(not boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
+                                       for idx in range(n_edges)])
 
         reverse_edges = torch.zeros(n_edges, dtype=torch.long)
         for idx in range(n_edges):
@@ -705,6 +707,7 @@ class RadarData(InMemoryDataset):
                           edge_index=edge_index,
                           reverse_edges=reverse_edges,
                           boundary_edges=boundary_edges.bool(),
+                          inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
