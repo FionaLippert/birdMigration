@@ -1541,7 +1541,7 @@ class testFluxMLP(MessagePassing):
         return flux
 
 
-    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary, enc_states):
+    def update(self, aggr_out):
 
         return aggr_out
 
