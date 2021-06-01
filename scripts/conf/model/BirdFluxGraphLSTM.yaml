@@ -11,6 +11,16 @@ hyperparameters:
     search_space:
       - 1
       - 2
+  n_fc_layers_fluxmlp:
+    default: 2
+    search_space:
+      - 1
+      - 2
+  n_hidden_fluxmlp:
+    default: 128
+    search_space:
+      - 64
+      - 128
   n_lstm_layers:
     default: 1
     search_space:

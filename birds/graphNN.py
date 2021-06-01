@@ -145,10 +145,10 @@ class FluxMLP(torch.nn.Module):
         torch.manual_seed(kwargs.get('seed', 1234))
 
         self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_hidden = 64 #kwargs.get('n_hidden', 16)
+        self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 10 + 2 * self.n_env
-        self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
 
         self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
         self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
@@ -202,10 +202,10 @@ class FluxMLP2(torch.nn.Module):
         torch.manual_seed(kwargs.get('seed', 1234))
 
         self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_hidden = 64 #kwargs.get('n_hidden', 16)
+        self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 11 + 2 * self.n_env
-        self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
 
         self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
         self.fc_in = torch.nn.Linear(self.n_hidden + kwargs.get('n_hidden', 16), self.n_hidden)
@@ -265,10 +265,10 @@ class FluxMLP3(torch.nn.Module):
         torch.manual_seed(kwargs.get('seed', 1234))
 
         self.dropout_p = kwargs.get('dropout_p', 0)
-        self.n_hidden = 64 #kwargs.get('n_hidden', 16)
+        self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 11 + 4 * self.n_env
-        self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
+        self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
 
         self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
         self.fc_in = torch.nn.Linear(self.n_hidden + kwargs.get('n_hidden', 16), self.n_hidden)

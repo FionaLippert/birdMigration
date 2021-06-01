@@ -173,6 +173,10 @@ def train(cfg: DictConfig, output_dir: str, log):
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
             scheduler = lr_scheduler.StepLR(optimizer, step_size=hp_settings['lr_decay'])
 
+            for name, param in model.named_parameters():
+                if param.requires_grad:
+                    print(name, param.data)
+
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
                 if 'BirdFluxGraphLSTM' in cfg.model.name:
