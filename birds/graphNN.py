@@ -1524,8 +1524,6 @@ class BirdFluxGraphLSTM2(MessagePassing):
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                           boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
 
-            print('x before', x)
-
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
                                                 h=h_t[-1], c=c_t[-1],
@@ -1554,7 +1552,6 @@ class BirdFluxGraphLSTM2(MessagePassing):
             if self.force_zeros:
                 x = x * data.local_night[:, t].view(-1, 1)
 
-            print('x after', x)
             y_hat.append(x)
 
         prediction = torch.cat(y_hat, dim=-1)
@@ -1573,6 +1570,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
         inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
                   night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+        print('inputs', inputs)
         # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
         #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
         inputs = torch.cat(inputs, dim=1)
