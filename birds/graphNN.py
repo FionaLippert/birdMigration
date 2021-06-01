@@ -1130,8 +1130,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 night=data.local_night[:, t],
                                                 night_1=data.local_night[:, t-1],
                                                 day_of_year=data.day_of_year[t],
-                                                enc_states=enc_states,
-                                                radar_fluxes=data.fluxes[:, t])
+                                                enc_states=enc_states)#,
+                                                #radar_fluxes=data.fluxes[:, t])
 
             if self.fixed_boundary:
                 # # use ground truth for boundary nodes
@@ -1151,7 +1151,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
     def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j, radar_fluxes):
+                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j): #, radar_fluxes):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -1218,8 +1218,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 
-        if self.fix_boundary_fluxes:
-            flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
+        # if self.fix_boundary_fluxes:
+        #     flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
 
         # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
         # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
