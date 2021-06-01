@@ -458,12 +458,14 @@ class RadarData(InMemoryDataset):
         edge_index = edges.t().contiguous()
         n_edges = edge_index.size(1)
 
-        # boundary radars
+        # boundary radars and boundary edges
         boundary = voronoi['boundary'].to_numpy()
-        boundary_edges = torch.tensor([(boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
+        boundary2inner_edges = torch.tensor([(boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
                                             for idx in range(n_edges)])
+        inner2boundary_edges = torch.tensor([(not boundary[edge_index[0, idx]] and boundary[edge_index[1, idx]])
+                                             for idx in range(n_edges)])
         inner_edges = torch.tensor([(not boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
-                                       for idx in range(n_edges)])
+                                    for idx in range(n_edges)])
 
         reverse_edges = torch.zeros(n_edges, dtype=torch.long)
         for idx in range(n_edges):
@@ -706,7 +708,8 @@ class RadarData(InMemoryDataset):
                           acc=torch.tensor(data['acc'][..., nidx], dtype=torch.float),
                           edge_index=edge_index,
                           reverse_edges=reverse_edges,
-                          boundary_edges=boundary_edges.bool(),
+                          boundary2inner_edges=boundary2inner_edges.bool(),
+                          inner2boundary_edges=inner2boundary_edges.bool(),
                           inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),

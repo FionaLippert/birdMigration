@@ -257,6 +257,70 @@ class FluxMLP2(torch.nn.Module):
         return flux
 
 
+class FluxMLP3(torch.nn.Module):
+
+    def __init__(self, **kwargs):
+        super(FluxMLP3, self).__init__()
+
+        torch.manual_seed(kwargs.get('seed', 1234))
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = 64 #kwargs.get('n_hidden', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_in = 11 + 4 * self.n_env
+        self.n_fc_layers = 2 #kwargs.get('n_fc_layers', 1)
+
+        self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.fc_in = torch.nn.Linear(self.n_hidden + kwargs.get('n_hidden', 16), self.n_hidden)
+        self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                        for _ in range(self.n_fc_layers - 1)])
+        self.fc_out = torch.nn.Linear(self.n_hidden, 1)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        inits.glorot(self.fc_emb.weight)
+        inits.glorot(self.fc_in.weight)
+        inits.glorot(self.fc_out.weight)
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.fc_hidden.apply(init_weights)
+
+
+    def forward(self, h_i, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+                coords_j, coords_i, edge_attr, day_of_year):
+
+        features = torch.cat([x_i.view(-1, 1), env_1_j, env_1_i, env_j, env_i,
+                              night_j.float().view(-1, 1), night_i.float().view(-1, 1),
+                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+        # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
+        #                       coords_j, coords_i, edge_attr], dim=1)
+
+        features = self.fc_emb(features)
+        features = torch.cat([features, h_i], dim=1)
+        flux = self.fc_in(features)
+        flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_hidden:
+            flux = l(flux).relu()
+            flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        flux = self.fc_out(flux)
+        #flux = flux.relu()
+        flux = flux.tanh()
+        return flux
+
+
 class LocalMLP(MessagePassing):
 
     def __init__(self, **kwargs):
@@ -1008,6 +1072,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                 self.flux_mlp = FluxMLP2(**kwargs)
             else:
                 self.flux_mlp = FluxMLP(**kwargs)
+        elif self.boundary_model == 'FluxMLPtanh':
+            self.flux_mlp = FluxMLP3(**kwargs)
 
 
         self.reset_parameters()
@@ -1060,7 +1126,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         #             self.reverse_edge_index[idx] = jdx
 
         self.edges = data.edge_index
-        self.boundary_edges = data.boundary_edges
+        self.boundary2inner_edges = data.boundary2inner_edges
+        self.inner2boundary_edges = data.inner2boundary_edges
         self.inner_edges = data.inner_edges
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary.bool()
@@ -1151,8 +1218,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t,
-                night_i, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j): #, radar_fluxes):
+    def message(self, x_i, x_j, h_i, h_j, coords_i, coords_j, env_i, env_j, env_1_i, env_1_j, edge_attr, t,
+                night_i, night_j, night_1_j, boundary, day_of_year, dawn_i, dawn_1_j): #, radar_fluxes):
         # construct messages to node i for each edge (j,i)
         # can take any argument initially passed to propagate()
         # x_j are source features with shape [E, out_channels]
@@ -1207,8 +1274,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
 
-            flux = self.inner_edges.view(-1, 1) * flux + \
-                   self.boundary_edges.view(-1, 1) * boundary_fluxes
+            flux = (self.inner_edges.view(-1, 1) + self.inner2boundary_edges.view(-1, 1)) * flux + \
+                   self.boundary2inner_edges.view(-1, 1) * boundary_fluxes
             # print(boundary_fluxes[self.boundary_edges])
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
@@ -1218,6 +1285,13 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
+
+        if self.boundary_model == 'FluxMLPtanh':
+            boundary_fluxes = self.flux_mlp(h_i, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+                coords_j, coords_i, edge_attr, day_of_year.repeat(self.edges.size(1)))
+
+            flux = self.inner_edges.view(-1, 1) * flux + \
+                    (self.boundary2inner_edges.view(-1, 1) + self.inner2boundary_edges.view(-1, 1)) * boundary_fluxes
 
         # if self.fix_boundary_fluxes:
         #     flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
@@ -1388,7 +1462,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
         #             self.reverse_edge_index[idx] = jdx
 
         self.edges = data.edge_index
-        self.boundary_edges = data.boundary_edges
+        self.boundary2inner_edges = data.boundary2inner_edges
+        self.inner2boundary_edges = data.inner2boundary_edges
         self.inner_edges = data.inner_edges
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary.bool()
@@ -1533,8 +1608,8 @@ class BirdFluxGraphLSTM2(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-            flux = self.inner_edges.view(-1, 1) * flux + \
-                   self.boundary_edges.view(-1, 1) * boundary_fluxes
+            flux = (self.inner_edges.view(-1, 1) + self.inner2boundary_edges.view(-1, 1)) * flux + \
+                   self.boundary2inner_edges.view(-1, 1) * boundary_fluxes
             #A_influx[self.fixed_boundary, :] = to_dense_adj(self.edges, edge_attr=edge_fluxes).squeeze()[self.fixed_boundary, :]
 
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
@@ -2775,10 +2850,10 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             # print('inferred fluxes', inferred_fluxes)
             diff = observed_fluxes - inferred_fluxes
             if boundary_constraint_only:
-                diff = diff[data.boundary_edges]
+                edges = data.boundary2inner_edges + data.inner2boundary_edges
             else:
-                edges = data.boundary_edges + data.inner_edges
-                diff = diff[edges]
+                edges = data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges
+            diff = diff[edges]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0
