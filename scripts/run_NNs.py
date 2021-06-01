@@ -25,6 +25,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
                  'BirdFluxGraphLSTM': BirdFluxGraphLSTM,
                  'BirdFluxGraphLSTM2': BirdFluxGraphLSTM2,
+                 'testFluxMLP': testFluxMLP,
                  #'BirdFluxGroundGraphLSTM': BirdFluxGroundGraphLSTM,
                  #'BlackBoxGraphLSTM': BlackBoxGraphLSTM,
                  'AttentionGraphLSTM': AttentionGraphLSTM}
@@ -180,6 +181,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                         conservation_constraint=hp_settings['conservation_constraint'],
                                         teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
                                         boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
+                elif cfg.model.name == 'testFluxMLP':
+                    loss = train_testFluxMLP(model, train_loader, optimizer, loss_func, device)
                 else:
                     loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                                       daymask=cfg.model.get('force_zeros', 0))
@@ -373,7 +376,7 @@ def test(cfg: DictConfig, output_dir: str, log):
             if cfg.model.name == 'GraphLSTM':
                 fluxes = model.fluxes.cpu()
                 local_deltas = model.local_deltas.cpu()
-            elif cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
+            elif cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                     data.num_nodes, data.num_nodes, -1).cpu()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
@@ -412,7 +415,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                     results['influxes'].append(influxes[ridx].view(-1))
                     results['outfluxes'].append(outfluxes[ridx].view(-1))
 
-        if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
+        if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
                 pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
             with open(osp.join(output_dir, f'radar_fluxes_{r}.pickle'), 'wb') as f:

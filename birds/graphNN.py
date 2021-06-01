@@ -257,6 +257,67 @@ class FluxMLP2(torch.nn.Module):
         return flux
 
 
+class FluxMLP4(torch.nn.Module):
+
+    def __init__(self, **kwargs):
+        super(FluxMLP4, self).__init__()
+
+        torch.manual_seed(kwargs.get('seed', 1234))
+
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_in = 11 + 4 * self.n_env
+        self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
+
+        self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                        for _ in range(self.n_fc_layers - 1)])
+        self.fc_out = torch.nn.Linear(self.n_hidden, 1)
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+
+        def init_weights(m):
+            if type(m) == nn.Linear:
+                inits.glorot(m.weight)
+                inits.zeros(m.bias)
+            elif type(m) == nn.LSTMCell:
+                for name, param in m.named_parameters():
+                    if 'bias' in name:
+                        inits.zeros(param)
+                    elif 'weight' in name:
+                        inits.glorot(param)
+
+        self.fc_hidden.apply(init_weights)
+        init_weights(self.fc_in)
+        init_weights(self.fc_out)
+        init_weights(self.fc_emb)
+
+
+    def forward(self, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+                coords_j, coords_i, edge_attr, day_of_year):
+
+        features = torch.cat([x_i.view(-1, 1), env_1_j, env_1_i, env_j, env_i,
+                              night_j.float().view(-1, 1), night_i.float().view(-1, 1),
+                              coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+        # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
+        #                       coords_j, coords_i, edge_attr], dim=1)
+
+        features = self.fc_emb(features)
+        flux = F.dropout(features, p=self.dropout_p, training=self.training)
+
+        for l in self.fc_hidden:
+            flux = l(flux).relu()
+            flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+
+        flux = self.fc_out(flux)
+        #flux = flux.relu()
+        flux = flux.tanh()
+        return flux
+
+
 class FluxMLP3(torch.nn.Module):
 
     def __init__(self, **kwargs):
@@ -319,6 +380,8 @@ class FluxMLP3(torch.nn.Module):
         #flux = flux.relu()
         flux = flux.tanh()
         return flux
+
+
 
 
 class LocalMLP(MessagePassing):
@@ -1342,6 +1405,146 @@ class BirdFluxGraphLSTM(MessagePassing):
         #pred = pred.relu() # enforce positive bird densities
 
         return pred, h_t, c_t
+
+class testFluxMLP(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(testFluxMLP, self).__init__(aggr='add', node_dim=0)
+
+        self.timesteps = kwargs.get('timesteps', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_node_in = 6 + self.n_env
+        self.n_edge_in = 8 + 2*self.n_env
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
+        self.fixed_boundary = kwargs.get('fixed_boundary', False)
+        self.force_zeros = kwargs.get('force_zeros', True)
+
+        self.use_encoder = kwargs.get('use_encoder', False)
+        self.t_context = kwargs.get('t_context', 0)
+        self.enforce_conservation = kwargs.get('enforce_conservation', False)
+
+        self.perturbation_std = kwargs.get('perturbation_std', 0)
+        self.perturbation_mean = kwargs.get('perturbation_mean', 0)
+
+        self.boundary_model = kwargs.get('boundary_model', None)
+        self.fix_boundary_fluxes = kwargs.get('fix_boundary_fluxes', False)
+
+        self.edge_type = kwargs.get('edge_type', 'voronoi')
+        if self.edge_type == 'voronoi':
+            self.n_edge_in += 1 # use face_length as additional feature
+            self.n_node_in += 1 # use voronoi cell area as additional feature
+
+        seed = kwargs.get('seed', 1234)
+        torch.manual_seed(seed)
+
+
+        self.flux_mlp = FluxMLP4(**kwargs)
+
+
+    def forward(self, data):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        # self.edges = data.edge_index
+        # n_edges = self.edges.size(1)
+        # self.boundary_edge_index = torch.tensor([idx for idx in range(n_edges)
+        #                                          if data.boundary[self.edges[0, idx]]])
+        # self.boundary_edges = self.edges[:, self.boundary_edge_index]
+        # self.boundary = data.boundary
+        #
+        # self.reverse_edge_index = torch.zeros(n_edges, dtype=torch.long)
+        # for idx in range(n_edges):
+        #     for jdx in range(n_edges):
+        #         if (self.edges[:, idx] == torch.flip(self.edges[:, jdx], dims=[0])).all():
+        #             self.reverse_edge_index[idx] = jdx
+
+        self.edges = data.edge_index
+        self.boundary2inner_edges = data.boundary2inner_edges
+        self.inner2boundary_edges = data.inner2boundary_edges
+        self.inner_edges = data.inner_edges
+        self.reverse_edges = data.reverse_edges
+        self.boundary = data.boundary.bool()
+
+
+        y_hat = []
+        enc_states = None
+
+        x = data.x[..., self.t_context].view(-1, 1)
+        y_hat.append(x)
+
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+
+
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
+        # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
+        # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+
+        forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+
+
+        for t in forecast_horizon:
+
+            r = torch.rand(1)
+
+            x = data.missing[..., t-1].bool().view(-1, 1) * x + \
+                ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
+
+
+            _ = self.propagate(edge_index, x=x, coords=coords,
+                                                areas=data.areas,
+                                                edge_attr=edge_attr,
+                                                dusk=data.local_dusk[:, t-1],
+                                                dawn=data.local_dawn[:, t],
+                                                dawn_1=data.local_dawn[:, t-1],
+                                                env=data.env[..., t],
+                                                env_1=data.env[..., t-1],
+                                                t=t-self.t_context,
+                                                boundary=data.boundary,
+                                                night=data.local_night[:, t],
+                                                night_1=data.local_night[:, t-1],
+                                                day_of_year=data.day_of_year[t],
+                                                enc_states=enc_states)#,
+                                                #radar_fluxes=data.fluxes[:, t])
+
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_i, coords_i, coords_j, env_i, env_j, env_1_i, env_1_j, edge_attr, t,
+                night_i, night_j, day_of_year):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+
+
+        boundary_fluxes = self.flux_mlp(x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+                                        coords_j, coords_i, edge_attr, day_of_year.repeat(self.edges.size(1)))
+
+        flux = self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
+               self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
+        self.local_fluxes[..., t] = flux
+
+
+        flux = flux.view(-1, 1)
+
+        return flux
+
+
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night, boundary, enc_states):
+
+        return aggr_out
 
 
 class BirdFluxGraphLSTM2(MessagePassing):
@@ -2899,6 +3102,34 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         loss = loss_func(output, gt, mask)
 
         loss = loss + constraints
+        loss.backward()
+        loss_all += data.num_graphs * loss
+        optimizer.step()
+
+    return loss_all
+
+
+
+def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
+    model.to(device)
+    model.train()
+    loss_all = 0
+    for data in train_loader:
+        data = data.to(device)
+        optimizer.zero_grad()
+        output = model(data) #.view(-1)
+        gt = data.y
+
+        observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+        observed_fluxes = observed_fluxes - observed_fluxes[data.reverse_edges]
+        # print('observed fluxes', observed_fluxes)
+        inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+        # print('inferred fluxes', inferred_fluxes)
+        diff = observed_fluxes - inferred_fluxes
+        edges = data.boundary2inner_edges + data.inner2boundary_edges
+        diff = diff[edges]
+        loss = (diff[~torch.isnan(diff)]**2).mean()
+
         loss.backward()
         loss_all += data.num_graphs * loss
         optimizer.step()
