@@ -1260,6 +1260,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.local_deltas[..., t] = delta
 
         pred = x + delta + aggr_out # take messages into account for inner cells only
+        pred = pred.relu() # enforce positive bird densities
 
         return pred, h_t, c_t
 
