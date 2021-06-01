@@ -2873,7 +2873,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         #print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
-
+        print(loss, constraints)
         loss = loss + constraints
         loss.backward()
         loss_all += data.num_graphs * loss
