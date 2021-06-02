@@ -29,13 +29,13 @@ def MSE_root_transformed(output, gt, mask, root=3):
 def plot_training_curves(training_curves, val_curves, dir, log=True):
     epochs = training_curves.shape[1]
     fig, ax = plt.subplots()
-    train_line = ax.plot(range(1, epochs + 1), training_curves.mean(0), label='training')
-    ax.fill_between(range(1, epochs + 1), training_curves.mean(0) - training_curves.std(0),
-                    training_curves.mean(0) + training_curves.std(0), alpha=0.2,
+    train_line = ax.plot(range(1, epochs + 1), np.nanmean(training_curves, 0), label='training')
+    ax.fill_between(range(1, epochs + 1), np.nanmean(training_curves, 0) - np.nanstd(training_curves, 0),
+                    np.nanmean(training_curves, 0) + np.nanstd(training_curves, 0), alpha=0.2,
                     color=train_line[0].get_color())
-    val_line = ax.plot(range(1, epochs + 1), val_curves.mean(0), label='validation')
-    ax.fill_between(range(1, epochs + 1), val_curves.mean(0) - val_curves.std(0),
-                    val_curves.mean(0) + val_curves.std(0), alpha=0.2,
+    val_line = ax.plot(range(1, epochs + 1), np.nanmean(val_curves, 0), label='validation')
+    ax.fill_between(range(1, epochs + 1), np.nanmean(val_curves, 0) - np.nanstd(val_curves, 0),
+                    np.nanmean(val_curves, 0) + np.nanstd(val_curves, 0), alpha=0.2,
                     color=val_line[0].get_color())
     ax.set(xlabel='epoch', ylabel='MSE')
     if log: ax.set(yscale='log', xscale='log')
