@@ -179,19 +179,19 @@ def train(cfg: DictConfig, output_dir: str, log):
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
                 if 'BirdFluxGraphLSTM' in cfg.model.name:
-                    loss = train_fluxes(model, train_loader, optimizer, loss_func,
+                    loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                         conservation_constraint=hp_settings['conservation_constraint'],
                                         teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
                                         boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
                 elif cfg.model.name == 'testFluxMLP':
                     loss = train_testFluxMLP(model, train_loader, optimizer, loss_func, device)
                 else:
-                    loss = train_dynamics(model, train_loader, optimizer, loss_func, teacher_forcing=tf,
+                    loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                                       daymask=cfg.model.get('force_zeros', 0))
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
-                val_loss = test_dynamics(model, val_loader, loss_func, bird_scale=1,
+                val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
                                          daymask=cfg.model.get('force_zeros', 0)).cpu()
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
