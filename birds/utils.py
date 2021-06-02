@@ -2,6 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os.path as osp
 import torch
+import warnings
 
 def val_test_split(dataloader, val_ratio, random_seed):
     rng = np.random.default_rng(random_seed)
@@ -29,14 +30,16 @@ def MSE_root_transformed(output, gt, mask, root=3):
 def plot_training_curves(training_curves, val_curves, dir, log=True):
     epochs = training_curves.shape[1]
     fig, ax = plt.subplots()
-    train_line = ax.plot(range(1, epochs + 1), np.nanmean(training_curves, 0), label='training')
-    ax.fill_between(range(1, epochs + 1), np.nanmean(training_curves, 0) - np.nanstd(training_curves, 0),
-                    np.nanmean(training_curves, 0) + np.nanstd(training_curves, 0), alpha=0.2,
-                    color=train_line[0].get_color())
-    val_line = ax.plot(range(1, epochs + 1), np.nanmean(val_curves, 0), label='validation')
-    ax.fill_between(range(1, epochs + 1), np.nanmean(val_curves, 0) - np.nanstd(val_curves, 0),
-                    np.nanmean(val_curves, 0) + np.nanstd(val_curves, 0), alpha=0.2,
-                    color=val_line[0].get_color())
+    with warnings.catch_warnings():
+        warnings.filterwarnings(action='ignore', message='Mean of empty slice')
+        train_line = ax.plot(range(1, epochs + 1), np.nanmean(training_curves, 0), label='training')
+        ax.fill_between(range(1, epochs + 1), np.nanmean(training_curves, 0) - np.nanstd(training_curves, 0),
+                        np.nanmean(training_curves, 0) + np.nanstd(training_curves, 0), alpha=0.2,
+                        color=train_line[0].get_color())
+        val_line = ax.plot(range(1, epochs + 1), np.nanmean(val_curves, 0), label='validation')
+        ax.fill_between(range(1, epochs + 1), np.nanmean(val_curves, 0) - np.nanstd(val_curves, 0),
+                        np.nanmean(val_curves, 0) + np.nanstd(val_curves, 0), alpha=0.2,
+                        color=val_line[0].get_color())
     ax.set(xlabel='epoch', ylabel='MSE')
     if log: ax.set(yscale='log', xscale='log')
     plt.legend()
