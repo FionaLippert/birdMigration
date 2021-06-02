@@ -319,7 +319,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    use_nights=cfg.use_nights,
                                    birds_per_km2=birds_per_km2
                                    )
-    n_nodes = len(test_data[0].info['radars'])
+    n_nodes = len(test_data.info['radars'])
     # boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
