@@ -267,7 +267,7 @@ class FluxMLP4(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 10 + 4 * self.n_env
+        self.n_in = 11 + 4 * self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
 
         self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
@@ -295,10 +295,10 @@ class FluxMLP4(torch.nn.Module):
         init_weights(self.fc_emb)
 
 
-    def forward(self, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+    def forward(self, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
                 coords_j, coords_i, edge_attr, day_of_year):
 
-        features = torch.cat([env_1_j, env_1_i, env_j, env_i,
+        features = torch.cat([x_i.view(-1, 1), env_1_j, env_1_i, env_j, env_i,
                               night_j.float().view(-1, 1), night_i.float().view(-1, 1),
                               coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
@@ -1528,11 +1528,11 @@ class testFluxMLP(MessagePassing):
 
 
 
-        boundary_fluxes = self.flux_mlp(env_1_j, env_1_i, env_j, env_i, night_j, night_i,
+        boundary_fluxes = self.flux_mlp(x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
                                         coords_j, coords_i, edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-        flux = self.boundary2inner_edges.view(-1, 1) * boundary_fluxes #- \
-               #self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
+        flux = self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
+               self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
         self.local_fluxes[..., t] = flux
 
 
@@ -3105,6 +3105,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         loss.backward()
 
         optimizer.step()
+
+        del loss, output
 
     return loss_all
 
