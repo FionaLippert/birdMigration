@@ -3104,7 +3104,11 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         optimizer.step()
 
+        print(loss_all)
+
         del loss, output
+
+        print(loss_all)
 
     return loss_all
 
