@@ -199,6 +199,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
                 if val_loss <= val_losses[r]:
                     # save best model so far
+                    print('best model so far; save to disk ...')
                     torch.save(model.state_dict(), osp.join(sub_dir, f'model_{r}.pkl'))
                     val_losses[r] = val_loss
 
@@ -249,11 +250,14 @@ def test(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
     assert cfg.action.name == 'testing'
 
+    Model = MODEL_MAPPING[cfg.model.name]
+
     data_root = osp.join(cfg.root, 'data')
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     fixed_boundary = cfg.model.get('fixed_boundary', False)
     use_encoder = cfg.model.get('use_encoder', False)
     birds_per_km2 = cfg.get('birds_per_km2', False)
+    encoder_type = cfg.model.get('encoder_type', 'temporal')
 
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.horizon
@@ -315,6 +319,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    use_nights=cfg.use_nights,
                                    birds_per_km2=birds_per_km2
                                    )
+    n_nodes = len(test_data[0].info['radars'])
     # boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -337,7 +342,19 @@ def test(cfg: DictConfig, output_dir: str, log):
         results['outfluxes'] = []
 
     for r in range(cfg.repeats):
-        model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+        #model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+
+        model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
+              n_env=2 + len(cfg.datasource.env_vars),
+              n_nodes=n_nodes,
+              fixed_boundary=fixed_boundary, force_zeros=cfg.model.get('force_zeros', 0),
+              edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
+              use_acc_vars=cfg.model.get('use_acc_vars', False),
+              enforce_conservation=cfg.model.get('enforce_conservation', False),
+              encoder_type=encoder_type,
+              boundary_model=cfg.model.get('boundary_model', None))
+
+        model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl')))
 
         # adjust model settings for testing
         model.timesteps = cfg.model.horizon
