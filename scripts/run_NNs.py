@@ -416,7 +416,6 @@ def test(cfg: DictConfig, output_dir: str, log):
                     results['influxes'].append(influxes[ridx].view(-1))
                     results['outfluxes'].append(outfluxes[ridx].view(-1))
 
-            del data, model
 
         if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
@@ -430,6 +429,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                 pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
             # with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
             #     pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
+
+        del data, model
 
     with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
