@@ -365,36 +365,33 @@ def test(cfg: DictConfig, output_dir: str, log):
             y_hat = model(data).cpu().detach() * cfg.datasource.bird_scale
             y = data.y.cpu() * cfg.datasource.bird_scale
 
-            model = model.cpu()
-            data = data.cpu()
-
             if cfg.root_transform > 0:
                 # transform back
                 y = torch.pow(y, cfg.root_transform)
                 y_hat = torch.pow(y_hat, cfg.root_transform)
 
-            _tidx = data.tidx[context:]
-            local_night = data.local_night
-            missing = data.missing
+            _tidx = data.tidx[context:].cpu()
+            local_night = data.local_night.cpu()
+            missing = data.missing.cpu()
 
             if cfg.model.name == 'GraphLSTM':
-                fluxes = model.fluxes.detach()
-                local_deltas = model.local_deltas.detach()
+                fluxes = model.fluxes.detach().cpu()
+                local_deltas = model.local_deltas.detach().cpu()
             elif cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
-                                    data.num_nodes, data.num_nodes, -1).detach()
+                                    data.num_nodes, data.num_nodes, -1).detach().cpu()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
-                    data.num_nodes, data.num_nodes, -1).detach()
+                    data.num_nodes, data.num_nodes, -1).detach().cpu()
                 radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
-                    data.num_nodes, data.num_nodes, -1).detach()
+                    data.num_nodes, data.num_nodes, -1).detach().cpu()
                 fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
 
                 influxes = local_fluxes[nidx].sum(1)
                 outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
-                local_deltas = model.local_deltas.detach()
+                local_deltas = model.local_deltas.detach().cpu()
             elif cfg.model.name == 'AttentionGraphLSTM':
                 attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
-                                    data.num_nodes, data.num_nodes, -1).detach()
+                                    data.num_nodes, data.num_nodes, -1).detach().cpu()
                 # attention_weights_state[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas2).view(
                 #     data.num_nodes, data.num_nodes, -1).cpu()
 
