@@ -1337,7 +1337,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                                                 coords_j, coords_i,
                                                 edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-
+            print(boundary_fluxes)
             flux = (self.inner_edges.view(-1, 1) + self.inner2boundary_edges.view(-1, 1)) * flux + \
                    self.boundary2inner_edges.view(-1, 1) * boundary_fluxes
             # print(boundary_fluxes[self.boundary_edges])
