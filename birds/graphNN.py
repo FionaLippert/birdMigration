@@ -1223,8 +1223,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
         if not self.training:
-            self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
             self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
             if self.use_encoder:
                 self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
@@ -1346,8 +1346,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
-        if not self.training:
-            self.local_fluxes[..., t] = flux
+
+        self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 
         if self.boundary_model == 'FluxMLPtanh':
@@ -1357,8 +1357,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             flux = self.inner_edges.view(-1, 1) * flux + \
                     self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
                      self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
-            if not self.training:
-                self.local_fluxes[..., t] = flux
+
+            self.local_fluxes[..., t] = flux
 
         # if self.fix_boundary_fluxes:
         #     flux = torch.logical_not(self.boundary_edges.view(-1, 1)) * flux + self.boundary_edges.view(-1, 1) * radar_fluxes
