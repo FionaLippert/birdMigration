@@ -199,7 +199,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
                 if val_loss <= val_losses[r]:
                     # save best model so far
-                    torch.save(model.cpu(), osp.join(sub_dir, f'model_{r}.pkl'))
+                    torch.save(model.state_dict(), osp.join(sub_dir, f'model_{r}.pkl'))
                     val_losses[r] = val_loss
 
                 scheduler.step()
