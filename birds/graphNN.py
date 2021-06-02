@@ -1211,7 +1211,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
-            print(enc_states)
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
