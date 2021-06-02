@@ -206,6 +206,9 @@ def train(cfg: DictConfig, output_dir: str, log):
                 scheduler.step()
                 tf = tf * hp_settings.get('teacher_forcing_gamma', 0)
 
+            # plotting
+            utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
+
 
         if val_curves[:, -5:].mean() < best_val_loss:
             best_val_loss = val_curves[:, -5:].mean()
@@ -224,7 +227,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
         # plotting
         utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
-        utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
+        #utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
 
     print('saving best settings as default', file=log)
     # use ruamel.yaml to not overwrite comments in the original yaml
