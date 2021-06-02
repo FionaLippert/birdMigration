@@ -208,6 +208,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
                 # plotting
                 utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
+                utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
 
 
         if val_curves[:, -5:].mean() < best_val_loss:
@@ -227,7 +228,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
         # plotting
         utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
-        #utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
+        utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
 
     print('saving best settings as default', file=log)
     # use ruamel.yaml to not overwrite comments in the original yaml
