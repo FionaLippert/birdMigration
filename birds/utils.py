@@ -45,3 +45,4 @@ def plot_training_curves(training_curves, val_curves, dir, log=True):
     if log: ax.set(yscale='log', xscale='log')
     plt.legend()
     fig.savefig(osp.join(dir, f'training_validation_curves_log={log}.png'), bbox_inches='tight')
+    plt.close(fig)
