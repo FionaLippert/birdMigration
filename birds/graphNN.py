@@ -267,7 +267,7 @@ class FluxMLP4(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 11 #+ 4 * self.n_env
+        self.n_in = 11 + 4 * self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
         print(self.n_fc_layers, self.n_hidden)
 
@@ -299,12 +299,12 @@ class FluxMLP4(torch.nn.Module):
     def forward(self, x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
                 coords_j, coords_i, edge_attr, day_of_year):
 
-        # features = torch.cat([x_i.view(-1, 1), env_1_j, env_1_i, env_j, env_i,
-        #                       night_j.float().view(-1, 1), night_i.float().view(-1, 1),
-        #                       coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
-        features = torch.cat([x_i.view(-1, 1),
+        features = torch.cat([x_i.view(-1, 1), env_1_j, env_1_i, env_j, env_i,
                               night_j.float().view(-1, 1), night_i.float().view(-1, 1),
                               coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
+        # features = torch.cat([x_i.view(-1, 1),
+        #                       night_j.float().view(-1, 1), night_i.float().view(-1, 1),
+        #                       coords_j, coords_i, edge_attr, day_of_year.view(-1, 1)], dim=1)
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
@@ -3125,12 +3125,16 @@ def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
         gt = data.y
 
         observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+        print('observed fluxes before', observed_fluxes)
+
         observed_fluxes = observed_fluxes - observed_fluxes[data.reverse_edges]
-        # print('observed fluxes', observed_fluxes)
+        print('observed fluxes after', observed_fluxes)
+
         inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
         # print('inferred fluxes', inferred_fluxes)
         diff = observed_fluxes - inferred_fluxes
         edges = data.boundary2inner_edges
+
         diff = diff[edges]
         loss = (diff[~torch.isnan(diff)]**2).mean()
 
