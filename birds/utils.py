@@ -32,6 +32,7 @@ def plot_training_curves(training_curves, val_curves, dir, log=True):
     fig, ax = plt.subplots()
     with warnings.catch_warnings():
         warnings.filterwarnings(action='ignore', message='Mean of empty slice')
+        warnings.filterwarnings(action='ignore', message='Degrees of freedom <= 0 for slice.')
         train_line = ax.plot(range(1, epochs + 1), np.nanmean(training_curves, 0), label='training')
         ax.fill_between(range(1, epochs + 1), np.nanmean(training_curves, 0) - np.nanstd(training_curves, 0),
                         np.nanmean(training_curves, 0) + np.nanstd(training_curves, 0), alpha=0.2,
