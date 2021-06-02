@@ -3057,7 +3057,7 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
         loss = loss_func(output, gt, mask) + conservation_constraint * constraints
 
         loss.backward()
-        loss_all += data.num_graphs * loss
+        loss_all += data.num_graphs * float(loss)
         optimizer.step()
 
     return loss_all
@@ -3101,8 +3101,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         loss = loss_func(output, gt, mask)
 
         loss = loss + constraints
+        loss_all += data.num_graphs.detach() * float(loss)
         loss.backward()
-        loss_all += data.num_graphs.detach() * loss.detach()
+
         optimizer.step()
 
     return loss_all
@@ -3129,8 +3130,8 @@ def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
         diff = diff[edges]
         loss = (diff[~torch.isnan(diff)]**2).mean()
 
+        loss_all += data.num_graphs.detach() * float(loss)
         loss.backward()
-        loss_all += data.num_graphs * loss
         optimizer.step()
 
     return loss_all
@@ -3155,8 +3156,8 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
         loss = loss_func(output, gt, mask)
+        loss_all += data.num_graphs.detach() * float(loss)
         loss.backward()
-        loss_all += data.num_graphs.detach() * loss.detach()
         optimizer.step()
 
     return loss_all
