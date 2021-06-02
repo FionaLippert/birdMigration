@@ -361,36 +361,39 @@ def test(cfg: DictConfig, output_dir: str, log):
         for nidx, data in enumerate(test_loader):
             nidx += seq_shift
             data = data.to(device)
-            y_hat = model(data).cpu() * cfg.datasource.bird_scale
+            y_hat = model(data).cpu().detach() * cfg.datasource.bird_scale
             y = data.y.cpu() * cfg.datasource.bird_scale
+
+            model = model.cpu()
+            data = data.cpu()
 
             if cfg.root_transform > 0:
                 # transform back
                 y = torch.pow(y, cfg.root_transform)
                 y_hat = torch.pow(y_hat, cfg.root_transform)
 
-            _tidx = data.tidx.cpu()[context:]
-            local_night = data.local_night.cpu()
-            missing = data.missing.cpu()
+            _tidx = data.tidx[context:]
+            local_night = data.local_night
+            missing = data.missing
 
             if cfg.model.name == 'GraphLSTM':
-                fluxes = model.fluxes.cpu()
-                local_deltas = model.local_deltas.cpu()
+                fluxes = model.fluxes.detach()
+                local_deltas = model.local_deltas.detach()
             elif cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
                 local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
-                                    data.num_nodes, data.num_nodes, -1).cpu()
+                                    data.num_nodes, data.num_nodes, -1).detach()
                 radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
-                    data.num_nodes, data.num_nodes, -1).cpu()
+                    data.num_nodes, data.num_nodes, -1).detach()
                 radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
-                    data.num_nodes, data.num_nodes, -1).cpu()
+                    data.num_nodes, data.num_nodes, -1).detach()
                 fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
 
                 influxes = local_fluxes[nidx].sum(1)
                 outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
-                local_deltas = model.local_deltas.cpu()
+                local_deltas = model.local_deltas.detach()
             elif cfg.model.name == 'AttentionGraphLSTM':
                 attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
-                                    data.num_nodes, data.num_nodes, -1).cpu()
+                                    data.num_nodes, data.num_nodes, -1).detach()
                 # attention_weights_state[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas2).view(
                 #     data.num_nodes, data.num_nodes, -1).cpu()
 
@@ -415,6 +418,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                     results['influxes'].append(influxes[ridx].view(-1))
                     results['outfluxes'].append(outfluxes[ridx].view(-1))
 
+            del data, model
+
         if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
             with open(osp.join(output_dir, f'local_fluxes_{r}.pickle'), 'wb') as f:
                 pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
@@ -434,7 +439,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     # create dataframe containing all results
     for k, v in results.items():
         if torch.is_tensor(v[0]):
-            results[k] = torch.cat(v).detach().numpy()
+            results[k] = torch.cat(v).numpy()
         else:
             results[k] = np.concatenate(v)
     results['residual'] = results['gt'] - results['prediction']

@@ -313,7 +313,7 @@ class FluxMLP4(torch.nn.Module):
 
         flux = self.fc_out(flux)
         #flux = flux.relu()
-        flux = flux.tanh()
+        #flux = flux.tanh()
         return flux
 
 
