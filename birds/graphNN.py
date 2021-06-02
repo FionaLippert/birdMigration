@@ -1346,7 +1346,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             # self.boundary_fluxes_A[self.boundary_edges[0], self.boundary_edges[1]] = edge_fluxes.squeeze()
             # self.local_fluxes_A[self.boundary, :] = self.boundary_fluxes_A[self.boundary, :]
 
-
+        print(flux)
         self.local_fluxes[..., t] = flux
         flux = flux - flux[self.reverse_edges]
 
