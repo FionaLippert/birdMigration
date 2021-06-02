@@ -206,8 +206,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                 scheduler.step()
                 tf = tf * hp_settings.get('teacher_forcing_gamma', 0)
 
-            # plotting
-            utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
+                # plotting
+                utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
 
 
         if val_curves[:, -5:].mean() < best_val_loss:
