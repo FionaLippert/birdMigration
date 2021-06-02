@@ -3062,13 +3062,12 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
 
     return loss_all
 
-def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation_constraint=0.01,
+def train_fluxes(model, train_loader, optimizer, loss_func, conservation_constraint=0.01,
                  teacher_forcing=1.0, daymask=True, boundary_constraint_only=False):
-    model.to(device)
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        data = data.to(model.device)
         optimizer.zero_grad()
         output = model(data, teacher_forcing) #.view(-1)
         gt = data.y
@@ -3112,12 +3111,12 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
 
 
-def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
-    model.to(device)
+def train_testFluxMLP(model, train_loader, optimizer, loss_func):
+
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        data = data.to(model.device)
         optimizer.zero_grad()
         output = model(data) #.view(-1)
         gt = data.y
@@ -3139,12 +3138,12 @@ def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
     return loss_all
 
 
-def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, daymask=True):
-    model.to(device)
+def train_dynamics(model, train_loader, optimizer, loss_func, teacher_forcing=0, daymask=True):
+
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        data = data.to(model.device)
         optimizer.zero_grad()
 
         output = model(data, teacher_forcing=teacher_forcing)
@@ -3228,15 +3227,14 @@ def test_flows(model, test_loader, loss_func, device, get_outfluxes=True, bird_s
     else:
         return torch.stack(loss_all)
 
-def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_scale=1,
+def test_fluxes(model, test_loader, loss_func, get_fluxes=True, bird_scale=1,
                 fixed_boundary=False, daymask=True):
-    model.to(device)
     model.eval()
     loss_all = []
     fluxes = {}
 
     for tidx, data in enumerate(test_loader):
-        data = data.to(device)
+        data = data.to(model.device)
         output = model(data) * bird_scale #.view(-1)
         gt = data.y * bird_scale
 
@@ -3265,25 +3263,29 @@ def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_sca
     else:
         return torch.stack(loss_all)
 
-def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymask=True):
-    model.to(device)
+def test_dynamics(model, test_loader, loss_func, bird_scale=2000, daymask=True):
+
     model.eval()
     loss_all = []
 
     for nidx, data in enumerate(test_loader):
-        data = data.to(device)
-        output = model(data) * bird_scale #.view(-1)
-        gt = data.y * bird_scale
+        data = data.to(model.device)
 
-        if daymask:
-            mask = data.local_night & ~data.missing
-        else:
-            mask = ~data.missing
-        if hasattr(model, 't_context'):
-            gt = gt[:, model.t_context:]
-            mask = mask[:, model.t_context:]
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]).detach()
-                                      for t in range(model.timesteps + 1)]))
+        with torch.no_grad():
+            output = model(data) * bird_scale #.view(-1)
+            gt = data.y * bird_scale
+
+            if daymask:
+                mask = data.local_night & ~data.missing
+            else:
+                mask = ~data.missing
+            if hasattr(model, 't_context'):
+                gt = gt[:, model.t_context:]
+                mask = mask[:, model.t_context:]
+
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
+                                      for t in range(model.timesteps + 1)]).detach())
+        del data, output
 
     return torch.stack(loss_all)
 
