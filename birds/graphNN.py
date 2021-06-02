@@ -269,7 +269,6 @@ class FluxMLP4(torch.nn.Module):
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 11 + 4 * self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
-        print(self.n_fc_layers, self.n_hidden)
 
         self.fc_emb = torch.nn.Linear(self.n_in, self.n_hidden)
         self.fc_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
@@ -1535,8 +1534,8 @@ class testFluxMLP(MessagePassing):
         boundary_fluxes = self.flux_mlp(x_i, env_1_j, env_1_i, env_j, env_i, night_j, night_i,
                                         coords_j, coords_i, edge_attr, day_of_year.repeat(self.edges.size(1)))
 
-        flux = self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
-               self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
+        flux = self.boundary2inner_edges.view(-1, 1) * boundary_fluxes #- \
+               #self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
         self.local_fluxes[..., t] = flux
 
 
