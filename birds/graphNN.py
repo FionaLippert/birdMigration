@@ -3102,7 +3102,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
         loss = loss + constraints
         loss.backward()
-        loss_all += data.num_graphs * loss
+        loss_all += data.num_graphs.detach() * loss.detach()
         optimizer.step()
 
     return loss_all
@@ -3156,7 +3156,7 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
             mask = mask[:, model.t_context:]
         loss = loss_func(output, gt, mask)
         loss.backward()
-        loss_all += data.num_graphs * loss
+        loss_all += data.num_graphs.detach() * loss.detach()
         optimizer.step()
 
     return loss_all
@@ -3254,7 +3254,7 @@ def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_sca
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]).detach()
                                       for t in range(model.timesteps + 1)]))
 
     if get_fluxes:
@@ -3279,7 +3279,7 @@ def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymas
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
-        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
+        loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]).detach()
                                       for t in range(model.timesteps + 1)]))
 
     return torch.stack(loss_all)
