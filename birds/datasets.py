@@ -243,7 +243,7 @@ def reshape_nights(data, nights, mask, timesteps):
 
 def reshape_t(data, timesteps):
 
-    reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1, 6)]
+    reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1)]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 

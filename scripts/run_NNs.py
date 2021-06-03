@@ -91,7 +91,14 @@ def train(cfg: DictConfig, output_dir: str, log):
     # boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
-    train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
+    if cfg.use_nights:
+        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
+    else:
+        train_set_size = cfg.data_perc * len(train_data)
+        rng = np.random.default_rng(cfg.seed)
+        train_indices = torch.from_numpy(rng.choice(len(train_data), size=train_set_size, replace=False))
+        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size,
+                                  sampler=torch.utils.data.SubsetRandomSampler(train_indices))
 
     print('loaded training data')
 
@@ -130,7 +137,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   n_dummy_radars=cfg.n_dummy_radars,
                                   exclude=cfg.exclude,
                                   compute_fluxes=compute_fluxes,
-                                  use_nights=cfg.use_nights,
+                                  use_nights=True,
                                   birds_per_km2=birds_per_km2
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
@@ -320,7 +327,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    n_dummy_radars=cfg.n_dummy_radars,
                                    exclude=cfg.exclude,
                                    compute_fluxes=compute_fluxes,
-                                   use_nights=cfg.use_nights,
+                                   use_nights=True,
                                    birds_per_km2=birds_per_km2
                                    )
     n_nodes = len(test_data.info['radars'])
