@@ -106,6 +106,21 @@ def plot_errors_per_radar(results, model, bird_scales={}):
     ax.set(ylabel='residuals')
     return fig
 
+def plot_errors_per_radar_and_hour(results, model, bird_scales={}):
+    fig, ax = plt.subplots(figsize=(15, 6))
+
+    results[model]['error'] = results[model].apply(lambda row: compute_error(row, bird_scales.get(model, 1)),
+                                                   axis=1)
+    # mse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
+    # mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
+    # std_mse = mse.groupby('horizon').aggregate(np.nanstd)
+
+    sb.barplot(x='radar', y='error', hue='horizon', data=results[model].dropna(), ax=ax, ci=None, palette="Blues_d")
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid()
+    ax.set(ylabel='residuals')
+    return fig
+
 def residuals_corr(results, models, radar_df, bird_scales={}):
     #radars = results[model].radar.unique()
     radars = radar_df.sort_values(by=['lat'], ascending=False).radar.values

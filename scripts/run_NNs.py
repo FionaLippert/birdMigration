@@ -346,19 +346,22 @@ def test(cfg: DictConfig, output_dir: str, log):
         results['outfluxes'] = []
 
     for r in range(cfg.repeats):
-        #model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
-        model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
-              n_env=2 + len(cfg.datasource.env_vars),
-              n_nodes=n_nodes,
-              fixed_boundary=fixed_boundary, force_zeros=cfg.model.get('force_zeros', 0),
-              edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
-              use_acc_vars=cfg.model.get('use_acc_vars', False),
-              enforce_conservation=cfg.model.get('enforce_conservation', False),
-              encoder_type=encoder_type,
-              boundary_model=cfg.model.get('boundary_model', None))
+        try:
+            model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+        except Exception:
+            model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
+                  n_env=2 + len(cfg.datasource.env_vars),
+                  n_nodes=n_nodes,
+                  fixed_boundary=fixed_boundary, force_zeros=cfg.model.get('force_zeros', 0),
+                  edge_type=cfg.edge_type, use_encoder=use_encoder, t_context=context,
+                  use_acc_vars=cfg.model.get('use_acc_vars', False),
+                  enforce_conservation=cfg.model.get('enforce_conservation', False),
+                  encoder_type=encoder_type,
+                  boundary_model=cfg.model.get('boundary_model', None))
 
-        model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl')))
+            model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl')))
+
 
         # adjust model settings for testing
         model.timesteps = cfg.model.horizon
