@@ -94,7 +94,9 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(train_data)
     if cfg.use_nights:
         train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
-        print(train_loader[0])
+        for d in train_loader:
+            print(d)
+            assert 0
     else:
         train_set_size = int(cfg.data_perc * len(train_data))
         print(f'training set size = {train_set_size}')
@@ -102,7 +104,9 @@ def train(cfg: DictConfig, output_dir: str, log):
         train_indices = torch.from_numpy(rng.choice(len(train_data), size=train_set_size, replace=False))
         train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size,
                                   sampler=torch.utils.data.SubsetRandomSampler(train_indices))
-        print(train_loader[0])
+        for d in train_loader:
+            print(d)
+            assert 0
 
     print('loaded training data')
 
