@@ -96,13 +96,12 @@ def train(cfg: DictConfig, output_dir: str, log):
         print(f'training set size = {len(train_data)}')
         train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
     else:
-        train_set_size = int(cfg.data_perc * len(train_data))
-        print(f'training set size = {train_set_size}')
+        n_exclude = int((1 - cfg.data_perc) * len(train_data))
+        print(f'training set size = {len(train_data) - n_exclude}')
         rng = np.random.default_rng(cfg.seed)
-        train_indices = torch.from_numpy(rng.choice(len(train_data), size=train_set_size, replace=False))
-        train_data = torch.utils.data.Subset(train_data, train_indices)
-        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
-                                  #sampler=torch.utils.data.SubsetRandomSampler(train_indices))
+        exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
+        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True,
+                                  exclude_keys=list(exclude_indices))
 
 
     print('loaded training data')
