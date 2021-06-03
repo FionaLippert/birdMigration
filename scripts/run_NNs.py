@@ -91,22 +91,19 @@ def train(cfg: DictConfig, output_dir: str, log):
     # boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
-    print(train_data)
+
     if cfg.use_nights:
+        print(f'training set size = {len(train_data)}')
         train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
-        for d in train_loader:
-            print(d)
-            assert 0
     else:
         train_set_size = int(cfg.data_perc * len(train_data))
         print(f'training set size = {train_set_size}')
         rng = np.random.default_rng(cfg.seed)
         train_indices = torch.from_numpy(rng.choice(len(train_data), size=train_set_size, replace=False))
-        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size,
-                                  sampler=torch.utils.data.SubsetRandomSampler(train_indices))
-        for d in train_loader:
-            print(d)
-            assert 0
+        train_data = torch.utils.data.Subset(train_data, train_indices)
+        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
+                                  #sampler=torch.utils.data.SubsetRandomSampler(train_indices))
+
 
     print('loaded training data')
 
