@@ -91,6 +91,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     # boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
+    print(train_data)
     if cfg.use_nights:
         train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
     else:
