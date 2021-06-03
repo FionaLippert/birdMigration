@@ -181,6 +181,10 @@ def train(cfg: DictConfig, output_dir: str, log):
                           encoder_type=encoder_type,
                           boundary_model=cfg.model.get('boundary_model', None))
 
+            states_path = cfg.model.get('load_states_from', '')
+            if osp.isfile(states_path):
+                model.load_state_dict(torch.load(states_path))
+
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
             scheduler = lr_scheduler.StepLR(optimizer, step_size=hp_settings['lr_decay'])
@@ -359,8 +363,6 @@ def test(cfg: DictConfig, output_dir: str, log):
     for r in range(cfg.repeats):
 
         try:
-            model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
-        except Exception:
             model = Model(**hp_settings, timesteps=cfg.model.horizon, seed=(cfg.seed + r),
                   n_env=2 + len(cfg.datasource.env_vars),
                   n_nodes=n_nodes,
@@ -372,6 +374,8 @@ def test(cfg: DictConfig, output_dir: str, log):
                   boundary_model=cfg.model.get('boundary_model', None))
 
             model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl')))
+        except Exception:
+            model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
 
 
         # adjust model settings for testing

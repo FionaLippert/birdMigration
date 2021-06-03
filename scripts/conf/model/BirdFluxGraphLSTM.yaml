@@ -63,3 +63,4 @@ perturbation_std: 0
 perturbation_mean: 0
 batch_size: 1
 boundary_model: none
+load_states_from: none

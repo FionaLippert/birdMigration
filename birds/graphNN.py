@@ -3081,6 +3081,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             # print('inferred fluxes', inferred_fluxes)
 
             diff = observed_fluxes - inferred_fluxes
+            diff = observed_fluxes**2 * diff # weight timesteps with larger fluxes more
             if boundary_constraint_only:
                 edges = data.boundary2inner_edges + data.inner2boundary_edges
             else:
