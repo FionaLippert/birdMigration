@@ -42,14 +42,14 @@ class ERA5Loader():
 
         self.client = cdsapi.Client()
 
-    def download_season(self, season, year, target_dir, bounds=None, pl=850, surface_data=True):
+    def download_season(self, season, year, target_dir, bounds=None, buffer_x=0, buffer_y=0, pl=850, surface_data=True):
         # load radar information
         if bounds is None:
             #radar_dir = osp.join(self.radar_path, season, year)
             #radars = datahandling.load_radars(radar_dir)
             spatial = Spatial(self.radars)
-            minx, miny, maxx, maxy = spatial.cells.to_crs(epsg=spatial.epsg).total_bounds
-            bounds = [maxy, minx, miny, maxx]  # North, West, South, East
+            minx, miny, maxx, maxy = spatial.cells.to_crs(epsg=spatial.epsg_lonlat).total_bounds
+            bounds = [maxy + buffer_y, minx - buffer_x, miny - buffer_y, maxx + buffer_x]  # North, West, South, East
 
         if season == 'spring':
             months = [f'{m:02}' for m in range(3, 6)]

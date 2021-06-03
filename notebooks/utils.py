@@ -178,7 +178,7 @@ def residuals_corr_vs_distance(results, models, radar_df, bird_scales={}):
         ax[i].set(title=m, xlabel='distance between radars [km]', ylabel='correlation coefficient', ylim=(-0.2, 1))
     return fig
 
-def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False, root_transform=1):
+def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False, root_transform=1, horizon=40):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(3*len(results), 4))
     rmse_list = []
@@ -189,7 +189,7 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_
                                                                 'constant_prediction', boundary=boundary,
                                                                 bird_thr=bird_thr, night_only=night_only,
                                                                 root_transform=root_transform), axis=1)
-            rmse = results[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
+            rmse = results[m].query(f'horizon <= {horizon}').groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
             rmse_list.append(rmse.values)
             labels.append(['constant'] * len(rmse))
 
@@ -198,7 +198,7 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_
                                                                        boundary=boundary, bird_thr=bird_thr,
                                                                        night_only=night_only,
                                                                        root_transform=root_transform), axis=1)
-        rmse = results[m].groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
+        rmse = results[m].query(f'horizon <= {horizon}').groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))
         #print(np.mean(rmse), np.std(rmse))

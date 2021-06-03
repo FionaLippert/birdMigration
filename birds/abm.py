@@ -245,7 +245,9 @@ class Simulation:
 
         for id in range(self.settings['num_birds']):
             # sample initial position of bird
-            if hasattr(self, 'departure_area'):
+            if 'start_line' in self.settings:
+                lon, lat = self.sample_pos_from_line()
+            elif hasattr(self, 'departure_area'):
                 lon, lat = self.sample_pos()
                 #print('sampling from departure_area was successful')
             elif 'sources' in self.settings:
@@ -281,6 +283,17 @@ class Simulation:
             lat = np.random.uniform(miny, maxy)
             pos = geometry.Point(lon, lat)
         return lon, lat
+
+    def sample_pos_from_line(self, n_options=1000):
+        bounds = gpd.GeoSeries(geometry=self.env.bounds.buffer(-1e-10), crs='EPSG:4326')
+        p1, p2 = self.settings['start_line']
+        line = gpd.GeoSeries(geometry=geometry.LineString([geometry.Point(*p1),
+                                                           geometry.Point(*p2)]), crs='EPSG:4326')
+        line = line.intersection(bounds)
+        n = self.rng.uniform(0, n_options + 1)
+        pos = line.interpolate(n / n_options, normalized=True)
+
+        return pos.x, pos.y
 
     def run(self, steps):
         for tidx in tqdm(range(steps)):
