@@ -18,6 +18,7 @@ parser.add_argument('output_path', type=str, help='output directory')
 parser.add_argument('num_birds', type=int, help='number of birds to simulate')
 parser.add_argument('pid', type=int, help='process id and random seed')
 parser.add_argument('departure_area_path', type=str, help='output directory')
+parser.add_argument('target_area_path', type=str, help='output directory')
 args = parser.parse_args()
 
 with open('abm_config.yml') as f:
@@ -45,9 +46,10 @@ settings['num_birds'] = args.num_birds
 settings['random_seed'] = args.pid
 
 # run simulation
-if len(args.departure_area_path) > 0:
-    area = gpd.read_file(args.departure_area_path)
-    sim = abm.Simulation(env, settings, departure_area=area)
+if len(args.departure_area_path) > 0 and len(args.target_area_path) > 0:
+    departure_area = gpd.read_file(args.departure_area_path)
+    target_area = gpd.read_file(args.target_area_path)
+    sim = abm.Simulation(env, settings, departure_area=departure_area, target_area=target_area)
 else:
     sim = abm.Simulation(env, settings)
 steps = len(env.time)

@@ -47,7 +47,7 @@ class Bird:
     def __init__(self, id, lat, lon, env, start_day,
                  endogenous_heading=215, pref_dir_std=5,
                  air_speed=10, compensation=0.5, energy_tol=0,
-                 departure_window=1):
+                 departure_window=1, target_lon=None, target_lat=None):
 
         # bird and system properties
         self.id = id
@@ -59,6 +59,7 @@ class Bird:
         self.compensation = compensation
         self.energy_tol = energy_tol # if <= 0 no headwinds are tolerated
         self.departure_window = departure_window # number of timesteps after dusk within which birds can depart
+        self.target_pos = (target_lon, target_lat)
 
         # initialize simulation
         self.reset(lat, lon)
@@ -124,8 +125,21 @@ class Bird:
     def check_bounds(self):
         return self.env.bounds.contains(geometry.Point(self.pos.longitude, self.pos.latitude))
 
+    def compute_pref_dir(self):
+
+        x = self.target_pos[0] - self.pos.longitude
+        y = self.target_pos[1] - self.pos.latitude
+
+        rad = np.arctan2(x, y)
+        deg = np.rad2deg(rad)
+
+        # make sure angle is between 0 and 360 degree
+        deg = (deg + 180) % 360 + 180
+        return deg
+
     def sample_pref_dir(self):
-        self.pref_dir = np.random.normal(self.endogenous_heading, self.pref_dir_std)
+        #self.pref_dir = np.random.normal(self.endogenous_heading, self.pref_dir_std)
+        self.pref_dir = np.random.normal(self.compute_pref_dir(), self.pref_dir_std)
 
     def adjust_heading(self, wind_speed, wind_dir):
         # compute heading based on given relative wind compensation
@@ -232,7 +246,7 @@ class Simulation:
         self.rng = np.random.default_rng(settings['random_seed'])
 
         for k in kwargs.keys():
-            if k in ['departure_area']:
+            if k in ['departure_area', 'target_area']:
                 self.__setattr__(k, kwargs[k])
 
         self.spawn_birds()
@@ -245,8 +259,10 @@ class Simulation:
 
         for id in range(self.settings['num_birds']):
             # sample initial position of bird
+            print(self.settings)
             if 'start_line' in self.settings:
                 lon, lat = self.sample_pos_from_line()
+                print(lon, lat)
             elif hasattr(self, 'departure_area'):
                 lon, lat = self.sample_pos()
                 #print('sampling from departure_area was successful')
@@ -265,13 +281,16 @@ class Simulation:
                     lat = self.rng.uniform(miny, maxy)
                     lon = maxx
 
+            if hasattr(self, 'target_area'):
+                target_lon, target_lat = self.sample_pos()
+
             # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
             start_day = self.rng.choice(range(self.settings['start_day_range']))
             energy_tol = self.rng.normal(self.settings['energy_tol_mean'], self.settings['energy_tol_std'])
             self.birds.append(Bird(id, lat, lon, self.env, start_day,
                                    compensation=self.settings['compensation'],
                                    departure_window=self.settings['departure_window'],
-                                   energy_tol=energy_tol))
+                                   energy_tol=energy_tol, target_lon=target_lon, target_lat=target_lat))
 
     def sample_pos(self):
         minx, miny, maxx, maxy = self.departure_area.total_bounds
@@ -285,15 +304,17 @@ class Simulation:
         return lon, lat
 
     def sample_pos_from_line(self, n_options=1000):
-        bounds = gpd.GeoSeries(geometry=self.env.bounds.buffer(-1e-10), crs='EPSG:4326')
+        bounds = gpd.GeoSeries([self.env.bounds.buffer(-1e-10)], crs='EPSG:4326')
         p1, p2 = self.settings['start_line']
-        line = gpd.GeoSeries(geometry=geometry.LineString([geometry.Point(*p1),
-                                                           geometry.Point(*p2)]), crs='EPSG:4326')
+        line = gpd.GeoSeries([geometry.LineString([geometry.Point(*p1),
+                                                           geometry.Point(*p2)])], crs='EPSG:4326')
         line = line.intersection(bounds)
         n = self.rng.uniform(0, n_options + 1)
         pos = line.interpolate(n / n_options, normalized=True)
+        lon = float(pos.x)
+        lat = float(pos.y)
 
-        return pos.x, pos.y
+        return lon, lat
 
     def run(self, steps):
         for tidx in tqdm(range(steps)):

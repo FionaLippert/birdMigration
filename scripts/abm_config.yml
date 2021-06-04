@@ -11,7 +11,8 @@ settings:
   energy_tol_mean: 0.25
   energy_tol_std: 0.1
   compensation: 0.6
-  start_day_range: 105
+  #start_day_range: 105
+  start_day_range: 2
   departure_window: 3
   start_line:
     - [9.90, 62.60]

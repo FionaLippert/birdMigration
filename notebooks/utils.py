@@ -359,8 +359,8 @@ def draw_birds(ax, countries, departure_area, traj, states, anim_path, tidx, tim
     plt.close()
     return file_name
 
-def plot_trajectories(ax, countries, departure_area, traj, states, birds=[0]):
-    ax, extent = background_map(ax, countries, departure_area)
+def plot_trajectories(ax, countries, departure_area, traj, states, birds=[0], extent=[0.36, 46.36, 16.07, 55.40]):
+    ax, extent = background_map(ax, countries, departure_area, extent=extent)
     for bidx in birds:
         xx = traj[:, bidx, 0]
         yy = traj[:, bidx, 1]

@@ -71,7 +71,7 @@ class ERA5Loader():
                  'grid' : resolution, #Default: 0.25 x 0.25
                  'time' : time }
 
-        os.makedirs(osp.dirname(target_dir), exist_ok=True)
+        os.makedirs(target_dir, exist_ok=True)
 
         if surface_data:
             self.surface_data_config.update(info)
