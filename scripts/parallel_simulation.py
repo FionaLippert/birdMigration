@@ -2,7 +2,7 @@ import subprocess
 import yaml
 import argparse
 import shapely
-from shapely.geometry import Polygon, Point
+from shapely import geometry
 from datetime import datetime
 import numpy as np
 import multiprocessing as mp
@@ -67,7 +67,7 @@ if not osp.exists(departure_area_path):
     miny_east = 50.5
     maxy = 55.1
 
-    poly = Polygon([(minx, maxy), (maxx, maxy), (maxx, miny_east), (minx, miny_west)])
+    poly = geometry.Polygon([(minx, maxy), (maxx, maxy), (maxx, miny_east), (minx, miny_west)])
     area = gpd.GeoSeries(diff.intersection(poly))
     area.to_file(departure_area_path)
 
@@ -86,7 +86,7 @@ if not osp.exists(target_area_path):
     maxy_east = 42.5
     maxy_west = 44
 
-    poly = Polygon([(minx, maxy_west), (maxx, maxy_east), (maxx, miny_east), (minx, miny_west)])
+    poly = geometry.Polygon([(minx, maxy_west), (maxx, maxy_east), (maxx, miny_east), (minx, miny_west)])
     print(poly)
     target_area = gpd.GeoSeries(outer.intersection(poly))
     print('save target area')
