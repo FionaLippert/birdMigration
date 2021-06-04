@@ -1,10 +1,10 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu_short
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=TestJob
 #SBATCH --ntasks=1
-#SBATCH --time=04:00:00
+#SBATCH --time=01:00:00
 #SBATCH --output=slurm_output_%A.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
@@ -24,10 +24,8 @@ module load GDAL/3.0.4-foss-2020a-Python-3.8.2
 
 #Copy all necessary input files to scratch
 mkdir "$TMPDIR"/data
-#cp $HOME/input_files "$TMPDIR"
 cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
-# Your job starts in the directory where you call sbatch
 cd $HOME/birdMigration/scripts
 # Activate your environment
 source activate birdmigration
