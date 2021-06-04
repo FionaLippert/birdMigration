@@ -74,9 +74,8 @@ if not osp.exists(departure_area_path):
 if not osp.exists(target_area_path):
     print('load target area')
     countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
-    print(countries['ADMIN'])
     roi = countries[countries['ADMIN'].isin(['France', 'Spain', 'Andorra'])]
-    print(roi['ADMIN'])
+    print(roi.geometry)
     outer = cascaded_union(roi.geometry)
     print(outer)
 
