@@ -74,8 +74,10 @@ if not osp.exists(departure_area_path):
 if not osp.exists(target_area_path):
     print('load target area')
     countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
+    print(countries.head())
     roi = countries[countries['ADMIN'].isin(['France', 'Spain', 'Andorra'])]
     outer = cascaded_union(roi.geometry)
+    print(outer)
 
     minx = -2.5
     maxx = 4
@@ -85,6 +87,7 @@ if not osp.exists(target_area_path):
     maxy_west = 44
 
     poly = Polygon([(minx, maxy_west), (maxx, maxy_east), (maxx, miny_east), (minx, miny_west)])
+    print(poly)
     target_area = gpd.GeoSeries(outer.intersection(poly))
     print('save target area')
     area.to_file(target_area_path)
