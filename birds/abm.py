@@ -60,6 +60,7 @@ class Bird:
         self.energy_tol = energy_tol # if <= 0 no headwinds are tolerated
         self.departure_window = departure_window # number of timesteps after dusk within which birds can depart
         self.target_pos = (target_lon, target_lat)
+        print('target pos', self.target_pos)
 
         # initialize simulation
         self.reset(lat, lon)
@@ -139,6 +140,7 @@ class Bird:
 
     def sample_pref_dir(self):
         #self.pref_dir = np.random.normal(self.endogenous_heading, self.pref_dir_std)
+        print(self.compute_pref_dir())
         self.pref_dir = np.random.normal(self.compute_pref_dir(), self.pref_dir_std)
 
     def adjust_heading(self, wind_speed, wind_dir):
