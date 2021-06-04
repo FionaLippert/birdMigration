@@ -1,15 +1,10 @@
 import cdsapi
 import os
 import os.path as osp
-import argparse
 import xarray as xr
 import numpy as np
-import pandas as pd
-import rioxarray
 from shapely import geometry
 
-# from . import datahandling
-# from .spatial import Spatial
 from birds import datahandling
 from birds.spatial import Spatial
 
