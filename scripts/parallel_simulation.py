@@ -1,7 +1,7 @@
 import subprocess
 import yaml
 import argparse
-from shapely.ops import cascaded_union
+import shapely
 from shapely.geometry import Polygon, Point
 from datetime import datetime
 import numpy as np
@@ -57,7 +57,7 @@ if not osp.exists(env_path):
 if not osp.exists(departure_area_path):
     countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
     roi = countries[countries['ADMIN'].isin(['Germany', 'Belgium', 'Netherlands'])]
-    outer = cascaded_union(roi.geometry)
+    outer = shapely.ops.cascaded_union(roi.geometry)
     inner = gpd.GeoSeries(outer, crs='epsg:4326').to_crs('epsg:3035').buffer(-50_000).to_crs('epsg:4326')
     diff = outer.difference(inner.geometry[0])
 
@@ -76,7 +76,7 @@ if not osp.exists(target_area_path):
     countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
     roi = countries[countries['ADMIN'].isin(['France', 'Spain', 'Andorra'])]
     print(roi.geometry)
-    outer = cascaded_union(roi.geometry)
+    outer = shapely.ops.cascaded_union(roi.geometry)
     print(outer)
 
     minx = -2.5
