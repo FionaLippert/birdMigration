@@ -1,0 +1,39 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --job-name=TestJob
+#SBATCH --ntasks=1
+#SBATCH --time=04:00:00
+#SBATCH --output=slurm_output_%A.out
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=f.lippert@uva.nl
+
+# Note: use --partition=gpu_shared if not all GPUs on a node are needed, --gpus=2 would give 2 of them
+# Note: use --partition=gpu_short for debugging
+
+
+module purge
+module load 2019
+module load Python/3.8.2-GCCcore-9.3.0
+module load Anaconda3/2020.02
+module load CUDA/11.0.2-GCC-9.3.0
+module load cuDNN/8.0.3.33-gcccuda-2020a
+module load NCCL/2.7.8-gcccuda-2020a
+module load GDAL/3.0.4-foss-2020a-Python-3.8.2
+
+#Copy all necessary input files to scratch
+mkdir "$TMPDIR"/data
+#cp $HOME/input_files "$TMPDIR"
+cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
+
+# Your job starts in the directory where you call sbatch
+cd $HOME/birdMigration/scripts
+# Activate your environment
+source activate birdmigration
+# Run your code
+srun python -u run.py root="$TMPDIR"
+
+#Copy output directory from scratch to home
+mkdir "$HOME"/output_"$SLURM_JOBID"
+cp -r "$TMPDIR"/results $HOME/birdMigration/output_"$SLURM_JOBID"
