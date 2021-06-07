@@ -30,7 +30,8 @@ cd $HOME/birdMigration/scripts
 # Activate your environment
 source activate birdmigration
 # Run your code
-srun python -u run.py root="$TMPDIR"
+#srun python -u run.py root="$TMPDIR"
+srun python -u test_script.py root="$TMPDIR"
 
 #Copy output directory from scratch to home
 mkdir "$HOME"/output_"$SLURM_JOBID"

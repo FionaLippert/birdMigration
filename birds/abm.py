@@ -283,7 +283,7 @@ class Simulation:
                     lon = maxx
 
             if hasattr(self, 'target_area'):
-                target_lon, target_lat = self.sample_target_pos(self.target_area)
+                target_lon, target_lat = self.sample_target_pos()
                 print('target_pos', target_lon, target_lat)
 
             # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
