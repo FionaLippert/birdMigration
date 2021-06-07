@@ -48,13 +48,14 @@ def train(cfg: DictConfig, output_dir: str, log):
     birds_per_km2 = cfg.get('birds_per_km2', False)
 
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
-    if device == 'cpu':
-        n_devices = 1
-        print('Running on CPU...')
-    else:
-        n_devices = min(torch.cuda.device_count(), cfg.get('n_gpus', 1))
-        print('Let\'s use', n_devices, 'GPUs!')
-    batch_size = cfg.model.batch_size * n_devices
+    # if device == 'cpu':
+    #     n_devices = 1
+    #     print('Running on CPU...')
+    # else:
+    #     n_devices = min(torch.cuda.device_count(), cfg.get('n_gpus', 1))
+    #     print('Let\'s use', n_devices, 'GPUs!')
+    # batch_size = cfg.model.batch_size * n_devices
+    batch_size = cfg.model.batch_size
 
 
     hps = cfg.model.hyperparameters
