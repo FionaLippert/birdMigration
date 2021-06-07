@@ -266,7 +266,7 @@ class Simulation:
                 lon, lat = self.sample_pos_from_line()
                 print(lon, lat)
             elif hasattr(self, 'departure_area'):
-                lon, lat = self.sample_pos()
+                lon, lat = self.sample_pos(self.departure_area)
                 #print('sampling from departure_area was successful')
             elif 'sources' in self.settings:
                 #print('sampling from sources')
@@ -284,7 +284,7 @@ class Simulation:
                     lon = maxx
 
             if hasattr(self, 'target_area'):
-                target_lon, target_lat = self.sample_pos()
+                target_lon, target_lat = self.sample_pos(self.target_area)
 
             # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
             start_day = self.rng.choice(range(self.settings['start_day_range']))
@@ -294,12 +294,12 @@ class Simulation:
                                    departure_window=self.settings['departure_window'],
                                    energy_tol=energy_tol, target_lon=target_lon, target_lat=target_lat))
 
-    def sample_pos(self):
-        minx, miny, maxx, maxy = self.departure_area.total_bounds
+    def sample_pos(self, area):
+        minx, miny, maxx, maxy = area.total_bounds
         lon = self.rng.uniform(minx, maxx)
         lat = self.rng.uniform(miny, maxy)
         pos = geometry.Point(lon, lat)
-        while not self.departure_area.contains(pos).any():
+        while not area.contains(pos).any():
             lon = np.random.uniform(minx, maxx)
             lat = np.random.uniform(miny, maxy)
             pos = geometry.Point(lon, lat)
