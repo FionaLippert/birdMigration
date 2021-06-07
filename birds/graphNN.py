@@ -1708,7 +1708,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred, boundary_h = self.boundary_lstm(data, tf)
+            boundary_pred, boundary_h = self.boundary_lstm(data, tf=tf)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
@@ -3032,7 +3032,7 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
-        output = model(data, teacher_forcing) #.view(-1)
+        output = model(data, tf=teacher_forcing) #.view(-1)
         gt = data.y
 
         outfluxes = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
@@ -3064,7 +3064,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
-        output = model(data, teacher_forcing) #.view(-1)
+        output = model(data, tf=teacher_forcing) #.view(-1)
         gt = data.y
 
         if conservation_constraint > 0:
@@ -3144,7 +3144,7 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         data = data.to(device)
         optimizer.zero_grad()
 
-        output = model(data, teacher_forcing)
+        output = model(data, tf=teacher_forcing)
         gt = data.y
 
         if daymask:
