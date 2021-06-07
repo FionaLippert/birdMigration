@@ -14,13 +14,20 @@
 
 
 module purge
-module load 2019
+#module load 2019
+module load 2020
 module load Python/3.8.2-GCCcore-9.3.0
+#module load Python/3.7.5-foss-2019b
 module load Anaconda3/2020.02
+#module load Anaconda3/2018.12
 module load CUDA/11.0.2-GCC-9.3.0
+#module load CUDA/10.1.243-GCC-8.3.0
 module load cuDNN/8.0.3.33-gcccuda-2020a
+#module load cuDNN/7.6.5.32-gcccuda-2019b
 module load NCCL/2.7.8-gcccuda-2020a
+#module load NCCL/2.5.6-CUDA-10.1.243
 module load GDAL/3.0.4-foss-2020a-Python-3.8.2
+#module load GDAL/2.2.3-intel-2019b-Python-3.6.6
 
 #Copy all necessary input files to scratch
 mkdir "$TMPDIR"/data
@@ -30,8 +37,8 @@ cd $HOME/birdMigration/scripts
 # Activate your environment
 source activate birdmigration
 # Run your code
-#srun python -u run.py root="$TMPDIR"
-srun python -u test_script.py root="$TMPDIR"
+srun python -u run.py root="$TMPDIR"
+#srun python -u test_script.py root="$TMPDIR"
 
 #Copy output directory from scratch to home
 mkdir "$HOME"/output_"$SLURM_JOBID"
