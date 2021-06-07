@@ -191,8 +191,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             if osp.isfile(states_path):
                 model.load_state_dict(torch.load(states_path))
 
-
-            model = DataParallel(model)
+            #model = DataParallel(model)
             model = model.to(device)
 
             params = model.parameters()
