@@ -40,7 +40,7 @@ class LSTM(torch.nn.Module):
         self.fc_out = torch.nn.Linear(self.n_hidden, self.n_nodes)
 
 
-    def forward(self, data, teacher_forcing=0):
+    def forward(self, data, tf=0):
 
         x = data.x[:, 0]
         # states = torch.zeros(1, self.hidden_channels).to(x.device)
@@ -53,7 +53,7 @@ class LSTM(torch.nn.Module):
         y_hat = [x]
         for t in range(self.timesteps):
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 x = data.x[:, t]
 
 
@@ -539,7 +539,7 @@ class LocalLSTM(MessagePassing):
             init_weights(self.attention_t)
 
 
-    def forward(self, data, teacher_forcing=0):
+    def forward(self, data, tf=0):
 
         x = data.x[..., self.t_context].view(-1, 1)
         y_hat = [x]
@@ -576,7 +576,7 @@ class LocalLSTM(MessagePassing):
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
-                if r < teacher_forcing:
+                if r < tf:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t-1].view(-1, 1) * x + \
                         ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -726,7 +726,7 @@ class BirdFlowGNN(MessagePassing):
         self.use_wind = use_wind
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -755,7 +755,7 @@ class BirdFlowGNN(MessagePassing):
         self.abs_flows = []
         for t in range(self.timesteps):
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t].view(-1, 1) * x + \
                     ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
@@ -775,7 +775,7 @@ class BirdFlowGNN(MessagePassing):
             if self.multinight:
                 # for locations where it is dawn: save birds to ground and set birds in the air to zero
                 r = torch.rand(1)
-                if r < teacher_forcing:
+                if r < tf:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
                 else:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
@@ -891,7 +891,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -945,7 +945,7 @@ class BirdFlowGraphLSTM(MessagePassing):
                 # at least for one radar station it is night or dusk
 
                 r = torch.rand(1)
-                if r < teacher_forcing:
+                if r < tf:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t-1].view(-1, 1) * x + \
                         ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -1167,7 +1167,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -1223,13 +1223,13 @@ class BirdFluxGraphLSTM(MessagePassing):
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
+            boundary_pred, boundary_h = self.boundary_lstm(data, tf=tf)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].bool().view(-1, 1) * x + \
                     ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -1648,7 +1648,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -1708,13 +1708,13 @@ class BirdFluxGraphLSTM2(MessagePassing):
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred, boundary_h = self.boundary_lstm(data, teacher_forcing=teacher_forcing)
+            boundary_pred, boundary_h = self.boundary_lstm(data, tf)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].bool().view(-1, 1) * x + \
                     ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -1970,7 +1970,7 @@ class AttentionGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2009,7 +2009,7 @@ class AttentionGraphLSTM(MessagePassing):
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].view(-1, 1) * x + \
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2173,7 +2173,7 @@ class Attention2GraphLSTM(MessagePassing):
         self.lstm_layers.apply(init_weights)
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2213,7 +2213,7 @@ class Attention2GraphLSTM(MessagePassing):
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].view(-1, 1) * x + \
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2612,7 +2612,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2650,7 +2650,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             if True: #torch.any(data.local_night[:, t] | data.local_dusk[:, t]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
-                if r < teacher_forcing:
+                if r < tf:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t-1].view(-1, 1) * x + \
                         ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2783,7 +2783,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
 
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2813,7 +2813,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
-                if r < teacher_forcing:
+                if r < tf:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
@@ -2917,7 +2917,7 @@ class BirdDynamicsGraphGRU(MessagePassing):
         self.n_hidden = n_hidden
 
 
-    def forward(self, data, teacher_forcing=0.0):
+    def forward(self, data, tf=0.0):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2942,7 +2942,7 @@ class BirdDynamicsGraphGRU(MessagePassing):
 
         for t in range(self.timesteps):
             r = torch.rand(1)
-            if r < teacher_forcing:
+            if r < tf:
                 x = data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
@@ -2957,7 +2957,7 @@ class BirdDynamicsGraphGRU(MessagePassing):
             if self.multinight:
                 # for locations where it is dawn: save birds to ground and set birds in the air to zero
                 # r = torch.rand(1)
-                # if r < teacher_forcing:
+                # if r < tf:
                 #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
                 # else:
                 #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
@@ -3144,7 +3144,7 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         data = data.to(device)
         optimizer.zero_grad()
 
-        output = model(data, teacher_forcing=teacher_forcing)
+        output = model(data, teacher_forcing)
         gt = data.y
 
         if daymask:
