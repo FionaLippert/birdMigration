@@ -539,12 +539,12 @@ class LocalLSTM(MessagePassing):
             init_weights(self.attention_t)
 
 
-    def forward(self, data, **kwargs):
+    def forward(self, data, teacher_forcing=0):
 
         x = data.x[..., self.t_context].view(-1, 1)
         y_hat = [x]
 
-        teacher_forcing = kwargs.get('teacher_forcing', 0)
+        #teacher_forcing = kwargs.get('teacher_forcing', 0)
         enc_states = None
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
