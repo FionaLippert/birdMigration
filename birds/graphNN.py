@@ -31,6 +31,7 @@ class LSTM(torch.nn.Module):
         self.n_nodes = kwargs.get('n_nodes', 22)
         self.n_layers = kwargs.get('n_layers', 1)
         self.force_zeros = kwargs.get('force_zeros', False)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -40,7 +41,7 @@ class LSTM(torch.nn.Module):
         self.fc_out = torch.nn.Linear(self.n_hidden, self.n_nodes)
 
 
-    def forward(self, data, tf=0):
+    def forward(self, data):
 
         x = data.x[:, 0]
         # states = torch.zeros(1, self.hidden_channels).to(x.device)
@@ -53,7 +54,7 @@ class LSTM(torch.nn.Module):
         y_hat = [x]
         for t in range(self.timesteps):
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 x = data.x[:, t]
 
 
@@ -475,6 +476,7 @@ class LocalLSTM(MessagePassing):
         self.n_in = 7 + self.n_env
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.t_context = kwargs.get('t_context', 0)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
         self.use_encoder = kwargs.get('use_encoder', False)
@@ -539,7 +541,7 @@ class LocalLSTM(MessagePassing):
             init_weights(self.attention_t)
 
 
-    def forward(self, data, tf=0):
+    def forward(self, data):
 
         x = data.x[..., self.t_context].view(-1, 1)
         y_hat = [x]
@@ -576,7 +578,7 @@ class LocalLSTM(MessagePassing):
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
-                if r < tf:
+                if r < self.teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t-1].view(-1, 1) * x + \
                         ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -680,9 +682,10 @@ class LocalLSTM(MessagePassing):
 class BirdFlowGNN(MessagePassing):
 
     def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
-                 use_departure=False, seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0.5):
+                 use_departure=False, seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0.5, **kwargs):
         super(BirdFlowGNN, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
         torch.manual_seed(seed)
 
         in_channels = 10 + embedding
@@ -726,7 +729,7 @@ class BirdFlowGNN(MessagePassing):
         self.use_wind = use_wind
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -755,7 +758,7 @@ class BirdFlowGNN(MessagePassing):
         self.abs_flows = []
         for t in range(self.timesteps):
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t].view(-1, 1) * x + \
                     ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
@@ -775,7 +778,7 @@ class BirdFlowGNN(MessagePassing):
             if self.multinight:
                 # for locations where it is dawn: save birds to ground and set birds in the air to zero
                 r = torch.rand(1)
-                if r < tf:
+                if r < self.teacher_forcing:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
                 else:
                     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
@@ -847,6 +850,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -891,7 +895,7 @@ class BirdFlowGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -945,7 +949,7 @@ class BirdFlowGraphLSTM(MessagePassing):
                 # at least for one radar station it is night or dusk
 
                 r = torch.rand(1)
-                if r < tf:
+                if r < self.teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t-1].view(-1, 1) * x + \
                         ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -1083,6 +1087,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.boundary_model = kwargs.get('boundary_model', None)
         self.fix_boundary_fluxes = kwargs.get('fix_boundary_fluxes', False)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -1167,7 +1172,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -1223,13 +1228,14 @@ class BirdFluxGraphLSTM(MessagePassing):
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred, boundary_h = self.boundary_lstm(data, tf=tf)
+            self.boundary_model.teacher_forcing = self.teacher_forcing
+            boundary_pred, boundary_h = self.boundary_lstm(data)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].bool().view(-1, 1) * x + \
                     ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -1558,6 +1564,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
         self.enforce_conservation = kwargs.get('enforce_conservation', False)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.perturbation_std = kwargs.get('perturbation_std', 0)
         self.perturbation_mean = kwargs.get('perturbation_mean', 0)
@@ -1648,7 +1655,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -1708,13 +1715,14 @@ class BirdFluxGraphLSTM2(MessagePassing):
             self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
-            boundary_pred, boundary_h = self.boundary_lstm(data, tf=tf)
+            self.boundary_model.teacher_forcing = self.teacher_forcing
+            boundary_pred, boundary_h = self.boundary_lstm(data)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].bool().view(-1, 1) * x + \
                     ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -1897,6 +1905,7 @@ class AttentionGraphLSTM(MessagePassing):
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', True)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.use_encoder = kwargs.get('use_encoder', False)
         self.encoder_type = kwargs.get('encoder_type', 'temporal')
@@ -1970,7 +1979,7 @@ class AttentionGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2009,7 +2018,7 @@ class AttentionGraphLSTM(MessagePassing):
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].view(-1, 1) * x + \
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2118,6 +2127,7 @@ class Attention2GraphLSTM(MessagePassing):
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', True)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
@@ -2173,7 +2183,7 @@ class Attention2GraphLSTM(MessagePassing):
         self.lstm_layers.apply(init_weights)
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2213,7 +2223,7 @@ class Attention2GraphLSTM(MessagePassing):
         for t in forecast_horizon:
 
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].view(-1, 1) * x + \
                     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2568,6 +2578,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.force_zeros = kwargs.get('force_zeros', [])
         self.use_encoder = kwargs.get('use_encoder', False)
         self.t_context = kwargs.get('t_context', 0)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -2612,7 +2623,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2650,7 +2661,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             if True: #torch.any(data.local_night[:, t] | data.local_dusk[:, t]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
-                if r < tf:
+                if r < self.teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t-1].view(-1, 1) * x + \
                         ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2747,6 +2758,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.forced_zeros = kwargs.get('forced_zeros', [])
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
         if self.edge_type == 'voronoi':
@@ -2783,7 +2795,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
 
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2813,7 +2825,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
                 r = torch.rand(1)
-                if r < tf:
+                if r < self.teacher_forcing:
                     # if data is available use ground truth, otherwise use model prediction
                     x = data.missing[..., t].view(-1, 1) * x + \
                         ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
@@ -2884,10 +2896,11 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
 class BirdDynamicsGraphGRU(MessagePassing):
 
     def __init__(self, msg_n_in=17, node_n_in=8, n_out=1, n_hidden=16, timesteps=6,
-                 seed=12345, multinight=False, use_wind=True, dropout_p=0):
+                 seed=12345, multinight=False, use_wind=True, dropout_p=0, **kwargs):
         super(BirdDynamicsGraphGRU, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
         torch.manual_seed(seed)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         if not use_wind:
             msg_n_in -= 2
@@ -2917,7 +2930,7 @@ class BirdDynamicsGraphGRU(MessagePassing):
         self.n_hidden = n_hidden
 
 
-    def forward(self, data, tf=0.0):
+    def forward(self, data):
         # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
         # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
 
@@ -2942,7 +2955,7 @@ class BirdDynamicsGraphGRU(MessagePassing):
 
         for t in range(self.timesteps):
             r = torch.rand(1)
-            if r < tf:
+            if r < self.teacher_forcing:
                 x = data.x[..., t].view(-1, 1)
 
             env = data.env[..., t]
@@ -3032,7 +3045,8 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
-        output = model(data, tf=teacher_forcing) #.view(-1)
+        model.teacher_forcing = teacher_forcing
+        output = model(data) #.view(-1)
         gt = data.y
 
         outfluxes = to_dense_adj(data.edge_index, edge_attr=model.flows).view(
@@ -3064,7 +3078,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
-        output = model(data, tf=teacher_forcing) #.view(-1)
+        model.teacher_forcing = teacher_forcing
+        output = model(data) #.view(-1)
         gt = data.y
 
         if conservation_constraint > 0:
@@ -3143,8 +3158,8 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
     for data in train_loader:
         data = data.to(device)
         optimizer.zero_grad()
-
-        output = model(data, tf=teacher_forcing)
+        model.teacher_forcing = teacher_forcing
+        output = model(data)
         gt = data.y
 
         if daymask:
