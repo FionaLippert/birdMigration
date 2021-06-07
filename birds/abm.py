@@ -45,7 +45,7 @@ class Environment:
 
 class Bird:
     def __init__(self, id, lat, lon, env, start_day,
-                 endogenous_heading=215, pref_dir_std=5,
+                 endogenous_heading=215, pref_dir_std=0,
                  air_speed=10, compensation=0.5, energy_tol=0,
                  departure_window=1, target_lon=None, target_lat=None):
 
@@ -139,7 +139,6 @@ class Bird:
 
     def sample_pref_dir(self):
         #self.pref_dir = np.random.normal(self.endogenous_heading, self.pref_dir_std)
-        print(self.compute_pref_dir())
         self.pref_dir = np.random.normal(self.compute_pref_dir(), self.pref_dir_std)
 
     def adjust_heading(self, wind_speed, wind_dir):
@@ -292,7 +291,8 @@ class Simulation:
             self.birds.append(Bird(id, lat, lon, self.env, start_day,
                                    compensation=self.settings['compensation'],
                                    departure_window=self.settings['departure_window'],
-                                   energy_tol=energy_tol, target_lon=target_lon, target_lat=target_lat))
+                                   energy_tol=energy_tol, pref_dir_std=self.settings['pref_dir_std'],
+                                   target_lon=target_lon, target_lat=target_lat))
 
     def sample_pos(self, area):
         minx, miny, maxx, maxy = area.total_bounds
