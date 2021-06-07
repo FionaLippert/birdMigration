@@ -6,19 +6,10 @@ from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from torch_geometric.nn import MessagePassing, inits
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj, dense_to_sparse, softmax
 from torch_geometric_temporal.nn.recurrent import DCRNN
-from sklearn.preprocessing import MinMaxScaler
 import numpy as np
-import networkx as nx
 import os.path as osp
 import os
-import pandas as pd
-import geopandas as gpd
-import pickle5 as pickle
-import glob
-from pvlib import solarposition
-from matplotlib import pyplot as plt
-import itertools as it
-from datetime import datetime as dt
+
 
 
 class LSTM(torch.nn.Module):
@@ -54,8 +45,8 @@ class LSTM(torch.nn.Module):
         x = data.x[:, 0]
         # states = torch.zeros(1, self.hidden_channels).to(x.device)
         # hidden = torch.zeros(1, self.hidden_channels).to(x.device)
-        h_t = [torch.zeros(1, self.n_hidden).to(x.device) for l in range(self.n_layers)]
-        c_t = [torch.zeros(1, self.n_hidden).to(x.device) for l in range(self.n_layers)]
+        h_t = [torch.zeros(1, self.n_hidden, device=x.device) for l in range(self.n_layers)]
+        c_t = [torch.zeros(1, self.n_hidden, device=x.device) for l in range(self.n_layers)]
 
         #hidden = None
 
@@ -561,8 +552,8 @@ class LocalLSTM(MessagePassing):
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
 
 
@@ -576,9 +567,9 @@ class LocalLSTM(MessagePassing):
             forecast_horizon = range(1, self.timesteps + 1)
 
         if self.use_encoder and not self.training:
-            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1), device=x.device)
 
-        all_h = torch.zeros(data.x.size(0), self.n_hidden, self.timesteps).to(x.device)
+        all_h = torch.zeros((data.x.size(0), self.n_hidden, self.timesteps), device=x.device)
 
         for t in forecast_horizon:
             all_h[..., t-1-self.t_context] = h_t[-1]
@@ -617,7 +608,7 @@ class LocalLSTM(MessagePassing):
     def message(self, edge_attr):
         # set all messages to 0 --> no spatial dependencies
         n_edges = edge_attr.size(0)
-        msg = torch.zeros(n_edges).to(edge_attr.device)
+        msg = torch.zeros(n_edges, device=edge_attr.device)
         return msg
 
 
@@ -922,8 +913,8 @@ class BirdFlowGraphLSTM(MessagePassing):
             # measurement at t=0
             x = data.x[..., 0].view(-1, 1)
             y_hat.append(x)
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
         else:
             x = data.x[..., 0].view(-1, 1)
@@ -936,12 +927,12 @@ class BirdFlowGraphLSTM(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
-        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
-        self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
-        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
-        self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
-        self.inflows = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+        self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
+        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
+        self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
+        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
+        self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
+        self.inflows = torch.zeros((data.x.size(0), 1, self.timesteps + 1), device=x.device)
 
         if self.use_encoder:
             forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
@@ -1216,18 +1207,18 @@ class BirdFluxGraphLSTM(MessagePassing):
         else:
             # start from scratch
             # measurement at t=0
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
         if not self.training:
-            self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+            self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
             if self.use_encoder:
-                self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
+                self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1), device=x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
@@ -1482,11 +1473,11 @@ class testFluxMLP(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
         # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
@@ -1697,19 +1688,19 @@ class BirdFluxGraphLSTM2(MessagePassing):
         else:
             # start from scratch
             # measurement at t=0
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
 
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1)).to(x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
         # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1)).to(x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
@@ -1998,8 +1989,8 @@ class AttentionGraphLSTM(MessagePassing):
 
         else:
             # start from scratch
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
@@ -2011,9 +2002,9 @@ class AttentionGraphLSTM(MessagePassing):
         else:
             forecast_horizon = range(1, self.timesteps + 1)
 
-        self.alphas_s = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+        self.alphas_s = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
         if self.use_encoder:
-            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1), device=x.device)
 
         for t in forecast_horizon:
 
@@ -2202,8 +2193,8 @@ class Attention2GraphLSTM(MessagePassing):
             # measurement at t=0
             x = data.x[..., 0].view(-1, 1)
             y_hat.append(x)
-            h_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), 2*self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), 2*self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), 2*self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
 
         coords = data.coords
@@ -2216,8 +2207,8 @@ class Attention2GraphLSTM(MessagePassing):
         else:
             forecast_horizon = range(1, self.timesteps + 1)
 
-        self.alphas1 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
-        self.alphas2 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1)).to(x.device)
+        self.alphas1 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
+        self.alphas2 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
 
         for t in forecast_horizon:
 
@@ -2358,10 +2349,10 @@ class RecurrentEncoderSpatial(MessagePassing):
 
     def forward(self, data):
         # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for l in range(self.n_lstm_layers)]
 
-        self.alphas = torch.zeros((data.edge_index.size(1), 1, self.timesteps)).to(data.x.device)
+        self.alphas = torch.zeros((data.edge_index.size(1), 1, self.timesteps), device=data.x.device)
         states = []
 
 
@@ -2457,8 +2448,8 @@ class RecurrentEncoder(torch.nn.Module):
 
     def forward(self, data):
         # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for l in range(self.n_lstm_layers)]
 
         states = []
 
@@ -2530,8 +2521,8 @@ class RecurrentEncoder2(torch.nn.Module):
 
     def forward(self, data):
         # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(data.x.device) for l in range(self.n_lstm_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for l in range(self.n_lstm_layers)]
 
         states = []
 
@@ -2639,15 +2630,15 @@ class BirdDynamicsGraphLSTM(MessagePassing):
             # measurement at t=0
             x = data.x[..., 0].view(-1, 1)
             y_hat.append(x)
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
         coords = data.coords
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-        self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
+        self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1), device=x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps + 1), device=x.device)
 
         if self.use_encoder:
             forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
@@ -2806,8 +2797,8 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         edge_attr = data.edge_attr
 
         # initialize lstm variables
-        h_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
-        c_t = [torch.zeros(data.x.size(0), self.n_hidden).to(x.device) for l in range(self.n_lstm_layers)]
+        h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+        c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
 
         node_states = torch.cat([x, data.env[..., 0],
                                  data.local_night[..., 0].float().view(-1, 1),

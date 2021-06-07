@@ -1,11 +1,11 @@
-from birds import GBT, datasets, utils
+from birds import dataloader, utils
 from birds.graphNN import *
 import torch
 from torch.optim import lr_scheduler
 from torch_geometric.data import DataLoader
 from torch_geometric.utils import to_dense_adj
+from torch_geometric.nn import DataParallel
 from omegaconf import DictConfig, OmegaConf
-import hydra
 import itertools as it
 import pickle5 as pickle
 import os.path as osp
@@ -13,8 +13,6 @@ import os
 import json
 import numpy as np
 import ruamel.yaml
-import yaml
-from matplotlib import pyplot as plt
 import pandas as pd
 
 # map model name to implementation
@@ -49,13 +47,20 @@ def train(cfg: DictConfig, output_dir: str, log):
     compute_fluxes = cfg.model.get('compute_fluxes', False)
     birds_per_km2 = cfg.get('birds_per_km2', False)
 
+    device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
+    if device == 'cpu':
+        n_devices = 1
+        print('Running on CPU...')
+    else:
+        n_devices = min(torch.cuda.device_count(), cfg.get('n_gpus', 1))
+        print('Let\'s use', n_devices, 'GPUs!')
+    batch_size = cfg.model.batch_size * n_devices
+
 
     hps = cfg.model.hyperparameters
     epochs = cfg.model.epochs
     fixed_boundary = cfg.model.get('fixed_boundary', False)
     enforce_conservation = cfg.model.get('enforce_conservation', False)
-
-    device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
 
     # hyperparameters to use
     if cfg.action.grid_search:
@@ -66,13 +71,13 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('normalize features')
     # initialize normalizer
-    normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
+    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
                                   cfg.datasource.name, seed=cfg.seed, max_distance=cfg.max_distance,
                                   t_unit=cfg.t_unit, edge_type=cfg.edge_type, n_dummy_radars=cfg.n_dummy_radars,
                                            exclude=cfg.exclude)
     print('load training data')
     # load training data
-    train_data = [datasets.RadarData(data_root, year, cfg.season, seq_len,
+    train_data = [dataloader.RadarData(data_root, year, cfg.season, seq_len,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -94,13 +99,13 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     if cfg.use_nights:
         print(f'training set size = {len(train_data)}')
-        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     else:
         n_exclude = int((1 - cfg.data_perc) * len(train_data))
         print(f'training set size = {len(train_data) - n_exclude}')
         rng = np.random.default_rng(cfg.seed)
         exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
-        train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True,
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True,
                                   exclude_keys=list(exclude_indices))
 
 
@@ -127,7 +132,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('load val data')
     # load validation data
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
+    val_data = dataloader.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, seq_len,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
@@ -184,6 +189,10 @@ def train(cfg: DictConfig, output_dir: str, log):
             states_path = cfg.model.get('load_states_from', '')
             if osp.isfile(states_path):
                 model.load_state_dict(torch.load(states_path))
+
+
+            model = DataParallel(model)
+            model = model.to(device)
 
             params = model.parameters()
             optimizer = torch.optim.Adam(params, lr=hp_settings['lr'])
@@ -321,7 +330,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load test data
-    test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
+    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
                                    cfg.season, seq_len,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
