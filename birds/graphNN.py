@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from torch_geometric.nn import MessagePassing, inits
 from torch_geometric.utils import add_self_loops, degree, to_dense_adj, dense_to_sparse, softmax
-from torch_geometric_temporal.nn.recurrent import DCRNN
+#from torch_geometric_temporal.nn.recurrent import DCRNN
 import numpy as np
 import os.path as osp
 import os
@@ -646,36 +646,36 @@ class LocalLSTM(MessagePassing):
         return x, h_t, c_t
 
 
-class RecurrentGCN(torch.nn.Module):
-    def __init__(self, timesteps, node_features, n_hidden=32, n_out=1, K=1):
-        # doesn't take external features into account
-        super(RecurrentGCN, self).__init__()
-        self.recurrent = DCRNN(7, n_hidden, K, bias=True)
-        self.linear = torch.nn.Linear(n_hidden, n_out)
-        self.timesteps = timesteps
-
-    def forward(self, data, teacher_forcing=0):
-        x = data.x[:, 0].view(-1, 1)
-        predictions = [x]
-        for t in range(self.timesteps):
-            # TODO try concatenating input features and prection x to also use weather info etc
-            r = torch.rand(1)
-            if r < teacher_forcing:
-                x = data.x[:, t].view(-1, 1)
-
-            input = torch.cat([x, data.env[..., t], data.coords], dim=1)
-            x = self.recurrent(input, data.edge_index, data.edge_weight.float())
-            x = F.relu(x)
-            x = self.linear(x)
-
-            # for locations where it is night: set birds in the air to zero
-            x = x * data.local_night[:, t+1].view(-1, 1)
-
-            predictions.append(x)
-
-        predictions = torch.cat(predictions, dim=-1)
-        return predictions
-
+# class RecurrentGCN(torch.nn.Module):
+#     def __init__(self, timesteps, node_features, n_hidden=32, n_out=1, K=1):
+#         # doesn't take external features into account
+#         super(RecurrentGCN, self).__init__()
+#         self.recurrent = DCRNN(7, n_hidden, K, bias=True)
+#         self.linear = torch.nn.Linear(n_hidden, n_out)
+#         self.timesteps = timesteps
+#
+#     def forward(self, data, teacher_forcing=0):
+#         x = data.x[:, 0].view(-1, 1)
+#         predictions = [x]
+#         for t in range(self.timesteps):
+#             # TODO try concatenating input features and prection x to also use weather info etc
+#             r = torch.rand(1)
+#             if r < teacher_forcing:
+#                 x = data.x[:, t].view(-1, 1)
+#
+#             input = torch.cat([x, data.env[..., t], data.coords], dim=1)
+#             x = self.recurrent(input, data.edge_index, data.edge_weight.float())
+#             x = F.relu(x)
+#             x = self.linear(x)
+#
+#             # for locations where it is night: set birds in the air to zero
+#             x = x * data.local_night[:, t+1].view(-1, 1)
+#
+#             predictions.append(x)
+#
+#         predictions = torch.cat(predictions, dim=-1)
+#         return predictions
+#
 
 class BirdFlowGNN(MessagePassing):
 
