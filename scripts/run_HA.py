@@ -1,5 +1,4 @@
-from birds import GBT, datasets, utils
-import torch
+from birds import GBT, dataloader, utils
 from omegaconf import DictConfig, OmegaConf
 import hydra
 import itertools as it
@@ -10,7 +9,6 @@ import json
 import numpy as np
 import ruamel.yaml
 import pandas as pd
-from pygam import PoissonGAM, te
 # data=json.loads(argv[1])
 
 
@@ -23,13 +21,13 @@ def train(cfg: DictConfig, output_dir: str, log):
     ts = cfg.model.horizon
 
     # initialize normalizer
-    normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
+    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
                                            cfg.datasource.name, seed=cfg.seed,
                                    max_distance=cfg.max_distance,
                                    t_unit=cfg.t_unit, edge_type=cfg.edge_type)
 
     # load datasets
-    train_data_list = [datasets.RadarData(data_root, str(year), cfg.season, ts,
+    train_data_list = [dataloader.RadarData(data_root, str(year), cfg.season, ts,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -99,7 +97,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
 
     # load test data
-    test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
+    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
                                    cfg.season, cfg.model.horizon,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,

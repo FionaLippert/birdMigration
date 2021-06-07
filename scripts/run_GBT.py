@@ -1,4 +1,4 @@
-from birds import GBT, datasets, utils
+from birds import GBT, dataloader, utils
 import torch
 from omegaconf import DictConfig, OmegaConf
 import hydra
@@ -30,14 +30,14 @@ def train(cfg: DictConfig, output_dir: str, log):
     param_names = [key for key in cfg.model.hyperparameters]
 
     # initialize normalizer
-    normalization = datasets.Normalization(data_root, cfg.datasource.training_years, cfg.season,
+    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
                                            cfg.datasource.name, seed=cfg.seed,
                                    max_distance=cfg.max_distance,
                                    t_unit=cfg.t_unit, edge_type=cfg.edge_type)
 
 
     # load datasets
-    train_data = [datasets.RadarData(data_root, str(year), cfg.season, ts,
+    train_data = [dataloader.RadarData(data_root, str(year), cfg.season, ts,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -54,7 +54,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, mask_daytime=False,
                                                     use_acc_vars=cfg.model.use_acc_vars)
 
-    val_data = datasets.RadarData(data_root, str(cfg.datasource.validation_year),
+    val_data = dataloader.RadarData(data_root, str(cfg.datasource.validation_year),
                                   cfg.season, ts,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
@@ -169,7 +169,7 @@ def test(cfg: DictConfig, output_dir: str, log):
         print(cfg.datasource.bird_scale)
 
     # load test data
-    test_data = datasets.RadarData(data_root, str(cfg.datasource.test_year),
+    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
                                    cfg.season, cfg.model.horizon,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
