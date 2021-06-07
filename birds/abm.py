@@ -60,7 +60,6 @@ class Bird:
         self.energy_tol = energy_tol # if <= 0 no headwinds are tolerated
         self.departure_window = departure_window # number of timesteps after dusk within which birds can depart
         self.target_pos = (target_lon, target_lat)
-        print('target pos', self.target_pos)
 
         # initialize simulation
         self.reset(lat, lon)
@@ -284,7 +283,8 @@ class Simulation:
                     lon = maxx
 
             if hasattr(self, 'target_area'):
-                target_lon, target_lat = self.sample_pos(self.target_area)
+                target_lon, target_lat = self.sample_target_pos(self.target_area)
+                print('target_pos', target_lon, target_lat)
 
             # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
             start_day = self.rng.choice(range(self.settings['start_day_range']))
@@ -300,6 +300,18 @@ class Simulation:
         lat = self.rng.uniform(miny, maxy)
         pos = geometry.Point(lon, lat)
         while not area.contains(pos).any():
+            lon = np.random.uniform(minx, maxx)
+            lat = np.random.uniform(miny, maxy)
+            pos = geometry.Point(lon, lat)
+        return lon, lat
+
+    def sample_target_pos(self):
+        minx, miny, maxx, maxy = self.target_area.total_bounds
+        print(minx, miny, maxx, maxy)
+        lon = self.rng.uniform(minx, maxx)
+        lat = self.rng.uniform(miny, maxy)
+        pos = geometry.Point(lon, lat)
+        while not self.target_area.contains(pos).any():
             lon = np.random.uniform(minx, maxx)
             lat = np.random.uniform(miny, maxy)
             pos = geometry.Point(lon, lat)
