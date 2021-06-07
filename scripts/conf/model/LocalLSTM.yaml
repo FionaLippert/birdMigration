@@ -33,10 +33,10 @@ hyperparameters:
     default: true
     search_space:
     - true
-epochs: 100
+epochs: 10
 horizon: 40
 force_zeros: false
-root_transformed_loss: true
+root_transformed_loss: false
 use_encoder: false
 context: 0
 batch_size: 1
