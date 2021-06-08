@@ -476,12 +476,12 @@ class RadarData(InMemoryDataset):
             fluxes = np.stack(fluxes, axis=0)
             mtr = np.stack(mtr, axis=0)
         else:
-            fluxes = np.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
-            mtr = np.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
+            fluxes = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            mtr = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
-            data['direction'] = np.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
-            data['speed'] = np.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
-            data['bird_uv'] = np.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
+            data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
         data['direction'] = (data['direction'] + 360) % 360
         data['direction'] = rescale(data['direction'], min=0, max=360)
