@@ -36,6 +36,8 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
     assert cfg.action.name == 'training'
 
+    torch.autograd.set_detect_anomaly(True)
+
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
