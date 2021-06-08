@@ -13,7 +13,7 @@ def run(cfg: DictConfig):
     print('preprocess data for years', years)
     for year in years:
         dir = osp.join(cfg.root, 'preprocessed', cfg.t_unit, f'{cfg.edge_type}_dummy_radars={cfg.n_dummy_radars}_exclude={cfg.exclude}',
-                        cfg.datasource.name, cfg.season, year)
+                        cfg.datasource.name, cfg.season, str(year))
         if not osp.isdir(dir):
             # load all features and organize them into dataframes
             os.makedirs(dir)
