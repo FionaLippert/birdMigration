@@ -359,8 +359,8 @@ class RadarData(InMemoryDataset):
         #            [var for var in self.env_vars if not var in ['u', 'v']]
         env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
         acc_cols = ['acc_rain', 'acc_wind']
-        # coord_cols = ['x', 'y']
-        coord_cols = ['lon', 'lat']
+        coord_cols = ['x', 'y']
+        # coord_cols = ['lon', 'lat']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
         dayofyear = pd.DatetimeIndex(time).dayofyear.values
@@ -373,7 +373,8 @@ class RadarData(InMemoryDataset):
         if self.edge_type != 'voronoi':
             areas = np.ones(areas.shape)
 
-        coords = voronoi[coord_cols].apply(lambda col: np.radians(col)).to_numpy()
+        # coords = voronoi[coord_cols].apply(lambda col: np.radians(col)).to_numpy()
+        coords = voronoi[coord_cols].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0).to_numpy()
 
         dayofyear = dayofyear / max(dayofyear)
 
