@@ -470,15 +470,15 @@ class RadarData(InMemoryDataset):
                 length = e_data.get('face_length', 1)
                 fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
                 mtr.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], 1))
-            fluxes = torch.tensor(np.stack(fluxes, axis=0))
-            mtr = torch.tensor(np.stack(mtr, axis=0))
+            fluxes = np.stack(fluxes, axis=0)
+            mtr = np.stack(mtr, axis=0)
         else:
-            fluxes = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
-            mtr = torch.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
+            fluxes = np.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
+            mtr = np.zeros(len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2])
 
-            data['direction'] = torch.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
-            data['speed'] = torch.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
-            data['bird_uv'] = torch.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
+            data['direction'] = np.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
+            data['speed'] = np.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
+            data['bird_uv'] = np.zeros(len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2])
 
         data['direction'] = (data['direction'] + 360) % 360
         data['direction'] = rescale(data['direction'], min=0, max=360)
@@ -522,8 +522,8 @@ class RadarData(InMemoryDataset):
                           local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
                           local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
-                          fluxes=fluxes[:, :, nidx],
-                          mtr=mtr[:, :, nidx],
+                          fluxes=torch.tensor(fluxes[:, :, nidx], dtype=torch.float),
+                          mtr=torch.tensor(mtr[:, :, nidx], dtype=torch.float),
                           directions=torch.tensor(data['direction'][:, :, nidx], dtype=torch.float),
                           speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float),
                           bird_uv=torch.tensor(data['bird_uv'][..., nidx], dtype=torch.float))
