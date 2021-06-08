@@ -17,11 +17,14 @@ def run(cfg: DictConfig):
                         cfg.datasource.name, cfg.season, str(year))
         if not osp.isdir(dir):
             # load all features and organize them into dataframes
+            print(f'year {year}: start preprocessing')
             os.makedirs(dir)
             datasets.prepare_features(dir, osp.join(data_root, 'raw'), cfg.datasource.name, cfg.season, str(year),
                              random_seed=cfg.seed, max_distance=cfg.max_distance,
                              t_unit=cfg.t_unit, edge_type=cfg.edge_type,
                              n_dummy_radars=cfg.n_dummy_radars, exclude=cfg.exclude)
+        else:
+            print(f'year {year}: nothing to be done')
 
 if __name__ == "__main__":
     run()
