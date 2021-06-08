@@ -1228,7 +1228,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
 
         if self.boundary_model == 'LocalLSTM':
-            self.boundary_model.teacher_forcing = self.teacher_forcing
+            self.boundary_lstm.teacher_forcing = self.teacher_forcing
             boundary_pred, boundary_h = self.boundary_lstm(data)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
 
