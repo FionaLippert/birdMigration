@@ -3159,7 +3159,7 @@ def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
     return loss_all
 
 
-def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, daymask=True):
+def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, daymask=True, n_devices=1):
 
     model.train()
     loss_all = 0
@@ -3168,12 +3168,26 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
         output = model(data)
-        gt = data.y
+
+        print('output shape', output.shape)
+
+        if n_devices > 1:
+            gt = torch.cat([d.y for d in data])
+            local_night = torch.cat([d.local_night for d in data])
+            missing = torch.cat([d.missing for d in data])
+
+        else:
+            gt = data.y
+            local_night = data.local_night
+            missing = data.missing
+
+        print('gt shape', gt.shape)
 
         if daymask:
-            mask = data.local_night & ~data.missing
+            mask = local_night & ~missing
         else:
-            mask = ~data.missing
+            mask = ~missing
+
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
