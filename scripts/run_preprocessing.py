@@ -1,5 +1,6 @@
 from birds import datasets
 from omegaconf import DictConfig, OmegaConf
+import hydra
 import os.path as osp
 import os
 
