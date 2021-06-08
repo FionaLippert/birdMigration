@@ -3072,7 +3072,7 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
     return loss_all
 
 def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation_constraint=0.01,
-                 teacher_forcing=1.0, daymask=True, boundary_constraint_only=False):
+                 teacher_forcing=1.0, daymask=True, boundary_constraint_only=False, n_devices=1):
     model.train()
     loss_all = 0
     for data in train_loader:
@@ -3080,15 +3080,23 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
         output = model(data) #.view(-1)
-        gt = data.y
+
+        if n_devices > 1:
+            gt = torch.cat([d.y for d in data])
+        else:
+            gt = data.y
 
         if conservation_constraint > 0:
-            observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
-            # print('observed fluxes', observed_fluxes)
 
             inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+            print('inferred fluxes shape', inferred_fluxes.shape)
             inferred_fluxes = inferred_fluxes - inferred_fluxes[data.reverse_edges]
-            # print('inferred fluxes', inferred_fluxes)
+
+            if n_devices > 1:
+                observed_fluxes = torch.cat([d.fluxes[..., model.t_context:-1].squeeze() for d in data])
+            else:
+                observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+
 
             diff = observed_fluxes - inferred_fluxes
             diff = observed_fluxes**2 * diff # weight timesteps with larger fluxes more

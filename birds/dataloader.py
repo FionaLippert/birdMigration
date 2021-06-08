@@ -30,7 +30,11 @@ def rescale(features, min=None, max=None):
         max = np.nanmax(features)
     if type(features) is not np.ndarray:
         features = np.array(features)
-    return (features - min) / (max - min)
+
+    rescaled = features - min
+    if max != min:
+        rescaled /= (max - min)
+    return rescaled
 
 def reshape(data, nights, mask, timesteps, use_nights=True):
     if use_nights:
@@ -276,10 +280,10 @@ class RadarData(InMemoryDataset):
 
 
         # get distances, angles and face lengths between radars
-        print(G.edges(data=True))
-        print('normalize distances')
+        # print(G.edges(data=True))
+        # print('normalize distances')
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
-        print('normalize angles')
+        # print('normalize angles')
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
 
 
