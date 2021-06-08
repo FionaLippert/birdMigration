@@ -276,7 +276,10 @@ class RadarData(InMemoryDataset):
 
 
         # get distances, angles and face lengths between radars
+        print(G.edges(data=True))
+        print('normalize distances')
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
+        print('normalize angles')
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
 
 
