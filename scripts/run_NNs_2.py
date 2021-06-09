@@ -39,7 +39,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    id = cfg.job_id
+    id = cfg.get('job_id', 0)
 
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     batch_size = cfg.model.batch_size
@@ -126,9 +126,9 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     os.makedirs(output_dir, exist_ok=True)
 
-    val_losses = np.ones(cfg.repeats) * np.inf
-    training_curves = np.ones((cfg.repeats, epochs)) * np.nan
-    val_curves = np.ones((cfg.repeats, epochs)) * np.nan
+    best_val_loss = np.inf
+    training_curve = np.ones(epochs) * np.nan
+    val_curve = np.ones(epochs) * np.nan
     for r in range(cfg.repeats):
 
         print(f'train model [trial {r}]')
@@ -165,41 +165,36 @@ def train(cfg: DictConfig, output_dir: str, log):
             else:
                 loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                                   daymask=cfg.model.get('force_zeros', 0))
-            training_curves[r, epoch] = loss / len(train_data)
-            print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
+            training_curve[epoch] = loss / len(train_data)
+            print(f'epoch {epoch + 1}: loss = {training_curve[epoch]}')
 
             val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
                                      daymask=cfg.model.get('force_zeros', 0)).cpu()
             val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
-            val_curves[r, epoch] = val_loss
+            val_curve[epoch] = val_loss
             print(f'epoch {epoch + 1}: val loss = {val_loss}')
 
-            if val_loss <= val_losses[r]:
+            if val_loss <= best_val_loss:
                 # save best model so far
                 print('best model so far; save to disk ...')
-                torch.save(model.state_dict(), osp.join(output_dir, f'model_{r}.pkl'))
-                val_losses[r] = val_loss
+                torch.save(model.state_dict(), osp.join(output_dir, f'model_{id}.pkl'))
+                best_val_loss = val_loss
 
             scheduler.step()
             tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
 
-            # plotting
-            utils.plot_training_curves(training_curves, val_curves, output_dir, log=True)
-            utils.plot_training_curves(training_curves, val_curves, output_dir, log=False)
 
-
-        print(f'validation loss run {r} = {val_losses[r]}', file=log)
+        print(f'validation loss = {best_val_loss}', file=log)
 
     log.flush()
 
     # save training and validation curves
-    np.save(osp.join(output_dir, 'training_curves.npy'), training_curves)
-    np.save(osp.join(output_dir, 'validation_curves.npy'), val_curves)
-    np.save(osp.join(output_dir, 'validation_losses.npy'), val_losses)
+    np.save(osp.join(output_dir, 'training_curves.npy'), training_curve)
+    np.save(osp.join(output_dir, 'validation_curves.npy'), val_curve)
 
     # plotting
-    utils.plot_training_curves(training_curves, val_curves, output_dir, log=True)
-    utils.plot_training_curves(training_curves, val_curves, output_dir, log=False)
+    utils.plot_training_curves(training_curve.unsqueeze(0), val_curve.unsqueeze(0), output_dir, log=True)
+    utils.plot_training_curves(training_curve.unsqueeze(0), val_curve.unsqueeze(0), output_dir, log=False)
 
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
