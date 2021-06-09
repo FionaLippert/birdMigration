@@ -20,7 +20,7 @@ def MSE(output, gt, mask):
     # errors = errors[mask]
     # mse = errors.mean()
 
-    print(output.shape, gt.shape, torch.sum(mask))
+    #print(output.shape, gt.shape, torch.sum(mask))
     diff2 = (torch.flatten(output) - torch.flatten(gt)) ** 2.0 * torch.flatten(mask)
     mse = torch.sum(diff2) / torch.sum(mask)
     return mse
