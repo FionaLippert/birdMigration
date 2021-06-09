@@ -1,0 +1,16 @@
+# @package _group_
+name: LocalLSTM
+n_hidden: 64
+n_lstm_layers: 1
+dropout_p: 0.25
+lr: 0.0001
+lr_decay: 100
+teacher_forcing_gamma: 0.95
+predict_delta: true
+epochs: 10
+horizon: 40
+force_zeros: false
+root_transformed_loss: false
+use_encoder: true
+context: 24
+batch_size: 1

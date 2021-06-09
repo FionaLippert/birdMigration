@@ -1,0 +1,27 @@
+# @package _group_
+name: BirdFluxGraphLSTM
+n_hidden: 64
+n_fc_layers: 2
+n_fc_layers_fluxmlp: 2
+n_hidden_fluxmlp: 64
+n_lstm_layers: 1
+dropout_p: 0.25
+lr: 0.0001
+lr_decay: 50
+teacher_forcing_gamma: 0.95
+conservation_constraint: 0.0
+epochs: 100
+horizon: 40
+fixed_boundary: false
+force_zeros: false
+use_encoder: true
+context: 24
+root_transformed_loss: true
+enforce_conservation: false
+compute_fluxes: false
+boundary_constraint_only: true
+perturbation_std: 0
+perturbation_mean: 0
+batch_size: 1
+boundary_model: none
+load_states_from: none

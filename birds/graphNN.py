@@ -24,7 +24,7 @@ class LSTM(torch.nn.Module):
     def __init__(self, **kwargs):
         super(LSTM, self).__init__()
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_in = 5 + kwargs.get('n_env', 4)
@@ -52,7 +52,7 @@ class LSTM(torch.nn.Module):
         #hidden = None
 
         y_hat = [x]
-        for t in range(self.timesteps):
+        for t in range(self.horizon):
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 x = data.x[:, t]
@@ -92,7 +92,7 @@ class MLP(torch.nn.Module):
         out_channels (int): number of nodes x number of outputs per node
         timesteps (int): length of forecasting horizon
     """
-    def __init__(self, in_channels, hidden_channels, out_channels, timesteps, n_layers=1, dropout_p=0.5, seed=12345):
+    def __init__(self, in_channels, hidden_channels, out_channels, horizon, n_layers=1, dropout_p=0.5, seed=12345):
         super(MLP, self).__init__()
 
         torch.manual_seed(seed)
@@ -100,13 +100,13 @@ class MLP(torch.nn.Module):
         self.fc_in = torch.nn.Linear(in_channels, hidden_channels)
         self.fc_hidden = nn.ModuleList([torch.nn.Linear(hidden_channels, hidden_channels) for _ in range(n_layers - 1)])
         self.fc_out = torch.nn.Linear(hidden_channels, out_channels)
-        self.timesteps = timesteps
+        self.horizon = horizon
         self.dropout_p = dropout_p
 
     def forward(self, data):
 
         y_hat = []
-        for t in range(self.timesteps + 1):
+        for t in range(self.horizon + 1):
 
             features = torch.cat([data.coords.flatten(),
                                   data.env[..., t].flatten()], dim=0)
@@ -383,7 +383,7 @@ class LocalMLP(torch.nn.Module):
     def __init__(self, **kwargs):
         super(LocalMLP, self).__init__()
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.use_acc = kwargs.get('use_acc_vars', False)
@@ -422,7 +422,7 @@ class LocalMLP(torch.nn.Module):
 
         y_hat = []
 
-        for t in range(self.timesteps + 1):
+        for t in range(self.horizon + 1):
 
             x = self.step(data.coords, data.env[..., t], data.areas, night=data.local_night[:, t], acc=data.acc[..., t])
 
@@ -462,13 +462,13 @@ class LocalLSTM(torch.nn.Module):
     def __init__(self, **kwargs):
         super(LocalLSTM, self).__init__()
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_in = 7 + self.n_env
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.teacher_forcing = kwargs.get('teacher_forcing', 0)
         self.predict_delta = kwargs.get('predict_delta', True)
         self.force_zeros = kwargs.get('force_zeros', True)
@@ -557,14 +557,14 @@ class LocalLSTM(torch.nn.Module):
         edge_attr = data.edge_attr
 
         if self.use_encoder:
-            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
         else:
-            forecast_horizon = range(1, self.timesteps + 1)
+            forecast_horizon = range(1, self.horizon + 1)
 
         if self.use_encoder and not self.training:
-            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1), device=x.device)
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.horizon + 1), device=x.device)
 
-        all_h = torch.zeros((data.x.size(0), self.n_hidden, self.timesteps), device=x.device)
+        all_h = torch.zeros((data.x.size(0), self.n_hidden, self.horizon), device=x.device)
 
         for t in forecast_horizon:
             all_h[..., t-1-self.t_context] = h_t[-1]
@@ -814,7 +814,7 @@ class BirdFlowGraphLSTM(MessagePassing):
     def __init__(self, **kwargs):
         super(BirdFlowGraphLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -828,7 +828,7 @@ class BirdFlowGraphLSTM(MessagePassing):
         self.recurrent = kwargs.get('recurrent', True)
 
         self.use_encoder = kwargs.get('use_encoder', False)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
@@ -910,17 +910,17 @@ class BirdFlowGraphLSTM(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        self.flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
-        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
-        self.selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
-        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
-        self.deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
-        self.inflows = torch.zeros((data.x.size(0), 1, self.timesteps + 1), device=x.device)
+        self.flows = torch.zeros((edge_index.size(1), 1, self.horizon+1), device=x.device)
+        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.horizon+1), device=x.device)
+        self.selfflows = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.inflows = torch.zeros((data.x.size(0), 1, self.horizon + 1), device=x.device)
 
         if self.use_encoder:
-            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
         else:
-            forecast_horizon = range(1, self.timesteps + 1)
+            forecast_horizon = range(1, self.horizon + 1)
 
         for t in forecast_horizon:
 
@@ -1046,7 +1046,7 @@ class BirdFluxGraphLSTM(MessagePassing):
     def __init__(self, **kwargs):
         super(BirdFluxGraphLSTM, self).__init__(aggr='add', node_dim=0)
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -1058,7 +1058,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.force_zeros = kwargs.get('force_zeros', True)
 
         self.use_encoder = kwargs.get('use_encoder', False)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.enforce_conservation = kwargs.get('enforce_conservation', False)
 
         self.perturbation_std = kwargs.get('perturbation_std', 0)
@@ -1198,13 +1198,13 @@ class BirdFluxGraphLSTM(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.horizon + 1), device=x.device)
         if not self.training:
-            self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
+            self.local_deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
             if self.use_encoder:
-                self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1), device=x.device)
+                self.alphas_t = torch.zeros((x.size(0), self.t_context, self.horizon + 1), device=x.device)
 
-        forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+        forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
         if self.boundary_model == 'LocalLSTM':
             self.boundary_lstm.teacher_forcing = self.teacher_forcing
@@ -1388,7 +1388,7 @@ class testFluxMLP(MessagePassing):
     def __init__(self, **kwargs):
         super(testFluxMLP, self).__init__(aggr='add', node_dim=0)
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -1400,7 +1400,7 @@ class testFluxMLP(MessagePassing):
         self.force_zeros = kwargs.get('force_zeros', True)
 
         self.use_encoder = kwargs.get('use_encoder', False)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.enforce_conservation = kwargs.get('enforce_conservation', False)
 
         self.perturbation_std = kwargs.get('perturbation_std', 0)
@@ -1458,13 +1458,13 @@ class testFluxMLP(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.horizon+1), device=x.device)
         # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
 
-        forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+        forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
 
         for t in forecast_horizon:
@@ -1529,7 +1529,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
     def __init__(self, **kwargs):
         super(BirdFluxGraphLSTM2, self).__init__(aggr='add', node_dim=0)
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -1541,7 +1541,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
         self.force_zeros = kwargs.get('force_zeros', True)
 
         self.use_encoder = kwargs.get('use_encoder', False)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.enforce_conservation = kwargs.get('enforce_conservation', False)
         self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
@@ -1682,16 +1682,16 @@ class BirdFluxGraphLSTM2(MessagePassing):
         edge_attr = data.edge_attr
 
 
-        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.timesteps+1), device=x.device)
+        self.local_fluxes = torch.zeros((edge_index.size(1), 1, self.horizon+1), device=x.device)
         # self.local_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.boundary_fluxes_A = torch.zeros((data.x.size(0), data.x.size(0))).to(x.device)
         # self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1)).to(x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps+1), device=x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
 
-        forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+        forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
         if self.use_encoder:
-            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1)).to(x.device)
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.horizon + 1)).to(x.device)
 
         if self.boundary_model == 'LocalLSTM':
             self.boundary_model.teacher_forcing = self.teacher_forcing
@@ -1874,7 +1874,7 @@ class AttentionGraphLSTM(MessagePassing):
     def __init__(self, **kwargs):
         super(AttentionGraphLSTM, self).__init__(aggr='add', node_dim=0)
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -1888,7 +1888,7 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.use_encoder = kwargs.get('use_encoder', False)
         self.encoder_type = kwargs.get('encoder_type', 'temporal')
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.predict_delta = kwargs.get('predict_delta', True)
 
         seed = kwargs.get('seed', 1234)
@@ -1986,13 +1986,13 @@ class AttentionGraphLSTM(MessagePassing):
 
 
         if self.use_encoder:
-            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
         else:
-            forecast_horizon = range(1, self.timesteps + 1)
+            forecast_horizon = range(1, self.horizon + 1)
 
-        self.alphas_s = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
+        self.alphas_s = torch.zeros((edge_index.size(1), 1, self.horizon + 1), device=x.device)
         if self.use_encoder:
-            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.timesteps + 1), device=x.device)
+            self.alphas_t = torch.zeros((x.size(0), self.t_context, self.horizon + 1), device=x.device)
 
         for t in forecast_horizon:
 
@@ -2094,7 +2094,7 @@ class Attention2GraphLSTM(MessagePassing):
     def __init__(self, **kwargs):
         super(Attention2GraphLSTM, self).__init__(aggr='add', node_dim=0)
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -2109,7 +2109,7 @@ class Attention2GraphLSTM(MessagePassing):
         self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.use_encoder = kwargs.get('use_encoder', False)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -2192,12 +2192,12 @@ class Attention2GraphLSTM(MessagePassing):
 
 
         if self.use_encoder:
-            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
         else:
-            forecast_horizon = range(1, self.timesteps + 1)
+            forecast_horizon = range(1, self.horizon + 1)
 
-        self.alphas1 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
-        self.alphas2 = torch.zeros((edge_index.size(1), 1, self.timesteps + 1), device=x.device)
+        self.alphas1 = torch.zeros((edge_index.size(1), 1, self.horizon + 1), device=x.device)
+        self.alphas2 = torch.zeros((edge_index.size(1), 1, self.horizon + 1), device=x.device)
 
         for t in forecast_horizon:
 
@@ -2544,7 +2544,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
     def __init__(self, **kwargs):
         super(BirdDynamicsGraphLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
@@ -2556,7 +2556,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         self.fixed_boundary = kwargs.get('fixed_boundary', [])
         self.force_zeros = kwargs.get('force_zeros', [])
         self.use_encoder = kwargs.get('use_encoder', False)
-        self.t_context = kwargs.get('t_context', 0)
+        self.t_context = kwargs.get('context', 0)
         self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         self.edge_type = kwargs.get('edge_type', 'voronoi')
@@ -2627,13 +2627,13 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         edge_index = data.edge_index
         edge_attr = data.edge_attr
 
-        self.fluxes = torch.zeros((data.x.size(0), 1, self.timesteps + 1), device=x.device)
-        self.local_deltas = torch.zeros((data.x.size(0), 1, self.timesteps + 1), device=x.device)
+        self.fluxes = torch.zeros((data.x.size(0), 1, self.horizon + 1), device=x.device)
+        self.local_deltas = torch.zeros((data.x.size(0), 1, self.horizon + 1), device=x.device)
 
         if self.use_encoder:
-            forecast_horizon = range(self.t_context + 1, self.t_context + self.timesteps + 1)
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
         else:
-            forecast_horizon = range(1, self.timesteps + 1)
+            forecast_horizon = range(1, self.horizon + 1)
 
         for t in forecast_horizon:
 
@@ -2727,7 +2727,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
     def __init__(self, **kwargs):
         super(BirdDynamicsGraphLSTM_transformed, self).__init__(aggr='add', node_dim=0)
 
-        self.timesteps = kwargs.get('timesteps', 40)
+        self.horizon = kwargs.get('horizon', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_node_in = 4 + kwargs.get('n_env', 4)
@@ -2799,7 +2799,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         c_t[0] = self.node2hidden(node_states)
 
 
-        for t in range(self.timesteps):
+        for t in range(self.horizon):
 
             if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
                 # at least for one radar station it is night or dusk
@@ -2869,134 +2869,6 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         pred = self.hidden2birds(h_t[-1]).sigmoid()
 
         return pred, h_t, c_t
-
-
-
-class BirdDynamicsGraphGRU(MessagePassing):
-
-    def __init__(self, msg_n_in=17, node_n_in=8, n_out=1, n_hidden=16, timesteps=6,
-                 seed=12345, multinight=False, use_wind=True, dropout_p=0, **kwargs):
-        super(BirdDynamicsGraphGRU, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
-
-        torch.manual_seed(seed)
-        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
-
-        if not use_wind:
-            msg_n_in -= 2
-
-        if not use_wind:
-            node_n_in -= 2
-
-        self.msg_nn = nn.Linear(msg_n_in, n_hidden)
-
-        self.hidden_r = nn.Linear(n_hidden, n_hidden, bias=False)
-        self.hidden_i = nn.Linear(n_hidden, n_hidden, bias=False)
-        self.hidden_h = nn.Linear(n_hidden, n_hidden, bias=False)
-
-        self.input_r = nn.Linear(node_n_in, n_hidden, bias=True)
-        self.input_i = nn.Linear(node_n_in, n_hidden, bias=True)
-        self.input_n = nn.Linear(node_n_in, n_hidden, bias=True)
-
-        self.out_fc1 = nn.Linear(n_hidden, n_hidden)
-        self.out_fc2 = nn.Linear(n_hidden, n_hidden)
-        self.out_fc3 = nn.Linear(n_hidden, n_out)
-
-
-        self.timesteps = timesteps
-        self.multinight = multinight
-        self.use_wind = use_wind
-        self.dropout_p = dropout_p
-        self.n_hidden = n_hidden
-
-
-    def forward(self, data):
-        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
-        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
-
-        # measurement at t=0
-        x = data.x[..., 0].view(-1, 1)
-
-        # birds on ground at t=0
-        ground = torch.zeros_like(x)
-
-        # initialize hidden variables
-        hidden = Variable(torch.zeros(data.x.size(0),  self.n_hidden))
-        if x.is_cuda:
-            hidden = hidden.cuda()
-
-
-        coords = data.coords
-        edge_index = data.edge_index
-        edge_attr = data.edge_attr
-
-        y_hat = []
-        y_hat.append(x)
-
-        for t in range(self.timesteps):
-            r = torch.rand(1)
-            if r < self.teacher_forcing:
-                x = data.x[..., t].view(-1, 1)
-
-            env = data.env[..., t]
-            if not self.use_wind:
-                env = env[:, 2:]
-
-            x, hidden = self.propagate(edge_index, x=x, coords=coords, env=env, hidden=hidden,
-                                       dusk=data.local_dusk[:, t], edge_attr=edge_attr,
-                                       local_night=data.local_night[:, t], areas=data.areas)
-
-
-            if self.multinight:
-                # for locations where it is dawn: save birds to ground and set birds in the air to zero
-                # r = torch.rand(1)
-                # if r < tf:
-                #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
-                # else:
-                #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
-                x = x * data.local_night[:, t+1].view(-1, 1)
-
-                # TODO for radar data, birds can stay on the ground or depart later in the night, so
-                #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
-                # for locations where it is dusk: set birds on ground to zero
-                # ground = ground * ~data.local_dusk[:, t].view(-1, 1)
-
-            y_hat.append(x)
-
-        prediction = torch.cat(y_hat, dim=-1)
-        return prediction
-
-
-    def message(self, x_i, x_j, coords_i, coords_j, env_i, env_j, local_night_j, edge_attr):
-        # construct messages to node i for each edge (j,i)
-        # can take any argument initially passed to propagate()
-        # x_j are source features with shape [E, out_channels]
-
-        features = torch.cat([x_i.view(-1, 1), x_j.view(-1, 1), coords_i, coords_j, env_i, env_j,
-                              local_night_j.view(-1, 1), edge_attr], dim=1)
-        msg = self.msg_nn(features)
-
-        return msg
-
-
-    def update(self, aggr_out, x, coords, env, dusk, areas, hidden):
-
-        inputs = torch.cat([coords, env, dusk.float().view(-1, 1), areas.view(-1, 1)], dim=1)
-
-        # GRU-style gated aggregation
-        r = torch.sigmoid(self.input_r(inputs) + self.hidden_r(aggr_out))
-        i = torch.sigmoid(self.input_i(inputs) + self.hidden_i(aggr_out))
-        n = torch.tanh(self.input_n(inputs) + r * self.hidden_h(aggr_out))
-        hidden = (1 - i) * n + i * hidden
-
-        # Output MLP
-        pred = F.dropout(F.relu(self.out_fc1(hidden)), p=self.dropout_p)
-        pred = F.dropout(F.relu(self.out_fc2(pred)), p=self.dropout_p)
-        pred = self.out_fc3(pred)
-
-        # Predict bird difference
-        pred = x + pred
-
-        return pred, hidden
 
 
 
@@ -3223,7 +3095,7 @@ def test_flows(model, test_loader, loss_func, device, get_outfluxes=True, bird_s
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
-                                      for t in range(model.timesteps + 1)]))
+                                      for t in range(model.horizon + 1)]))
         #loss_all.append(loss_func(output, gt))
         #constraints_all.append(constraints)
 
@@ -3261,7 +3133,7 @@ def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_sca
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]).detach()
-                                      for t in range(model.timesteps + 1)]))
+                                      for t in range(model.horizon + 1)]))
 
     if get_fluxes:
         return torch.stack(loss_all), fluxes
@@ -3289,7 +3161,7 @@ def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymas
                 mask = mask[:, model.t_context:]
 
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t])
-                                      for t in range(model.timesteps + 1)]).detach())
+                                      for t in range(model.horizon + 1)]).detach())
         del data, output
 
     return torch.stack(loss_all)

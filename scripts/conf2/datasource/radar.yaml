@@ -1,0 +1,21 @@
+# @package _group_
+name: radar
+training_years:
+  - 2016
+  - 2017
+validation_year: 2015
+test_year: 2015
+val_test_split: 0.25
+env_vars:
+  - u
+  - v
+  - cc
+  - tp
+  - sp
+  - t2m
+  - sshf
+
+use_buffers: True
+# will be filled at runtime
+bird_scale: ???
+#bird_scale: 1e7
