@@ -50,17 +50,17 @@ def train(cfg: DictConfig, output_dir: str, log):
     birds_per_km2 = cfg.get('birds_per_km2', False)
 
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
-    if device == 'cpu':
-        n_devices = 1
-        print('Running on CPU...')
-    elif not cfg.data_parallel:
-        n_devices = 1
-        print('Running on single GPU...')
-    else:
-        n_devices = min(torch.cuda.device_count(), cfg.get('n_gpus', 1))
-        print('Let\'s use', n_devices, 'GPUs!')
-    batch_size = cfg.model.batch_size * n_devices
-    # batch_size = cfg.model.batch_size
+    # if device == 'cpu':
+    #     n_devices = 1
+    #     print('Running on CPU...')
+    # elif not cfg.data_parallel:
+    #     n_devices = 1
+    #     print('Running on single GPU...')
+    # else:
+    #     n_devices = min(torch.cuda.device_count(), cfg.get('n_gpus', 1))
+    #     print('Let\'s use', n_devices, 'GPUs!')
+    # batch_size = cfg.model.batch_size * n_devices
+    batch_size = cfg.model.batch_size
 
 
     hps = cfg.model.hyperparameters
@@ -116,10 +116,11 @@ def train(cfg: DictConfig, output_dir: str, log):
         # train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True,
         #                           exclude_keys=list(exclude_indices))
 
-    if n_devices > 1:
-        train_loader = DataListLoader(train_data, **args)
-    else:
-        train_loader = DataLoader(train_data, **args)
+    # if n_devices > 1:
+    #     train_loader = DataListLoader(train_data, **args)
+    # else:
+    #     train_loader = DataLoader(train_data, **args)
+    train_loader = DataLoader(train_data, **args)
 
 
     print('loaded training data')
@@ -203,8 +204,8 @@ def train(cfg: DictConfig, output_dir: str, log):
             if osp.isfile(states_path):
                 model.load_state_dict(torch.load(states_path))
 
-            if n_devices > 1:
-                model = DataParallel(model)
+            # if n_devices > 1:
+            #     model = DataParallel(model)
             model = model.to(device)
 
             params = model.parameters()
@@ -217,7 +218,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             for epoch in range(epochs):
                 print('model on GPU?', next(model.parameters()).is_cuda)
                 if 'BirdFluxGraphLSTM' in cfg.model.name:
-                    loss = train_fluxes(model, train_loader, optimizer, loss_func, device, n_devices=n_devices,
+                    loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                         conservation_constraint=hp_settings['conservation_constraint'],
                                         teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
                                         boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
@@ -225,12 +226,12 @@ def train(cfg: DictConfig, output_dir: str, log):
                     loss = train_testFluxMLP(model, train_loader, optimizer, loss_func, device)
                 else:
                     loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
-                                      daymask=cfg.model.get('force_zeros', 0), n_devices=n_devices)
+                                      daymask=cfg.model.get('force_zeros', 0))
                 training_curves[r, epoch] = loss / len(train_data)
                 print(f'epoch {epoch + 1}: loss = {training_curves[r, epoch]}')
 
                 val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
-                                         daymask=cfg.model.get('force_zeros', 0), n_devices=n_devices).cpu()
+                                         daymask=cfg.model.get('force_zeros', 0)).cpu()
                 val_loss = val_loss[torch.isfinite(val_loss)].mean()  # TODO isfinite needed?
                 val_curves[r, epoch] = val_loss
                 print(f'epoch {epoch + 1}: val loss = {val_loss}')
