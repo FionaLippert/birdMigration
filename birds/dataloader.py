@@ -70,7 +70,7 @@ def timeslice(data, start_night, mask, timesteps):
 class Normalization:
     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,
                  env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
-                 edge_type='voronoi', n_dummy_radars=0, exclude=[]):
+                 edge_type='voronoi', n_dummy_radars=0, exclude=[], **kwargs):
         self.root = root
         self.data_source = data_source
         self.season = season

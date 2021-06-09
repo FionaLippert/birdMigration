@@ -245,19 +245,20 @@ def train(cfg: DictConfig, output_dir: str, log):
                 scheduler.step()
                 tf = tf * hp_settings.get('teacher_forcing_gamma', 0)
 
-                # plotting
-                utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
-                utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
+                # # plotting
+                # utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
+                # utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
 
-        idx = max(1, min(cfg.repeats, 6) - 1)
-        if val_curves[:, -idx:].mean() < best_val_loss:
-            best_val_loss = val_curves[:, -idx:].mean()
-            best_hp_settings = hp_settings
+        # idx = max(1, min(cfg.repeats, 6) - 1)
+        # if val_curves[:, -idx:].mean() < best_val_loss:
+        #     best_val_loss = val_curves[:, -idx:].mean()
+        #     best_hp_settings = hp_settings
+        #
+        #     print(f'best settings so far with settings {hp_settings}', file=log)
+        #     print(f'validation loss = {best_val_loss}', file=log)
+        #     print('---------------------', file=log)
 
-            print(f'best settings so far with settings {hp_settings}', file=log)
-            print(f'validation loss = {best_val_loss}', file=log)
-            print('---------------------', file=log)
-
+        print('done with training')
         log.flush()
 
         # save training and validation curves
@@ -265,21 +266,24 @@ def train(cfg: DictConfig, output_dir: str, log):
         np.save(osp.join(sub_dir, 'validation_curves.npy'), val_curves)
         np.save(osp.join(sub_dir, 'validation_losses.npy'), val_losses)
 
+        print('plotting...')
+
         # plotting
         utils.plot_training_curves(training_curves, val_curves, sub_dir, log=True)
         utils.plot_training_curves(training_curves, val_curves, sub_dir, log=False)
 
-    print('saving best settings as default', file=log)
-    # use ruamel.yaml to not overwrite comments in the original yaml
-    yaml = ruamel.yaml.YAML()
-    fp = osp.join(cfg.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
-    with open(fp, 'r') as f:
-        model_config = yaml.load(f)
-    for key, val in best_hp_settings.items():
-        model_config['hyperparameters'][key]['default'] = val
-    with open(fp, 'w') as f:
-        yaml.dump(model_config, f)
+    # print('saving best settings as default', file=log)
+    # # use ruamel.yaml to not overwrite comments in the original yaml
+    # yaml = ruamel.yaml.YAML()
+    # fp = osp.join(cfg.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
+    # with open(fp, 'r') as f:
+    #     model_config = yaml.load(f)
+    # for key, val in best_hp_settings.items():
+    #     model_config['hyperparameters'][key]['default'] = val
+    # with open(fp, 'w') as f:
+    #     yaml.dump(model_config, f)
 
+    print('save config...')
     # save complete config to output dir
     for key, val in best_hp_settings.items():
         cfg.model.hyperparameters[key]['default'] = val
