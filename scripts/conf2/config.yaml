@@ -1,10 +1,11 @@
 # main config file
-experiment: grid_search
+experiment: test
 defaults:
   - datasource: radar
   - action: training
   - model: LocalLSTM
 root: /home/fiona/birdMigration
+output_dir: results
 season: fall
 seed: 1234
 repeats: 1
