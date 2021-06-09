@@ -16,9 +16,12 @@ def val_test_split(dataloader, val_ratio, random_seed):
     return val_loader, test_loader
 
 def MSE(output, gt, mask):
-    errors = (output - gt)**2
-    errors = errors[mask]
-    mse = errors.mean()
+    # errors = (output - gt)**2
+    # errors = errors[mask]
+    # mse = errors.mean()
+
+    diff2 = (torch.flatten(output) - torch.flatten(gt)) ** 2.0 * torch.flatten(mask)
+    mse = torch.sum(diff2) / torch.sum(mask)
     return mse
 
 def MSE_root_transformed(output, gt, mask, root=3):
