@@ -378,10 +378,10 @@ class FluxMLP3(torch.nn.Module):
 
 
 
-class LocalMLP(MessagePassing):
+class LocalMLP(torch.nn.Module):
 
     def __init__(self, **kwargs):
-        super(LocalMLP, self).__init__(aggr='add', node_dim=0)
+        super(LocalMLP, self).__init__()
 
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -424,8 +424,7 @@ class LocalMLP(MessagePassing):
 
         for t in range(self.timesteps + 1):
 
-            x = self.propagate(data.edge_index, coords=data.coords, env=data.env[..., t], acc=data.acc[..., t],
-                               areas=data.areas, edge_attr=data.edge_attr, night=data.local_night[:, t])
+            x = self.step(data.coords, data.env[..., t], data.areas, night=data.local_night[:, t], acc=data.acc[..., t])
 
             if self.force_zeros:
                 print('force birds in air to be zero')
@@ -438,14 +437,8 @@ class LocalMLP(MessagePassing):
         return prediction
 
 
-    def message(self, edge_attr):
-        # set all messages to 0 --> no spatial dependencies
-        n_edges = edge_attr.size(0)
-        msg = torch.zeros(n_edges).to(edge_attr.device)
-        return msg
 
-
-    def update(self, aggr_out, coords, env, areas, night, acc):
+    def step(self, coords, env, areas, night, acc):
         # use only location-specific features to predict migration intensities
         if self.use_acc:
             features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1), acc], dim=1)
@@ -464,10 +457,10 @@ class LocalMLP(MessagePassing):
         return x
 
 
-class LocalLSTM(MessagePassing):
+class LocalLSTM(torch.nn.Module):
 
     def __init__(self, **kwargs):
-        super(LocalLSTM, self).__init__(aggr='add', node_dim=0)
+        super(LocalLSTM, self).__init__()
 
         self.timesteps = kwargs.get('timesteps', 40)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -575,23 +568,16 @@ class LocalLSTM(MessagePassing):
 
         for t in forecast_horizon:
             all_h[..., t-1-self.t_context] = h_t[-1]
-            if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
-                # at least for one radar station it is night or dusk
-                r = torch.rand(1)
-                if r < self.teacher_forcing:
-                    # if data is available use ground truth, otherwise use model prediction
-                    x = data.missing[..., t-1].view(-1, 1) * x + \
-                        ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
 
-                x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, areas=data.areas,
-                                             h_t=h_t, c_t=c_t, edge_attr=data.edge_attr,
-                                             dusk=data.local_dusk[:, t-1],
-                                             dawn=data.local_dawn[:, t],
-                                             env=data.env[..., t],
-                                             night=data.local_night[:, t],
-                                             enc_states=enc_states,
-                                             t=t-self.t_context
-                                             )
+            r = torch.rand(1)
+            if r < self.teacher_forcing:
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t-1].view(-1, 1) * x + \
+                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+
+            x, h_t, c_t = self.step(x, data.coords, data.areas, data.local_dusk[:, t-1], data.local_dawn[:, t],
+                                    data.env[..., t], data.local_night[:, t], h_t, c_t, enc_states, self.t_context)
+
 
             if self.force_zeros:
                 # for locations where it is night: set birds in the air to zero
@@ -607,14 +593,7 @@ class LocalLSTM(MessagePassing):
             return prediction
 
 
-    def message(self, edge_attr):
-        # set all messages to 0 --> no spatial dependencies
-        n_edges = edge_attr.size(0)
-        msg = torch.zeros(n_edges, device=edge_attr.device)
-        return msg
-
-
-    def update(self, aggr_out, coords, env, dusk, dawn, h_t, c_t, x, areas, night, enc_states, t):
+    def step(self, x, coords, areas, dusk, dawn, env, night, h_t, c_t, enc_states, t):
 
         inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
                             dawn.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
@@ -3072,19 +3051,21 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
     return loss_all
 
 def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation_constraint=0.01,
-                 teacher_forcing=1.0, daymask=True, boundary_constraint_only=False, n_devices=1):
+                 teacher_forcing=1.0, daymask=True, boundary_constraint_only=False):
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        #data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
         output = model(data) #.view(-1)
 
-        if n_devices > 1:
-            gt = torch.cat([d.y for d in data])
-        else:
-            gt = data.y
+        # if n_devices > 1:
+        #     gt = torch.cat([d.y for d in data])
+        # else:
+        #     gt = data.y
+
+        gt = data.y.to(output.device)
 
         if conservation_constraint > 0:
 
@@ -3092,27 +3073,24 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             print('inferred fluxes shape', inferred_fluxes.shape)
             inferred_fluxes = inferred_fluxes - inferred_fluxes[data.reverse_edges]
 
-            if n_devices > 1:
-                observed_fluxes = torch.cat([d.fluxes[..., model.t_context:-1].squeeze() for d in data])
-            else:
-                observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+            observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze().to(output.device)
 
 
             diff = observed_fluxes - inferred_fluxes
             diff = observed_fluxes**2 * diff # weight timesteps with larger fluxes more
             if boundary_constraint_only:
-                edges = data.boundary2inner_edges + data.inner2boundary_edges
+                edges = (data.boundary2inner_edges + data.inner2boundary_edges).to(output.device)
             else:
-                edges = data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges
+                edges = (data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges).to(output.device)
             diff = diff[edges]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0
 
         if daymask:
-            mask = data.local_night & ~data.missing
+            mask = (data.local_night & ~data.missing).to(output.device)
         else:
-            mask = ~data.missing
+            mask = ~data.missing.to(output.device)
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
@@ -3159,34 +3137,27 @@ def train_testFluxMLP(model, train_loader, optimizer, loss_func, device):
     return loss_all
 
 
-def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, daymask=True, n_devices=1):
+def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, daymask=True):
 
     model.train()
     loss_all = 0
     for data in train_loader:
-        data = data.to(device)
+        # data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
         output = model(data)
 
-        print('output shape', output.shape)
+        # if n_devices > 1:
+        #     gt = torch.cat([d.y for d in data])
+        #     local_night = torch.cat([d.local_night for d in data])
+        #     missing = torch.cat([d.missing for d in data])
 
-        if n_devices > 1:
-            gt = torch.cat([d.y for d in data])
-            local_night = torch.cat([d.local_night for d in data])
-            missing = torch.cat([d.missing for d in data])
-
-        else:
-            gt = data.y
-            local_night = data.local_night
-            missing = data.missing
-
-        print('gt shape', gt.shape)
+        gt = data.y.to(output.device)
 
         if daymask:
-            mask = local_night & ~missing
+            mask = (data.local_night & ~data.missing).to(output.device)
         else:
-            mask = ~missing
+            mask = ~data.missing.to(output.device)
 
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
@@ -3262,7 +3233,7 @@ def test_flows(model, test_loader, loss_func, device, get_outfluxes=True, bird_s
         return torch.stack(loss_all)
 
 def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_scale=1,
-                fixed_boundary=False, daymask=True, n_devices=1):
+                fixed_boundary=False, daymask=True):
     model.eval()
     loss_all = []
     fluxes = {}
