@@ -3070,7 +3070,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         if conservation_constraint > 0:
 
             inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
-            print('inferred fluxes shape', inferred_fluxes.shape)
+            #print('inferred fluxes shape', inferred_fluxes.shape)
             inferred_fluxes = inferred_fluxes - inferred_fluxes[data.reverse_edges]
 
             observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
