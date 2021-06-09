@@ -3055,7 +3055,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
     model.train()
     loss_all = 0
     for data in train_loader:
-        #data = data.to(device)
+        data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
         output = model(data) #.view(-1)
@@ -3065,7 +3065,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         # else:
         #     gt = data.y
 
-        gt = data.y.to(output.device)
+        gt = data.y
 
         if conservation_constraint > 0:
 
@@ -3073,24 +3073,24 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             print('inferred fluxes shape', inferred_fluxes.shape)
             inferred_fluxes = inferred_fluxes - inferred_fluxes[data.reverse_edges]
 
-            observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze().to(output.device)
+            observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
 
 
             diff = observed_fluxes - inferred_fluxes
             diff = observed_fluxes**2 * diff # weight timesteps with larger fluxes more
             if boundary_constraint_only:
-                edges = (data.boundary2inner_edges + data.inner2boundary_edges).to(output.device)
+                edges = data.boundary2inner_edges + data.inner2boundary_edges
             else:
-                edges = (data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges).to(output.device)
+                edges = data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges
             diff = diff[edges]
             constraints = (diff[~torch.isnan(diff)]**2).mean()
         else:
             constraints = 0
 
         if daymask:
-            mask = (data.local_night & ~data.missing).to(output.device)
+            mask = data.local_night & ~data.missing
         else:
-            mask = ~data.missing.to(output.device)
+            mask = ~data.missing
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
@@ -3142,7 +3142,7 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
     model.train()
     loss_all = 0
     for data in train_loader:
-        # data = data.to(device)
+        data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
         output = model(data)
@@ -3152,12 +3152,12 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         #     local_night = torch.cat([d.local_night for d in data])
         #     missing = torch.cat([d.missing for d in data])
 
-        gt = data.y.to(output.device)
+        gt = data.y
 
         if daymask:
-            mask = (data.local_night & ~data.missing).to(output.device)
+            mask = data.local_night & ~data.missing
         else:
-            mask = ~data.missing.to(output.device)
+            mask = ~data.missing
 
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
