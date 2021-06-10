@@ -187,13 +187,15 @@ def train(cfg: DictConfig, output_dir: str, log):
     log.flush()
 
 
-def test(cfg: DictConfig, model_dir: str, output_dir: str, log):
+def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name in MODEL_MAPPING
     assert cfg.action.name == 'testing'
 
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
+    if model_dir is None: model_dir = output_dir
+    
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     birds_per_km2 = cfg.get('birds_per_km2', False)
 

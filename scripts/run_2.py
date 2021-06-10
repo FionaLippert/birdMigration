@@ -14,7 +14,8 @@ def run(cfg: DictConfig):
     log = open(log_file, 'w')
 
     try:
-        run_NNs_2.run(cfg, cfg.output_dir, log)
+        run_NNs_2.train(cfg, cfg.output_dir, log)
+        run_NNs_2.test(cfg, cfg.output_dir, log)
     except Exception:
         print(traceback.format_exc(), file=log)
 

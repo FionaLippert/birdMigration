@@ -21,8 +21,9 @@ def MSE(output, gt, mask):
     # mse = errors.mean()
 
     #print(output.shape, gt.shape, torch.sum(mask))
-    diff2 = (torch.flatten(output) - torch.flatten(gt)) ** 2.0 * torch.flatten(mask)
-    mse = torch.sum(diff2) / torch.sum(mask)
+    diff = torch.flatten(output) - torch.flatten(gt)
+    diff2 = torch.pow(diff, 2)
+    mse = torch.sum(diff2 * torch.flatten(mask)) / torch.sum(mask)
     return mse
 
 def MSE_root_transformed(output, gt, mask, root=3):

@@ -81,6 +81,7 @@ class Normalization:
 
         all_dfs = []
         for year in years:
+            print('load year', year)
             dir = self.preprocessed_dir(year)
             if not osp.isdir(dir):
                 # preprocessed data is not available
