@@ -66,7 +66,7 @@ class LSTM(torch.nn.Module):
                                 x], dim=0).view(1, -1)
 
             # multi-layer LSTM
-            inputs = self.fc_in(inputs).relu()
+            inputs = self.fc_in(inputs) #.relu()
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
             for l in range(1, self.n_layers):
                 h_t[l], c_t[l] = self.lstm_layers[l](h_t[l-1], (h_t[l], c_t[l]))
@@ -111,13 +111,13 @@ class MLP(torch.nn.Module):
             features = torch.cat([data.coords.flatten(),
                                   data.env[..., t].flatten()], dim=0)
             x = self.fc_in(features)
-            x = x.relu()
-            x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+            x = F.leaky_relu(x)
+            x = F.dropout(x, p=self.dropout_p, training=self.training)
 
             for l in self.fc_hidden:
                 x = l(x)
-                x = x.relu()
-                x = torch.nn.functional.dropout(x, p=self.dropout_p, training=self.training)
+                x = F.leaky_relu(x)
+                x = F.dropout(x, p=self.dropout_p, training=self.training)
 
             x = self.fc_out(x)
             x = x.sigmoid()
@@ -174,11 +174,11 @@ class FluxMLP(torch.nn.Module):
         # features = torch.cat([env_1_j, env_i, night_1_j.float().view(-1, 1), night_i.float().view(-1, 1),
         #                       coords_j, coords_i, edge_attr], dim=1)
 
-        flux = self.fc_in(features).relu()
+        flux = F.leaky_relu(self.fc_in(features))
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
-            flux = l(flux).relu()
+            flux = F.leaky_relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
@@ -240,7 +240,7 @@ class FluxMLP2(torch.nn.Module):
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
-            flux = l(flux).relu()
+            flux = F.leaky_relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
@@ -303,7 +303,7 @@ class FluxMLP4(torch.nn.Module):
         flux = F.dropout(features, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
-            flux = l(flux).relu()
+            flux = F.leaky_relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
@@ -367,7 +367,7 @@ class FluxMLP3(torch.nn.Module):
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
-            flux = l(flux).relu()
+            flux = F.leaky_relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_out(flux)
@@ -444,11 +444,11 @@ class LocalMLP(torch.nn.Module):
             features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1), acc], dim=1)
         else:
             features = torch.cat([coords, env, areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
-        x = self.fc_in(features).relu()
+        x = F.leaky_relu(self.fc_in(features))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
-            x = l(x).relu()
+            x = F.leaky_relu(l(x))
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.fc_out(x)
@@ -493,7 +493,7 @@ class LocalLSTM(torch.nn.Module):
         #self.fc_out = torch.nn.Linear(self.n_hidden, self.n_out)
         self.mlp_out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                           torch.nn.Dropout(p=self.dropout_p),
-                                          torch.nn.ReLU(),
+                                          torch.nn.LeakyReLU(),
                                           torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
@@ -689,12 +689,12 @@ class BirdFlowGNN(MessagePassing):
         else:
             self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
                                                 torch.nn.Dropout(p=dropout_p),
-                                                torch.nn.ReLU(),
+                                                torch.nn.LeakyReLU(),
                                                 torch.nn.Linear(hidden_channels, out_channels),
                                                 torch.nn.Sigmoid())
             self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels_dep),
                                                  torch.nn.Dropout(p=dropout_p),
-                                                 torch.nn.ReLU(),
+                                                 torch.nn.LeakyReLU(),
                                                  torch.nn.Linear(hidden_channels_dep, out_channels_dep),
                                                  torch.nn.Tanh())
 
@@ -858,14 +858,14 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                torch.nn.ReLU(),
+                                                torch.nn.LeakyReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
@@ -976,11 +976,11 @@ class BirdFlowGraphLSTM(MessagePassing):
         if self.n_fc_layers < 1:
             flow = self.edgeflow(features)
         else:
-            flow = self.fc_edge_in(features).relu()
+            flow = F.leaky_relu(self.fc_edge_in(features))
             flow = F.dropout(flow, p=self.dropout_p, training=self.training)
 
             for l in self.fc_edge_hidden:
-                flow = l(flow).relu()
+                flow = F.leaky_relu(l(flow))
                 flow = F.dropout(flow, p=self.dropout_p, training=self.training)
 
             flow = self.fc_edge_out(flow).sigmoid()
@@ -1003,7 +1003,7 @@ class BirdFlowGraphLSTM(MessagePassing):
             else:
                 inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
                                     dusk.float().view(-1, 1), night.float().view()], dim=1)
-            inputs = self.node2hidden(inputs).relu()
+            inputs = self.node2hidden(inputs) #.relu()
 
             h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
             for l in range(1, self.n_lstm_layers):
@@ -1020,11 +1020,11 @@ class BirdFlowGraphLSTM(MessagePassing):
         if self.n_fc_layers < 1:
             selfflow = self.selfflow(features)
         else:
-            selfflow = self.fc_self_in(features).relu()
+            selfflow = F.leaky_relu(self.fc_self_in(features))
             selfflow = F.dropout(selfflow, p=self.dropout_p, training=self.training)
 
             for l in self.fc_self_hidden:
-                selfflow = l(selfflow).relu()
+                selfflow = F.leaky_relu(l(selfflow))
                 selfflow = F.dropout(selfflow, p=self.dropout_p, training=self.training)
 
             selfflow = self.fc_edge_out(selfflow).sigmoid()
@@ -1087,7 +1087,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
         if self.use_encoder:
@@ -1103,7 +1103,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                torch.nn.ReLU(),
+                                                torch.nn.LeakyReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
         if self.boundary_model == 'LocalLSTM':
@@ -1279,11 +1279,11 @@ class BirdFluxGraphLSTM(MessagePassing):
         inputs = self.fc_edge_embedding(inputs)
         inputs = torch.cat([inputs, h_j], dim=1)
 
-        flux = self.fc_edge_in(inputs).relu()
+        flux = F.leaky_relu(self.fc_edge_in(inputs))
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         for l in self.fc_edge_hidden:
-            flux = l(flux).relu()
+            flux = F.leaky_relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_edge_out(flux) #.tanh()
@@ -1570,7 +1570,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
         if self.use_encoder:
@@ -1586,7 +1586,7 @@ class BirdFluxGraphLSTM2(MessagePassing):
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                torch.nn.ReLU(),
+                                                torch.nn.LeakyReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
         if self.boundary_model == 'LocalLSTM':
@@ -1765,11 +1765,11 @@ class BirdFluxGraphLSTM2(MessagePassing):
         inputs = self.fc_edge_embedding(inputs)
         inputs = torch.cat([inputs, h_j], dim=1)
 
-        flux = self.fc_edge_in(inputs).relu()
+        flux = F.leaky_relu(self.fc_edge_in(inputs))
         flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         for l in self.fc_edge_hidden:
-            flux = l(flux).relu()
+            flux = F.leaky_relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training)
 
         flux = self.fc_edge_out(flux) #.tanh()
@@ -1913,7 +1913,7 @@ class AttentionGraphLSTM(MessagePassing):
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                torch.nn.ReLU(),
+                                                torch.nn.LeakyReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
@@ -2130,7 +2130,7 @@ class Attention2GraphLSTM(MessagePassing):
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                torch.nn.ReLU(),
+                                                torch.nn.LeakyReLU(),
                                                 torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
@@ -2582,19 +2582,19 @@ class BirdDynamicsGraphLSTM(MessagePassing):
 
         self.mlp_aggr = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                             torch.nn.Dropout(p=self.dropout_p),
-                                            torch.nn.ReLU(),
+                                            torch.nn.LeakyReLU(),
                                             torch.nn.Linear(self.n_hidden, 1))
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
@@ -2679,11 +2679,11 @@ class BirdDynamicsGraphLSTM(MessagePassing):
                               dusk_j.float().view(-1, 1), dawn_j.float().view(-1, 1), night_j.float().view(-1, 1)], dim=1)
         #msg = self.mlp_edge(features).relu()
 
-        msg = self.fc_edge_in(features).relu()
+        msg = F.leaky_relu(self.fc_edge_in(features))
         msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
         for l in self.fc_edge_hidden:
-            msg = l(msg).relu()
+            msg = F.leaky_relu(l(msg))
             msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
         msg = self.fc_edge_out(msg) #.relu()
@@ -2700,7 +2700,7 @@ class BirdDynamicsGraphLSTM(MessagePassing):
         else:
             inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
                                 dawn.float().view(-1, 1), night.float().view(-1, 1)], dim=1)
-        inputs = self.node2hidden(inputs).relu()
+        inputs = self.node2hidden(inputs) #.relu()
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
@@ -2758,19 +2758,19 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
 
         self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
         self.input2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_features_in, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, self.n_hidden))
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden*2, self.n_hidden*2) for _ in range(self.n_lstm_layers)])
 
         self.hidden2birds = torch.nn.Sequential(torch.nn.Linear(2*self.n_hidden, self.n_hidden),
                                                torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.ReLU(),
+                                               torch.nn.LeakyReLU(),
                                                torch.nn.Linear(self.n_hidden, 1))
 
 
@@ -2838,15 +2838,15 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         features = torch.cat([coords_i, coords_j, env_i, env_j, edge_attr], dim=1)
         #msg = self.mlp_edge(features).relu()
 
-        features = self.edge_input2hidden(features).relu()
+        features = self.edge_input2hidden(features) #.relu()
         msg = self.fc_edge_in(torch.cat([h_t_i, h_t_j, features], dim=1))
         msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
         for l in self.fc_edge_hidden:
-            msg = l(msg).relu()
+            msg = F.leaky_relu(l(msg))
             msg = F.dropout(msg, p=self.dropout_p, training=self.training)
 
-        msg = self.fc_edge_out(msg).relu()
+        msg = F.leaky_relu(self.fc_edge_out(msg))
 
         return msg
 
@@ -2860,7 +2860,7 @@ class BirdDynamicsGraphLSTM_transformed(MessagePassing):
         else:
             inputs = torch.cat([coords, env, dusk.float().view(-1, 1),
                                 dawn.float().view(-1, 1)], dim=1)
-        inputs = self.intput2hidden(inputs).relu()
+        inputs = self.intput2hidden(inputs) #.relu()
         inputs = self.aggr2hidden(torch.cat([inputs, aggr_out]))
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):

@@ -243,8 +243,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
                                    env_vars=cfg.datasource.env_vars,
-                                   compute_fluxes=compute_fluxes,
-                                   use_nights=True
+                                   compute_fluxes=compute_fluxes
                                    )
     n_nodes = len(test_data.info['radars'])
 
