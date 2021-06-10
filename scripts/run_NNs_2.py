@@ -46,9 +46,9 @@ def train(cfg: DictConfig, output_dir: str, log):
     # initialize normalizer
     normalization = dataloader.Normalization(cfg.datasource.training_years,
                                   cfg.datasource.name, **cfg)
-    print('load training data')
+    print('load data')
     # load training data
-    train_data = [dataloader.RadarData(year, seq_len, **cfg,
+    data = [dataloader.RadarData(year, seq_len, **cfg,
                                      data_root=data_root,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
@@ -57,23 +57,28 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      compute_fluxes=cfg.model.get('compute_fluxes', False))
                   for year in cfg.datasource.training_years]
 
-    n_nodes = len(train_data[0].info['radars'])
-    train_data = torch.utils.data.ConcatDataset(train_data)
+    n_nodes = len(data[0].info['radars'])
+    data = torch.utils.data.ConcatDataset(data)
+    n_data = len(data)
+
+    # split data into training and validation set
+    rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
+    n_val = int(cfg.datasource.val_train_split * n_data)
+    all_indices = torch.from_numpy(rng.shuffle(np.arange(n_data)))
+    val_exclude = all_indices[n_val:] # val indices: 0 to n_val-1
 
     if cfg.use_nights:
-        print(f'training set size = {len(train_data)}')
-        args = dict(batch_size=batch_size, shuffle=True)
+        train_exclude = all_indices[:n_val] # train indices: n_val to n_data
+        print(f'training set size = {n_data - len(train_exclude)}')
     else:
-        n_exclude = int((1 - cfg.data_perc) * len(train_data))
-        print(f'training set size = {len(train_data) - n_exclude}')
-        rng = np.random.default_rng(cfg.seed)
-        exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
-        args = dict(batch_size=batch_size, shuffle=True, exclude_keys=list(exclude_indices))
+        n_train = int(cfg.data_perc * (n_data - n_val))
+        train_exclude = all_indices[:-n_train] # train indices: n_data - n_train to n_data
+        print(f'training set size = {n_train}')
+        #exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
 
-    train_loader = DataLoader(train_data, **args)
+    train_loader = DataLoader(data, batch_size=batch_size, shuffle=True, exclude_keys=list(train_exclude))
+    val_loader = DataLoader(data, batch_size=1, shuffle=False, exclude_keys=list(val_exclude))
 
-
-    print('loaded training data')
 
     if cfg.edge_type == 'voronoi':
         if cfg.datasource.use_buffers:
@@ -94,20 +99,20 @@ def train(cfg: DictConfig, output_dir: str, log):
     else:
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
-    print('load val data')
-    # load validation data
-    val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
-                                  data_root=data_root,
-                                  data_source=cfg.datasource.name,
-                                  use_buffers=cfg.datasource.use_buffers,
-                                  normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars,
-                                  compute_fluxes=cfg.model.get('compute_fluxes', False)
-                                  )
-    val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
-    if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
-    print('loaded val data')
+    # print('load val data')
+    # # load validation data
+    # val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
+    #                               data_root=data_root,
+    #                               data_source=cfg.datasource.name,
+    #                               use_buffers=cfg.datasource.use_buffers,
+    #                               normalization=normalization,
+    #                               env_vars=cfg.datasource.env_vars,
+    #                               compute_fluxes=cfg.model.get('compute_fluxes', False)
+    #                               )
+    # val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
+    # if cfg.datasource.validation_year == cfg.datasource.test_year:
+    #     val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
+    # print('loaded val data')
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
@@ -242,8 +247,8 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     n_nodes = len(test_data.info['radars'])
 
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
-    if cfg.datasource.validation_year == cfg.datasource.test_year:
-        _, test_loader = utils.val_test_split(test_loader, cfg.datasource.val_test_split, cfg.seed)
+    # if cfg.datasource.validation_year == cfg.datasource.test_year:
+    #     _, test_loader = utils.val_test_split(test_loader, cfg.datasource.val_test_split, cfg.seed)
 
     # load additional data
     time = test_data.info['timepoints']
@@ -262,16 +267,11 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         results['outfluxes'] = []
 
 
-    try:
-        model = Model(**model_cfg.model, seed=cfg.seed,
-              n_env=2 + len(cfg.datasource.env_vars),
-              n_nodes=n_nodes,
-              edge_type=cfg.edge_type)
-
-        model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
-    except Exception:
-        model = torch.load(osp.join(model_dir, f'model.pkl'))
-
+    model = Model(**model_cfg.model, seed=cfg.seed,
+          n_env=2 + len(cfg.datasource.env_vars),
+          n_nodes=n_nodes,
+          edge_type=cfg.edge_type)
+    model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
 
     # adjust model settings for testing
     model.horizon = cfg.model.horizon

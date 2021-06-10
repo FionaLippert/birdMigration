@@ -195,10 +195,11 @@ def train(cfg: DictConfig, output_dir: str, log):
             scheduler = lr_scheduler.StepLR(optimizer, step_size=hp_settings['lr_decay'])
 
             model = model.to(device)
+            print('model on GPU?', next(model.parameters()).is_cuda)
 
             tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
             for epoch in range(epochs):
-                print('model on GPU?', next(model.parameters()).is_cuda)
+
                 if 'BirdFluxGraphLSTM' in cfg.model.name:
                     loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                         conservation_constraint=hp_settings['conservation_constraint'],
