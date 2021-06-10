@@ -190,7 +190,7 @@ class RadarData(InMemoryDataset):
         self.processed_dirname = f'measurements={measurements}_root_transform={self.root_transform}_use_nights={self.use_nights}_' \
                                  f'edges={self.edge_type}_birds_km2={self.birds_per_km2}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
 
-        super(RadarData, self).__init__(root, transform, pre_transform)
+        super(RadarData, self).__init__(self.root, transform, pre_transform)
 
         self.data, self.slices = torch.load(self.processed_paths[0])
 
