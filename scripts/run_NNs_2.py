@@ -70,13 +70,13 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     if cfg.use_nights:
         train_exclude = all_indices[:n_val] # train indices: n_val to n_data
-        print(f'training set size = {n_data - len(train_exclude)}')
+        n_train = n_data - len(train_exclude)
     else:
         n_train = int(cfg.data_perc * (n_data - n_val))
         train_exclude = all_indices[:-n_train] # train indices: n_data - n_train to n_data
-        print(f'training set size = {n_train}')
         #exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
 
+    print(f'training set size = {n_train}')
     train_loader = DataLoader(data, batch_size=batch_size, shuffle=True, exclude_keys=list(train_exclude))
     val_loader = DataLoader(data, batch_size=1, shuffle=False, exclude_keys=list(val_exclude))
 
@@ -158,7 +158,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         else:
             loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                               daymask=cfg.model.get('force_zeros', 0))
-        training_curve[epoch] = loss / len(train_data)
+        training_curve[epoch] = loss / n_train
         print(f'epoch {epoch + 1}: loss = {training_curve[epoch]}')
 
         val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
