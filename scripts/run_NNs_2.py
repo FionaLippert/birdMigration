@@ -44,11 +44,11 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('normalize features')
     # initialize normalizer
-    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
+    normalization = dataloader.Normalization(cfg.datasource.training_years,
                                   cfg.datasource.name, **cfg)
     print('load training data')
     # load training data
-    train_data = [dataloader.RadarData(data_root, year, cfg.season, seq_len, **cfg,
+    train_data = [dataloader.RadarData(year, seq_len, **cfg,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -95,8 +95,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('load val data')
     # load validation data
-    val_data = dataloader.RadarData(data_root, str(cfg.datasource.validation_year),
-                                  cfg.season, seq_len, **cfg,
+    val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
@@ -230,8 +229,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load test data
-    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, seq_len, **cfg,
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len, **cfg,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
