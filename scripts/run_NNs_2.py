@@ -30,7 +30,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
 
 def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
-    assert cfg.action.name == 'training'
+    #assert cfg.action.name == 'training'
 
     torch.autograd.set_detect_anomaly(True)
 
@@ -196,7 +196,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name in MODEL_MAPPING
-    assert cfg.action.name == 'testing'
+    #assert cfg.action.name == 'testing'
 
     Model = MODEL_MAPPING[cfg.model.name]
 
