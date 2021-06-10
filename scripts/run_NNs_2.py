@@ -45,7 +45,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print('normalize features')
     # initialize normalizer
     normalization = dataloader.Normalization(cfg.datasource.training_years,
-                                  cfg.datasource.name, **cfg)
+                                  cfg.datasource.name, data_root=data_root, **cfg)
     print('load data')
     # load training data
     data = [dataloader.RadarData(year, seq_len, **cfg,
