@@ -31,6 +31,8 @@ def run(cfg: DictConfig):
     except Exception:
         print(traceback.format_exc(), file=log)
 
+    print('reached end. Flush and close log.')
+
     log.flush()
     log.close()
 
