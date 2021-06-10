@@ -68,10 +68,10 @@ def timeslice(data, start_night, mask, timesteps):
 
 
 class Normalization:
-    def __init__(self, years, data_source, root='', season='fall', radar_years=['2015', '2016', '2017'], max_distance=216,
+    def __init__(self, years, data_source, data_root, season='fall', radar_years=['2015', '2016', '2017'], max_distance=216,
                  env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
                  edge_type='voronoi', n_dummy_radars=0, exclude=[], **kwargs):
-        self.root = root
+        self.root = data_root
         self.data_source = data_source
         self.season = season
         self.t_unit = t_unit
@@ -148,7 +148,7 @@ class RadarData(InMemoryDataset):
 
     def __init__(self, year, timesteps, transform=None, pre_transform=None, **kwargs):
 
-        self.root = kwargs.get('root')
+        self.root = kwargs.get('data_root')
         self.season = kwargs.get('season')
         self.year = str(year)
         self.timesteps = timesteps

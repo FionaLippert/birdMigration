@@ -49,6 +49,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print('load training data')
     # load training data
     train_data = [dataloader.RadarData(year, seq_len, **cfg,
+                                     data_root=data_root,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -96,6 +97,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print('load val data')
     # load validation data
     val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
+                                  data_root=data_root,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
@@ -230,6 +232,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
 
     # load test data
     test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len, **cfg,
+                                   data_root=data_root,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,

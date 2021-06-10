@@ -77,10 +77,12 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('normalize features')
     # initialize normalizer
-    normalization = dataloader.Normalization(cfg.datasource.training_years, cfg.datasource.name, **cfg)
+    normalization = dataloader.Normalization(cfg.datasource.training_years, cfg.datasource.name,
+                                             data_root=data_root, **cfg)
     print('load training data')
     # load training data
     train_data = [dataloader.RadarData(year, seq_len, **cfg,
+                                     data_root=data_root,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
@@ -135,6 +137,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print('load val data')
     # load validation data
     val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
+                                    data_root=data_root,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
@@ -330,22 +333,15 @@ def test(cfg: DictConfig, output_dir: str, log):
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load test data
-    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, seq_len,
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year),
+                                   seq_len, **cfg,
+                                   data_root=data_root,
                                    data_source=cfg.datasource.name,
                                    use_buffers=cfg.datasource.use_buffers,
                                    normalization=normalization,
                                    env_vars=cfg.datasource.env_vars,
-                                   root_transform=cfg.root_transform,
-                                   missing_data_threshold=cfg.missing_data_threshold,
-                                   edge_type=cfg.edge_type,
-                                   max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit,
-                                   n_dummy_radars=cfg.n_dummy_radars,
-                                   exclude=cfg.exclude,
                                    compute_fluxes=compute_fluxes,
-                                   use_nights=True,
-                                   birds_per_km2=birds_per_km2
+                                   use_nights=True
                                    )
     n_nodes = len(test_data.info['radars'])
     # boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]
