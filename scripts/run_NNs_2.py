@@ -60,11 +60,12 @@ def train(cfg: DictConfig, output_dir: str, log):
     n_nodes = len(data[0].info['radars'])
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
+    print('total number of sequences = ', n_data)
 
     # split data into training and validation set
     rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
     n_val = int(cfg.datasource.val_train_split * n_data)
-    all_indices = torch.from_numpy(rng.shuffle(np.arange(n_data)))
+    all_indices = torch.from_numpy(rng.permutation(n_data))
     val_exclude = all_indices[n_val:] # val indices: 0 to n_val-1
 
     if cfg.use_nights:
