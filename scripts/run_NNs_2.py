@@ -102,8 +102,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
                                   env_vars=cfg.datasource.env_vars,
-                                  compute_fluxes=cfg.model.get('compute_fluxes', False),
-                                  use_nights=True
+                                  compute_fluxes=cfg.model.get('compute_fluxes', False)
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:

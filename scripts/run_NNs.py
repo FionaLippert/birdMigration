@@ -93,6 +93,21 @@ def train(cfg: DictConfig, output_dir: str, log):
     n_nodes = len(train_data[0].info['radars'])
     train_data = torch.utils.data.ConcatDataset(train_data)
 
+    print('load val data')
+    # load validation data
+    val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
+                                    data_root=data_root,
+                                    data_source=cfg.datasource.name,
+                                    use_buffers=cfg.datasource.use_buffers,
+                                    normalization=normalization,
+                                    env_vars=cfg.datasource.env_vars,
+                                    compute_fluxes=compute_fluxes
+                                    )
+    val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
+    if cfg.datasource.validation_year == cfg.datasource.test_year:
+        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
+
+
     if cfg.use_nights:
         print(f'training set size = {len(train_data)}')
         args = dict(batch_size=batch_size, shuffle=True)
@@ -105,6 +120,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         args = dict(batch_size=batch_size, shuffle=True, exclude_keys=list(exclude_indices))
         # train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True,
         #                           exclude_keys=list(exclude_indices))
+    # TODO do this also for val data
 
     # if n_devices > 1:
     #     train_loader = DataListLoader(train_data, **args)
@@ -133,22 +149,6 @@ def train(cfg: DictConfig, output_dir: str, log):
         cfg.datasource.bird_scale = float(normalization.max(input_col))
     else:
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
-
-    print('load val data')
-    # load validation data
-    val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
-                                    data_root=data_root,
-                                  data_source=cfg.datasource.name,
-                                  use_buffers=cfg.datasource.use_buffers,
-                                  normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars,
-                                  compute_fluxes=compute_fluxes,
-                                  use_nights=True
-                                  )
-    val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
-    if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
-    print('loaded val data')
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed

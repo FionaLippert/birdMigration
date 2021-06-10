@@ -6,6 +6,7 @@ training_years:
 validation_year: 2015
 test_year: 2015
 val_test_split: 0.25
+val_train_split: 0.1
 env_vars:
   - u
   - v
