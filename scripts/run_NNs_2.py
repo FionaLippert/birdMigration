@@ -60,7 +60,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     n_nodes = len(data[0].info['radars'])
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
-    print('total number of sequences = ', n_data)
+    print(f'total number of sequences = {n_data}')
 
     # split data into training and validation set
     rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
@@ -76,7 +76,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         train_exclude = all_indices[:-n_train] # train indices: n_data - n_train to n_data
         #exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
 
-    print(f'training set size = {n_train}')
+    print(f'number of training sequences = {n_train}')
+    print(f'number of validation sequences = {n_val}')
     train_loader = DataLoader(data, batch_size=batch_size, shuffle=True, exclude_keys=list(train_exclude))
     val_loader = DataLoader(data, batch_size=1, shuffle=False, exclude_keys=list(val_exclude))
 
@@ -126,8 +127,8 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 
     best_val_loss = np.inf
-    training_curve = np.ones(epochs) * np.nan
-    val_curve = np.ones(epochs) * np.nan
+    training_curve = np.ones((1, epochs)) * np.nan
+    val_curve = np.ones((1, epochs)) * np.nan
 
     print(f'train model')
     print(cfg.datasource.env_vars)
@@ -158,13 +159,13 @@ def train(cfg: DictConfig, output_dir: str, log):
         else:
             loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                               daymask=cfg.model.get('force_zeros', 0))
-        training_curve[epoch] = loss / n_train
+        training_curve[:, epoch] = loss / n_train
         print(f'epoch {epoch + 1}: loss = {training_curve[epoch]}')
 
         val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
                                  daymask=cfg.model.get('force_zeros', 0)).cpu()
         val_loss = val_loss[torch.isfinite(val_loss)].mean()
-        val_curve[epoch] = val_loss
+        val_curve[:, epoch] = val_loss
         print(f'epoch {epoch + 1}: val loss = {val_loss}')
 
         if val_loss <= best_val_loss:
@@ -184,8 +185,8 @@ def train(cfg: DictConfig, output_dir: str, log):
     np.save(osp.join(output_dir, 'validation_curves.npy'), val_curve)
 
     # plotting
-    utils.plot_training_curves(training_curve.unsqueeze(0), val_curve.unsqueeze(0), output_dir, log=True)
-    utils.plot_training_curves(training_curve.unsqueeze(0), val_curve.unsqueeze(0), output_dir, log=False)
+    utils.plot_training_curves(training_curve, val_curve, output_dir, log=True)
+    utils.plot_training_curves(training_curve, val_curve, output_dir, log=False)
 
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
