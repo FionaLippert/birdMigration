@@ -77,27 +77,15 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('normalize features')
     # initialize normalizer
-    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
-                                  cfg.datasource.name, seed=cfg.seed, max_distance=cfg.max_distance,
-                                  t_unit=cfg.t_unit, edge_type=cfg.edge_type, n_dummy_radars=cfg.n_dummy_radars,
-                                           exclude=cfg.exclude)
+    normalization = dataloader.Normalization(cfg.datasource.training_years, cfg.datasource.name, **cfg)
     print('load training data')
     # load training data
-    train_data = [dataloader.RadarData(data_root, year, cfg.season, seq_len,
+    train_data = [dataloader.RadarData(year, seq_len, **cfg,
                                      data_source=cfg.datasource.name,
                                      use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
                                      env_vars=cfg.datasource.env_vars,
-                                     root_transform=cfg.root_transform,
-                                     missing_data_threshold=cfg.missing_data_threshold,
-                                     edge_type=cfg.edge_type,
-                                     max_distance=cfg.max_distance,
-                                     t_unit=cfg.t_unit,
-                                     n_dummy_radars=cfg.n_dummy_radars,
-                                     exclude=cfg.exclude,
-                                     compute_fluxes=compute_fluxes,
-                                     use_nights=cfg.use_nights,
-                                     birds_per_km2=birds_per_km2)
+                                     compute_fluxes=compute_fluxes)
                   for year in cfg.datasource.training_years]
     # boundary = [ridx for ridx, b in train_data[0].info['boundaries'].items() if b]
     n_nodes = len(train_data[0].info['radars'])
@@ -146,22 +134,13 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print('load val data')
     # load validation data
-    val_data = dataloader.RadarData(data_root, str(cfg.datasource.validation_year),
-                                  cfg.season, seq_len,
+    val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
                                   data_source=cfg.datasource.name,
                                   use_buffers=cfg.datasource.use_buffers,
                                   normalization=normalization,
                                   env_vars=cfg.datasource.env_vars,
-                                  root_transform=cfg.root_transform,
-                                  missing_data_threshold=cfg.missing_data_threshold,
-                                  edge_type=cfg.edge_type,
-                                  max_distance=cfg.max_distance,
-                                  t_unit=cfg.t_unit,
-                                  n_dummy_radars=cfg.n_dummy_radars,
-                                  exclude=cfg.exclude,
                                   compute_fluxes=compute_fluxes,
-                                  use_nights=True,
-                                  birds_per_km2=birds_per_km2
+                                  use_nights=True
                                   )
     val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
     if cfg.datasource.validation_year == cfg.datasource.test_year:
