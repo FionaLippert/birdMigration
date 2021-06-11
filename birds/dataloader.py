@@ -424,7 +424,6 @@ class RadarData(InMemoryDataset):
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
 
-        print('bird_uv shape = ', data['bird_uv'].shape)
 
         # find timesteps where it's night for all radars
         check_all = data['nighttime'].all(axis=0) # day/night mask
