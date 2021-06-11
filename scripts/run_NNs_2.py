@@ -352,20 +352,20 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
                 results['outfluxes'].append(outfluxes[ridx].view(-1))
 
 
-        if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
-            with open(osp.join(output_dir, f'local_fluxes.pickle'), 'wb') as f:
-                pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
-            with open(osp.join(output_dir, f'radar_fluxes.pickle'), 'wb') as f:
-                pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
-            with open(osp.join(output_dir, f'radar_mtr.pickle'), 'wb') as f:
-                pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
-        if cfg.model.name == 'AttentionGraphLSTM':
-            with open(osp.join(output_dir, f'attention_weights.pickle'), 'wb') as f:
-                pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
-            # with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
-            #     pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
+    if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
+        with open(osp.join(output_dir, f'local_fluxes.pickle'), 'wb') as f:
+            pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
+        with open(osp.join(output_dir, f'radar_fluxes.pickle'), 'wb') as f:
+            pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
+        with open(osp.join(output_dir, f'radar_mtr.pickle'), 'wb') as f:
+            pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
+    if cfg.model.name == 'AttentionGraphLSTM':
+        with open(osp.join(output_dir, f'attention_weights.pickle'), 'wb') as f:
+            pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
+        # with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
+        #     pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
 
-        del data, model
+    del data, model
 
     with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)

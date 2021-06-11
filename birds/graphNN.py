@@ -1041,6 +1041,26 @@ class BirdFlowGraphLSTM(MessagePassing):
 
         return pred, h_t, c_t
 
+
+class Extrapolation(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(Extrapolation, self).__init__(aggr='mean', node_dim=0)
+
+        #self.weighted = kwargs.get('weighted', 1)
+
+    def forward(self, var, edge_index, edge_attr):
+        var = self.propagate(edge_index, var=var, edge_attr=edge_attr)
+        return var
+
+    def message(self, var_j):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        return var_j
+
+
 class BirdFluxGraphLSTM(MessagePassing):
 
     def __init__(self, **kwargs):
