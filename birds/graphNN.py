@@ -2458,6 +2458,7 @@ class RecurrentEncoder(torch.nn.Module):
 
     def update(self, env, coords, x, local_night, local_dawn, local_dusk, bird_uv, directions, speeds, h_t, c_t):
 
+        print(env.shape, coords.shape, bird_uv.shape)
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
                             local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv,
                             directions.view(-1, 1), speeds.view(-1, 1)], dim=1)

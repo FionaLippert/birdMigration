@@ -176,7 +176,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         scheduler.step()
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
 
-        print(f'validation loss = {best_val_loss}', file=log)
+    print(f'validation loss = {best_val_loss}', file=log)
 
     log.flush()
 
@@ -268,7 +268,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         results['outfluxes'] = []
 
 
-    model = Model(**model_cfg.model, seed=cfg.seed,
+    model = Model(**model_cfg['model'], seed=cfg.seed,
           n_env=2 + len(cfg.datasource.env_vars),
           n_nodes=n_nodes,
           edge_type=cfg.edge_type)
@@ -340,7 +340,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
             results['seqID'].append([nidx] * y_hat.shape[1])
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
-            results['trial'].append([r] * y_hat.shape[1])
+            #results['trial'].append([r] * y_hat.shape[1])
             results['horizon'].append(np.arange(y_hat.shape[1]))
             results['missing'].append(missing[ridx, context:])
 
