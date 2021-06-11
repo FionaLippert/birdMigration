@@ -259,7 +259,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
 
     # load models and predict
     results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
-                   tidx=[], datetime=[], trial=[], horizon=[], missing=[])
+                   tidx=[], datetime=[], horizon=[], missing=[])
     if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
         results['fluxes'] = []
         results['local_deltas'] = []

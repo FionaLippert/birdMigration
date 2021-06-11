@@ -1049,8 +1049,8 @@ class Extrapolation(MessagePassing):
 
         #self.weighted = kwargs.get('weighted', 1)
 
-    def forward(self, var, edge_index, edge_attr):
-        var = self.propagate(edge_index, var=var, edge_attr=edge_attr)
+    def forward(self, var, edge_index):
+        var = self.propagate(edge_index, var=var)
         return var
 
     def message(self, var_j):
@@ -1136,6 +1136,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                 self.flux_mlp = FluxMLP(**kwargs)
         elif self.boundary_model == 'FluxMLPtanh':
             self.flux_mlp = FluxMLP3(**kwargs)
+        elif self.boundary_model == 'Extrapolation':
+            self.extrapolation = Extrapolation()
 
 
         self.reset_parameters()
@@ -1191,6 +1193,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.edges = data.edge_index
         self.boundary2inner_edges = data.boundary2inner_edges
         self.inner2boundary_edges = data.inner2boundary_edges
+        self.boundary2boundary_edges = data.boundary2boundary_edges
         self.inner_edges = data.inner_edges
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary.bool()
@@ -1242,6 +1245,14 @@ class BirdFluxGraphLSTM(MessagePassing):
             if self.boundary_model == 'LocalLSTM':
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                           boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
+            elif self.boundary_model == 'Extrapolation':
+                x_extrapolated = self.extrapolation(x, self.edges[torch.logical_not(self.boundary2boundary_edges)])
+                h_extrapolated = self.extrapolation(h_t[-1], self.edges[torch.logical_not(self.boundary2boundary_edges)])
+
+                x = x * torch.logical_not(data.boundary.view(-1, 1)) + \
+                    x_extrapolated * data.boundary.view(-1, 1)
+                h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
+                    h_extrapolated * data.boundary.view(-1, 1)
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
@@ -2478,7 +2489,7 @@ class RecurrentEncoder(torch.nn.Module):
 
     def update(self, env, coords, x, local_night, local_dawn, local_dusk, bird_uv, directions, speeds, h_t, c_t):
 
-        print(env.shape, coords.shape, bird_uv.shape)
+        #print(env.shape, coords.shape, bird_uv.shape)
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
                             local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv,
                             directions.view(-1, 1), speeds.view(-1, 1)], dim=1)

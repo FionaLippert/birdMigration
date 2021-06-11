@@ -272,6 +272,8 @@ class RadarData(InMemoryDataset):
                                              for idx in range(n_edges)])
         inner_edges = torch.tensor([(not boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
                                     for idx in range(n_edges)])
+        boundary2boundary_edges = torch.tensor([(boundary[edge_index[0, idx]] and boundary[edge_index[1, idx]])
+                                    for idx in range(n_edges)])
 
         reverse_edges = torch.zeros(n_edges, dtype=torch.long)
         for idx in range(n_edges):
@@ -422,6 +424,7 @@ class RadarData(InMemoryDataset):
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
 
+        print('bird_uv shape = ', data['bird_uv'].shape)
 
         # find timesteps where it's night for all radars
         check_all = data['nighttime'].all(axis=0) # day/night mask
@@ -521,6 +524,7 @@ class RadarData(InMemoryDataset):
                           reverse_edges=reverse_edges,
                           boundary2inner_edges=boundary2inner_edges.bool(),
                           inner2boundary_edges=inner2boundary_edges.bool(),
+                          boundary2boundary_edges=boundary2boundary_edges.bool(),
                           inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
                           edge_weight=torch.tensor(edge_weights, dtype=torch.float),
