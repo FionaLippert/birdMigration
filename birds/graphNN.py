@@ -2496,8 +2496,8 @@ class RecurrentEncoder(torch.nn.Module):
 
         inputs = self.node2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
-        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
+        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=False)
+        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=False)
         for l in range(1, self.n_lstm_layers):
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 

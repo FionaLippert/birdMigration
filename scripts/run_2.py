@@ -18,9 +18,10 @@ def run(cfg: DictConfig):
         run_NNs_2.test(cfg, cfg.output_dir, log)
     except Exception:
         print(traceback.format_exc(), file=log)
-
+    print('flush log')
     log.flush()
     log.close()
+    print('done')
 
 if __name__ == "__main__":
     run()
