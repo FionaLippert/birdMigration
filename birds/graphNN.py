@@ -1048,9 +1048,10 @@ class Extrapolation(MessagePassing):
         super(Extrapolation, self).__init__(aggr='mean', node_dim=0)
 
         #self.weighted = kwargs.get('weighted', 1)
+        self.edge_index = kwargs.get('edge_index', None)
 
-    def forward(self, var, edge_index):
-        var = self.propagate(edge_index, var=var)
+    def forward(self, var):
+        var = self.propagate(self.edge_index, var=var)
         return var
 
     def message(self, var_j):
@@ -1233,6 +1234,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.boundary_lstm.teacher_forcing = self.teacher_forcing
             boundary_pred, boundary_h = self.boundary_lstm(data)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
+        elif self.boundary_model == 'Extrapolation':
+            self.extrapolation.edge_index = self.edges[torch.logical_not(self.boundary2boundary_edges)]
 
         for t in forecast_horizon:
 
@@ -1246,8 +1249,8 @@ class BirdFluxGraphLSTM(MessagePassing):
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                           boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
             elif self.boundary_model == 'Extrapolation':
-                x_extrapolated = self.extrapolation(x, self.edges[torch.logical_not(self.boundary2boundary_edges)])
-                h_extrapolated = self.extrapolation(h_t[-1], self.edges[torch.logical_not(self.boundary2boundary_edges)])
+                x_extrapolated = self.extrapolation(x)
+                h_extrapolated = self.extrapolation(h_t[-1])
 
                 x = x * torch.logical_not(data.boundary.view(-1, 1)) + \
                     x_extrapolated * data.boundary.view(-1, 1)
