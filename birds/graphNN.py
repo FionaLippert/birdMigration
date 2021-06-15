@@ -3013,6 +3013,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             mask = data.local_night & ~data.missing
         else:
             mask = ~data.missing
+        print(f'mask = {mask}')
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
