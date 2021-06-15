@@ -3010,9 +3010,9 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             constraints = 0
 
         if daymask:
-            mask = data.local_night & ~data.missing
+            mask = torch.logical_and(data.local_night, torch.logical_not(data.missing))
         else:
-            mask = ~data.missing
+            mask = torch.logical_not(data.missing)
         print(f'mask = {mask}')
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
