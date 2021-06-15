@@ -3013,7 +3013,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
             mask = torch.logical_and(data.local_night, torch.logical_not(data.missing))
         else:
             mask = torch.logical_not(data.missing)
-        print(f'mask = {mask}')
+
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
@@ -3021,9 +3021,12 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
         print(f'tidx0 {data.tidx[0]}: loss = {loss}')
-        print(data.boundary)
+        print(data.env[..., 1])
+        print(data.directions[..., 1])
         print(gt[:, 1])
         print(output[:, 1])
+        print(data.env[..., 26])
+        print(data.directions[..., 26])
         print(gt[:, 26])
         print(output[:, 26])
         #print(loss, constraints)
