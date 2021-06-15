@@ -342,7 +342,6 @@ def test(cfg: DictConfig, output_dir: str, log):
                                    normalization=normalization,
                                    env_vars=cfg.datasource.env_vars,
                                    compute_fluxes=compute_fluxes,
-                                   use_nights=True
                                    )
     n_nodes = len(test_data.info['radars'])
     # boundary = [ridx for ridx, b in test_data.info['boundaries'].items() if b]

@@ -109,7 +109,7 @@ def plot_errors_per_radar(results, model, bird_scales={}):
 def plot_errors_per_radar_and_hour(results, model, bird_scales={}):
     fig, ax = plt.subplots(figsize=(15, 6))
 
-    results[model]['error'] = results[model].apply(lambda row: compute_error(row, bird_scales.get(model, 1)),
+    results[model]['error'] = results[model].apply(lambda row: compute_error(row, bird_scales.get(model, 1))**2,
                                                    axis=1)
     # mse = results[m].groupby(['horizon', 'trial']).error.aggregate(np.nanmean).apply(np.sqrt)
     # mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
