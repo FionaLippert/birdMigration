@@ -1072,7 +1072,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 10 + 2*self.n_env
+        self.n_edge_in = 8 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
@@ -1302,11 +1302,14 @@ class BirdFluxGraphLSTM(MessagePassing):
         # inputs = [x_j.view(-1, 1), coords_i, coords_j, env_i, env_1_j, edge_attr,
         #                       night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
         #                     dusk_i.float().view(-1, 1), dawn_i.float().view(-1, 1)]
+        #TODO change this back!
+        # inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr,
+        #           night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
+        #           dawn_i.float().view(-1, 1), dawn_1_j.float().view(-1, 1)]
+
         inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr,
-                  night_i.float().view(-1, 1), night_1_j.float().view(-1, 1),
-                  dawn_i.float().view(-1, 1), dawn_1_j.float().view(-1, 1)]
-        # features = [coords_i, coords_j, env_i, env_1_j, edge_attr,
-        #             night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+                  night_i.float().view(-1, 1), night_1_j.float().view(-1, 1)]
+
         inputs = torch.cat(inputs, dim=1)
 
 
@@ -2438,7 +2441,7 @@ class RecurrentEncoder(torch.nn.Module):
         super(RecurrentEncoder, self).__init__()
 
         self.timesteps = kwargs.get('timesteps', 12)
-        self.n_in = 10 + kwargs.get('n_env', 4)
+        self.n_in = 8 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -2493,8 +2496,13 @@ class RecurrentEncoder(torch.nn.Module):
     def update(self, env, coords, x, local_night, local_dawn, local_dusk, bird_uv, directions, speeds, h_t, c_t):
 
         #print(env.shape, coords.shape, bird_uv.shape)
+        #TODO change this back!
+        # inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
+        #                     local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv,
+        #                     directions.view(-1, 1), speeds.view(-1, 1)], dim=1)
+
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
-                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv,
+                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1),
                             directions.view(-1, 1), speeds.view(-1, 1)], dim=1)
 
         inputs = self.node2hidden(inputs)
