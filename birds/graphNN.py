@@ -1244,8 +1244,9 @@ class BirdFluxGraphLSTM(MessagePassing):
             if r < self.teacher_forcing:
                 # print('use teacher forcing')
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].bool().view(-1, 1) * x + \
-                    torch.logical_not(data.missing[..., t-1].bool().view(-1, 1)) * data.x[..., t-1].view(-1, 1)
+                # x = data.missing[..., t-1].bool().view(-1, 1) * x + \
+                #     torch.logical_not(data.missing[..., t-1].bool().view(-1, 1)) * data.x[..., t-1].view(-1, 1)
+                x = data.x[..., t-1].view(-1, 1)
 
 
             if self.boundary_model == 'LocalLSTM':
