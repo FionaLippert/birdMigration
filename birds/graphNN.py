@@ -1194,7 +1194,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.edges = data.edge_index
         self.boundary2inner_edges = data.boundary2inner_edges
         self.inner2boundary_edges = data.inner2boundary_edges
-        self.boundary2boundary_edges = data.boundary2boundary_edges
+        # self.boundary2boundary_edges = data.boundary2boundary_edges
         self.inner_edges = data.inner_edges
         self.reverse_edges = data.reverse_edges
         self.boundary = data.boundary.bool()
@@ -1235,6 +1235,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             boundary_pred, boundary_h = self.boundary_lstm(data)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
         elif self.boundary_model == 'Extrapolation':
+            self.boundary2boundary_edges = data.boundary2boundary_edges
             self.extrapolation.edge_index = self.edges[torch.logical_not(self.boundary2boundary_edges)]
 
         for t in forecast_horizon:
