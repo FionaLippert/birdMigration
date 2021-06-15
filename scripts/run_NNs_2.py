@@ -56,7 +56,8 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      env_vars=cfg.datasource.env_vars,
                                      compute_fluxes=cfg.model.get('compute_fluxes', False))
                   for year in cfg.datasource.training_years]
-
+    print(data[0].info['radars'])
+    print(data[1].info['radars'])
     n_nodes = len(data[0].info['radars'])
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
