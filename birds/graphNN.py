@@ -1242,7 +1242,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             r = torch.rand(1)
             if r < self.teacher_forcing:
-                print('use teacher forcing')
+                # print('use teacher forcing')
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].bool().view(-1, 1) * x + \
                     ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
@@ -2976,7 +2976,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
                  teacher_forcing=1.0, daymask=True, boundary_constraint_only=False):
     model.train()
     loss_all = 0
-    for data in train_loader:
+    for nidx, data in enumerate(train_loader):
         data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
@@ -3019,7 +3019,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         #print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
-        print(f'loss = {loss}')
+        print(f'seq {nidx}: loss = {loss}')
         #print(loss, constraints)
         loss = loss + constraints
         loss_all += data.num_graphs * float(loss)
