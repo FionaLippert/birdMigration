@@ -1245,17 +1245,22 @@ class BirdFluxGraphLSTM(MessagePassing):
                 # print('use teacher forcing')
                 # if data is available use ground truth, otherwise use model prediction
                 x = data.missing[..., t-1].bool().view(-1, 1) * x + \
-                    ~data.missing[..., t-1].bool().view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                    torch.logical_not(data.missing[..., t-1].bool().view(-1, 1)) * data.x[..., t-1].view(-1, 1)
+
 
             if self.boundary_model == 'LocalLSTM':
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                           boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
+
             elif self.boundary_model == 'Extrapolation':
+                print(f'x before = {x}')
                 x_extrapolated = self.extrapolation(x)
                 h_extrapolated = self.extrapolation(h_t[-1])
 
                 x = x * torch.logical_not(data.boundary.view(-1, 1)) + \
                     x_extrapolated * data.boundary.view(-1, 1)
+
+                print(f'x after = {x}')
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                     h_extrapolated * data.boundary.view(-1, 1)
 
@@ -3021,12 +3026,12 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
         print(f'tidx0 {data.tidx[0]}: loss = {loss}')
-        print(data.env[..., 1])
-        print(data.directions[..., 1])
+        # print(data.env[..., 1])
+        # print(data.directions[..., 1])
         print(gt[:, 1])
         print(output[:, 1])
-        print(data.env[..., 26])
-        print(data.directions[..., 26])
+        # print(data.env[..., 26])
+        # print(data.directions[..., 26])
         print(gt[:, 26])
         print(output[:, 26])
         #print(loss, constraints)
