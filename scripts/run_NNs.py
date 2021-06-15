@@ -380,7 +380,7 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl')))
         except Exception:
-            model = torch.load(osp.join(model_dir, f'model_{r}.pkl'))
+            model = torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device))
 
 
         # adjust model settings for testing
