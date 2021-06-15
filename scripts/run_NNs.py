@@ -378,7 +378,7 @@ def test(cfg: DictConfig, output_dir: str, log):
                   encoder_type=encoder_type,
                   boundary_model=cfg.model.get('boundary_model', None))
 
-            model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl')))
+            model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device)))
         except Exception:
             model = torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device))
 
