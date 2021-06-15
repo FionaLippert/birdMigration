@@ -1254,14 +1254,14 @@ class BirdFluxGraphLSTM(MessagePassing):
                           boundary_h[..., t-self.t_context-1] * data.boundary.view(-1, 1)
 
             elif self.boundary_model == 'Extrapolation':
-                print(f'x before = {x}')
+                # print(f'x before = {x}')
                 x_extrapolated = self.extrapolation(x)
                 h_extrapolated = self.extrapolation(h_t[-1])
 
                 x = x * torch.logical_not(data.boundary.view(-1, 1)) + \
                     x_extrapolated * data.boundary.view(-1, 1)
 
-                print(f'x after = {x}')
+                # print(f'x after = {x}')
                 h_t[-1] = h_t[-1] * torch.logical_not(data.boundary.view(-1, 1)) + \
                     h_extrapolated * data.boundary.view(-1, 1)
 
@@ -3027,15 +3027,15 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
         print(f'tidx0 {data.tidx[0]}: loss = {loss}')
-        print(model.boundary)
+        # print(model.boundary)
         # print(data.env[..., 1])
         # print(data.directions[..., 1])
-        print(gt[:, 1])
-        print(output[:, 1])
+        # print(gt[:, 1])
+        # print(output[:, 1])
         # print(data.env[..., 26])
         # print(data.directions[..., 26])
-        print(gt[:, 26])
-        print(output[:, 26])
+        # print(gt[:, 26])
+        # print(output[:, 26])
         #print(loss, constraints)
         loss = loss + constraints
         loss_all += data.num_graphs * float(loss)
