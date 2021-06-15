@@ -367,20 +367,20 @@ def test(cfg: DictConfig, output_dir: str, log):
 
     for r in range(cfg.repeats):
 
-        try:
-            model = Model(**hp_settings, horizon=cfg.model.horizon, seed=(cfg.seed + r),
-                  n_env=2 + len(cfg.datasource.env_vars),
-                  n_nodes=n_nodes,
-                  fixed_boundary=fixed_boundary, force_zeros=cfg.model.get('force_zeros', 0),
-                  edge_type=cfg.edge_type, use_encoder=use_encoder, context=context,
-                  use_acc_vars=cfg.model.get('use_acc_vars', False),
-                  enforce_conservation=cfg.model.get('enforce_conservation', False),
-                  encoder_type=encoder_type,
-                  boundary_model=cfg.model.get('boundary_model', None))
+        # try:
+        model = Model(**hp_settings, horizon=cfg.model.horizon, seed=(cfg.seed + r),
+              n_env=2 + len(cfg.datasource.env_vars),
+              n_nodes=n_nodes,
+              fixed_boundary=fixed_boundary, force_zeros=cfg.model.get('force_zeros', 0),
+              edge_type=cfg.edge_type, use_encoder=use_encoder, context=context,
+              use_acc_vars=cfg.model.get('use_acc_vars', False),
+              enforce_conservation=cfg.model.get('enforce_conservation', False),
+              encoder_type=encoder_type,
+              boundary_model=cfg.model.get('boundary_model', None))
 
-            model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device)))
-        except Exception:
-            model = torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device))
+        model.load_state_dict(torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device)))
+        # except Exception:
+        #     model = torch.load(osp.join(model_dir, f'model_{r}.pkl'), map_location=torch.device(device))
 
 
         # adjust model settings for testing
