@@ -1380,7 +1380,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         # self.local_fluxes_A = self.local_fluxes_A - self.local_fluxes_A.T
         # flux = self.local_fluxes_A[self.edges[0], self.edges[1]]
-        print(f'flux = {flux}')
+        # print(f'flux = {flux}')
         flux = flux.view(-1, 1)
 
         return flux
@@ -1418,10 +1418,10 @@ class BirdFluxGraphLSTM(MessagePassing):
         if not self.training:
             self.local_deltas[..., t] = delta
 
-        print(f'delta = {delta}')
-        print(f'aggr out = {aggr_out}')
+        # print(f'delta = {delta}')
+        # print(f'aggr out = {aggr_out}')
         pred = x + delta + aggr_out # take messages into account for inner cells only
-        print(f'pred = {pred}')
+        # print(f'pred = {pred}')
         #pred = pred.relu() # enforce positive bird densities
 
         return pred, h_t, c_t
@@ -3019,6 +3019,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         #print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
+        print(f'loss = {loss}')
         #print(loss, constraints)
         loss = loss + constraints
         loss_all += data.num_graphs * float(loss)
