@@ -3019,7 +3019,8 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         #print(diff.size(), loss_func(output, gt, mask).detach(), constraints.detach())
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
-        print(f'seq {nidx}: loss = {loss}')
+        print(f'tidx0 {data.tidx[0]}: loss = {loss}')
+        print(gt[:, 0])
         #print(loss, constraints)
         loss = loss + constraints
         loss_all += data.num_graphs * float(loss)
