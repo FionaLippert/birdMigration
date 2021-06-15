@@ -8,7 +8,7 @@ import run_NNs_2
 @hydra.main(config_path="conf2", config_name="config")
 def run(cfg: DictConfig):
 
-    print(f'output directory: {cfg.outputdir}')
+    print(f'output directory: {cfg.output_dir}')
     os.makedirs(cfg.output_dir, exist_ok=True)
 
     log_file = os.path.join(cfg.output_dir, 'log.txt')
