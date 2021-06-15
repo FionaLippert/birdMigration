@@ -3026,6 +3026,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         constraints = conservation_constraint * constraints
         loss = loss_func(output, gt, mask)
         print(f'tidx0 {data.tidx[0]}: loss = {loss}')
+        print(model.boundary)
         # print(data.env[..., 1])
         # print(data.directions[..., 1])
         print(gt[:, 1])
