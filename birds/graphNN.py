@@ -1236,7 +1236,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
         elif self.boundary_model == 'Extrapolation':
             self.boundary2boundary_edges = data.boundary2boundary_edges
-            self.extrapolation.edge_index = self.edges[torch.logical_not(self.boundary2boundary_edges)]
+            self.extrapolation.edge_index = self.edges[:, torch.logical_not(self.boundary2boundary_edges)]
 
         for t in forecast_horizon:
 
