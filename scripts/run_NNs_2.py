@@ -159,19 +159,19 @@ def train(cfg: DictConfig, output_dir: str, log):
     tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
     for epoch in range(epochs):
         if 'BirdFluxGraphLSTM' in cfg.model.name:
-            loss = train_fluxes(model, train_loader, optimizer, loss_func, device, n_train,
+            loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
                                 teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
                                 boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
         elif cfg.model.name == 'testFluxMLP':
             loss = train_testFluxMLP(model, train_loader, optimizer, loss_func, device)
         else:
-            loss = train_dynamics(model, train_loader, optimizer, loss_func, device, n_train, teacher_forcing=tf,
+            loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
                               daymask=cfg.model.get('force_zeros', 0))
         training_curve[0, epoch] = loss / n_train
         print(f'epoch {epoch + 1}: loss = {training_curve[0, epoch]}')
 
-        val_loss = test_dynamics(model, val_loader, loss_func, device, n_val, bird_scale=1,
+        val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
                                  daymask=cfg.model.get('force_zeros', 0)).cpu()
         val_loss = val_loss[torch.isfinite(val_loss)].mean()
         val_curve[0, epoch] = val_loss
