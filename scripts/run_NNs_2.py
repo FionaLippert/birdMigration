@@ -115,6 +115,8 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
+    elif cfg.model.get('weighted_loss', False):
+        loss_func = utils.MSE_weighted
     else:
         loss_func = utils.MSE
 
@@ -141,7 +143,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     model = model.to(device)
     params = model.parameters()
     optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
-    scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay)
+    scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay, gamma=cfg.model.get('lr_gamma', 0.1))
 
     print('model on GPU?', next(model.parameters()).is_cuda)
 

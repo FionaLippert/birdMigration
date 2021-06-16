@@ -27,18 +27,18 @@ def MSE(output, gt, mask):
     mse = torch.sum(diff2 * mask) / torch.sum(mask)
     return mse
 
-# def MSE_weighted(output, gt, mask):
-#     # errors = (output - gt)**2
-#     # errors = errors[mask]
-#     # mse = errors.mean()
-#
-#     #print(output.shape, gt.shape, torch.sum(mask))
-#     diff = torch.abs(output - gt)
-#     # print(torch.isnan(output).sum(), torch.isnan(gt).sum(), torch.isnan(diff).sum())
-#     diff2 = torch.square(diff)
-#     weight = torch.square(gt)
-#     mse = torch.sum(diff2 * mask) / torch.sum(mask)
-#     return mse
+def MSE_weighted(output, gt, mask, p=0.75):
+    # errors = (output - gt)**2
+    # errors = errors[mask]
+    # mse = errors.mean()
+
+    #print(output.shape, gt.shape, torch.sum(mask))
+    diff = torch.abs(output - gt)
+    # print(torch.isnan(output).sum(), torch.isnan(gt).sum(), torch.isnan(diff).sum())
+    diff2 = torch.square(diff)
+    weight = 1 + torch.pow(torch.abs(gt), p)
+    mse = torch.sum(diff2 * weight * mask) / torch.sum(mask)
+    return mse
 
 def MSE_root_transformed(output, gt, mask, root=3):
     errors = (torch.pow(output.relu(), 1/root) - torch.pow(gt, 1/root))**2
