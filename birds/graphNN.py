@@ -3178,6 +3178,7 @@ def test_flows(model, test_loader, loss_func, device, get_outfluxes=True, bird_s
 def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_scale=1,
                 fixed_boundary=False, daymask=True):
     model.eval()
+    model.teacher_forcing = 0
     loss_all = []
     fluxes = {}
 
@@ -3214,6 +3215,7 @@ def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_sca
 def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymask=True):
 
     model.eval()
+    model.teacher_forcing = 0
     loss_all = []
 
     for nidx, data in enumerate(test_loader):
