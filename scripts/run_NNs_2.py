@@ -83,7 +83,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of validation sequences = {n_val}')
     # data = data.shuffle()
     n_train = int(n_train / batch_size)
-    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
+    train_data, val_data = random_split(data, (n_data - n_val, n_val), generator=torch.Generator().manual_seed(cfg.seed))
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     print(len(train_loader))
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
