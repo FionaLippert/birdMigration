@@ -76,13 +76,15 @@ def train(cfg: DictConfig, output_dir: str, log):
         n_train = int(cfg.data_perc * (n_data - n_val))
         # train_exclude = all_indices[:-n_train] # train indices: n_data - n_train to n_data
         #exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
+
     train_idx = all_indices[-n_train:]
-    print(f'number of training sequences = {n_train}')
+    print(f'number of training sequences = {n_data - n_val}')
     print(f'number of validation sequences = {n_val}')
     # data = data.shuffle()
-    train_loader = DataLoader(data[train_idx], batch_size=batch_size, shuffle=True)
+    n_train = int(n_train / batch_size)
+    train_loader = DataLoader(data[n_val:], batch_size=batch_size, shuffle=True)
     print(len(train_loader))
-    val_loader = DataLoader(data[val_idx], batch_size=1, shuffle=False)
+    val_loader = DataLoader(data[:n_val], batch_size=1, shuffle=True)
     print(len(val_loader))
 
 
@@ -155,19 +157,19 @@ def train(cfg: DictConfig, output_dir: str, log):
     tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
     for epoch in range(epochs):
         if 'BirdFluxGraphLSTM' in cfg.model.name:
-            loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
+            loss = train_fluxes(model, train_loader, optimizer, loss_func, device, n_train,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
                                 teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
                                 boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
         elif cfg.model.name == 'testFluxMLP':
             loss = train_testFluxMLP(model, train_loader, optimizer, loss_func, device)
         else:
-            loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
+            loss = train_dynamics(model, train_loader, optimizer, loss_func, device, n_train, teacher_forcing=tf,
                               daymask=cfg.model.get('force_zeros', 0))
         training_curve[0, epoch] = loss / n_train
         print(f'epoch {epoch + 1}: loss = {training_curve[0, epoch]}')
 
-        val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
+        val_loss = test_dynamics(model, val_loader, loss_func, device, n_val, bird_scale=1,
                                  daymask=cfg.model.get('force_zeros', 0)).cpu()
         val_loss = val_loss[torch.isfinite(val_loss)].mean()
         val_curve[0, epoch] = val_loss

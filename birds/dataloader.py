@@ -36,11 +36,11 @@ def rescale(features, min=None, max=None):
         rescaled /= (max - min)
     return rescaled
 
-def reshape(data, nights, mask, timesteps, use_nights=True):
+def reshape(data, nights, mask, timesteps, use_nights=True, index=None):
     if use_nights:
         reshaped = reshape_nights(data, nights, mask, timesteps)
     else:
-        reshaped = reshape_t(data, timesteps)
+        reshaped = reshape_t(data, timesteps, index)
     return reshaped
 
 def reshape_nights(data, nights, mask, timesteps):
@@ -49,9 +49,12 @@ def reshape_nights(data, nights, mask, timesteps):
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
-def reshape_t(data, timesteps):
+def reshape_t(data, timesteps, index=None):
 
-    reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1)]
+    # reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1)]
+    if index is None:
+        index = np.arange(0, data.shape[-1] - timesteps - 1)
+    reshaped = [data[..., t:t + timesteps + 1] for t in index]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
@@ -185,6 +188,9 @@ class RadarData(InMemoryDataset):
         self.compute_fluxes = kwargs.get('compute_fluxes', False)
 
         self.use_nights = kwargs.get('use_nights', True)
+        self.seed = kwargs.get('seed', 1234)
+        self.rng = np.random.default_rng(self.seed)
+        self.data_perc = kwargs.get('data_perc', 1.0)
 
         measurements = 'from_buffers' if self.use_buffers else 'voronoi_cells'
         self.processed_dirname = f'measurements={measurements}_root_transform={self.root_transform}_use_nights={self.use_nights}_' \
@@ -449,8 +455,14 @@ class RadarData(InMemoryDataset):
         else:
             mask = check_all
 
+        if self.use_nights:
+            n_seq = self.data_perc * (mask.shape[-1] - self.timesteps - 1)
+            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps - 1)[:self.n_seq]
+        else:
+            seq_index = None
+
         for k, v in data.items():
-            data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights)
+            data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
 
 
 
