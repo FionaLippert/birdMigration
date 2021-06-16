@@ -67,7 +67,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
     n_val = int(cfg.datasource.val_train_split * n_data)
     all_indices = torch.from_numpy(rng.permutation(n_data))
-    val_exclude = all_indices[n_val:] # val indices: 0 to n_val-1
+    val_idx = all_indices[:n_val] # val indices: 0 to n_val-1
 
     if cfg.use_nights:
         # train_exclude = all_indices[:n_val] # train indices: n_val to n_data
@@ -76,13 +76,13 @@ def train(cfg: DictConfig, output_dir: str, log):
         n_train = int(cfg.data_perc * (n_data - n_val))
         # train_exclude = all_indices[:-n_train] # train indices: n_data - n_train to n_data
         #exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
-
+    train_idx = all_indices[-n_train:]
     print(f'number of training sequences = {n_train}')
     print(f'number of validation sequences = {n_val}')
-    data = data.shuffle()
-    train_loader = DataLoader(data[:n_train], batch_size=batch_size, shuffle=True)
+    # data = data.shuffle()
+    train_loader = DataLoader(data[train_idx], batch_size=batch_size, shuffle=True)
     print(len(train_loader))
-    val_loader = DataLoader(data[-n_val:], batch_size=1, shuffle=False)
+    val_loader = DataLoader(data[val_idx], batch_size=1, shuffle=False)
     print(len(val_loader))
 
 
