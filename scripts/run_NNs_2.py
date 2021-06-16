@@ -1,6 +1,7 @@
 from birds import dataloader, utils
 from birds.graphNN import *
 import torch
+from torch.utils.data import random_split
 from torch.optim import lr_scheduler
 from torch_geometric.data import DataLoader, DataListLoader
 from torch_geometric.utils import to_dense_adj
@@ -82,9 +83,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of validation sequences = {n_val}')
     # data = data.shuffle()
     n_train = int(n_train / batch_size)
-    train_loader = DataLoader(data[n_val:], batch_size=batch_size, shuffle=True)
+    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
+    train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     print(len(train_loader))
-    val_loader = DataLoader(data[:n_val], batch_size=1, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
     print(len(val_loader))
 
 
