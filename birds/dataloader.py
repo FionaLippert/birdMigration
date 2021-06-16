@@ -461,7 +461,7 @@ class RadarData(InMemoryDataset):
             n_seq = int(self.data_perc * (mask.shape[-1] - self.timesteps - 1))
             print(f'data_perc = {self.data_perc}')
             print(f'n_seq = {n_seq}')
-            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps - 1)[:self.n_seq]
+            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps - 1)[:n_seq]
 
         for k, v in data.items():
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
