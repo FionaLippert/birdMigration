@@ -572,8 +572,9 @@ class LocalLSTM(torch.nn.Module):
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].view(-1, 1) * x + \
-                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                # x = data.missing[..., t-1].view(-1, 1) * x + \
+                #     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                x = data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.step(x, data.coords, data.areas, data.local_dusk[:, t-1], data.local_dawn[:, t],
                                     data.env[..., t], data.local_night[:, t], h_t, c_t, enc_states, self.t_context)
@@ -603,11 +604,13 @@ class LocalLSTM(torch.nn.Module):
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = torch.matmul(torch.tanh(enc_states + hidden),
+                                  self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
-            context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
+            context = torch.matmul(alpha.unsqueeze(1),
+                                   enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
@@ -619,10 +622,10 @@ class LocalLSTM(torch.nn.Module):
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         if self.predict_delta:
-            delta = self.mlp_out(h_t[-1]).tanh()
+            delta = torch.tanh(self.mlp_out(h_t[-1]))
             x = x + delta
         else:
-            x = self.mlp_out(h_t[-1]).sigmoid()
+            x = torch.sigmoid(self.mlp_out(h_t[-1]))
 
         return x, h_t, c_t
 
@@ -1325,16 +1328,16 @@ class BirdFluxGraphLSTM(MessagePassing):
         inputs = torch.cat([inputs, h_j], dim=1)
 
         flux = F.leaky_relu(self.fc_edge_in(inputs))
-        flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+        flux = F.dropout(flux, p=self.dropout_p, training=self.training, inplace=False)
 
         for l in self.fc_edge_hidden:
             flux = F.leaky_relu(l(flux))
-            flux = F.dropout(flux, p=self.dropout_p, training=self.training)
+            flux = F.dropout(flux, p=self.dropout_p, training=self.training, inplace=False)
 
         flux = self.fc_edge_out(flux) #.tanh()
 
         # enforce fluxes to be symmetric along edges
-        flux = flux.sigmoid() # bird density flying from node j to node i should be positive
+        flux = torch.sigmoid(flux) # bird density flying from node j to node i should be positive
         flux = flux * x_j
 
         # self.local_fluxes_A[self.edges[0], self.edges[1]] = flux.squeeze()
@@ -1406,11 +1409,11 @@ class BirdFluxGraphLSTM(MessagePassing):
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = torch.matmul(torch.tanh(enc_states + hidden), self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
-            context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
+            context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
@@ -1420,7 +1423,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=True)
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
-        delta = self.hidden2delta(h_t[-1]).tanh()
+        delta = torch.tanh(self.hidden2delta(h_t[-1]))
         if not self.training:
             self.local_deltas[..., t] = delta
 
@@ -2048,8 +2051,9 @@ class AttentionGraphLSTM(MessagePassing):
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].view(-1, 1) * x + \
-                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                # x = data.missing[..., t-1].view(-1, 1) * x + \
+                #     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                x = data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
                                                 h_t=h_t, c_t=c_t,
@@ -2092,10 +2096,10 @@ class AttentionGraphLSTM(MessagePassing):
         context_j = self.context_embedding(h_j)
         context_i = self.context_embedding(h_i)
 
-        alpha = (features + context_i + context_j).tanh().mm(self.attention_s)
+        alpha = torch.tanh(features + context_i + context_j).mm(self.attention_s)
         alpha = softmax(alpha, index)
         self.alphas_s[..., t] = alpha
-        alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
+        alpha = F.dropout(alpha, p=self.dropout_p, training=self.training, inplace=False)
 
         msg = context_j * alpha
         return msg
@@ -2112,10 +2116,10 @@ class AttentionGraphLSTM(MessagePassing):
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states + hidden).matmul(self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = torch.matmul(torch.tanh(enc_states + hidden), self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             self.alphas_t[..., t] = alpha
-            context = alpha.unsqueeze(1).matmul(enc_states).squeeze() # shape (radars x hidden)
+            context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([aggr_out, inputs, context], dim=1)
         else:
@@ -2123,16 +2127,16 @@ class AttentionGraphLSTM(MessagePassing):
 
 
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
-        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
-        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
+        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=False)
+        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=False)
         for l in range(self.n_lstm_layers-1):
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         if self.predict_delta:
-            delta = self.hidden2delta(h_t[-1]).tanh()
+            delta = torch.tanh(self.hidden2delta(h_t[-1]))
             pred = x + delta
         else:
-            pred = self.hidden2delta(h_t[-1]).sigmoid()
+            pred = torch.sigmoid(self.hidden2delta(h_t[-1]))
 
         return pred, h_t, c_t
 
@@ -2424,9 +2428,9 @@ class RecurrentEncoderSpatial(MessagePassing):
         context_j = self.context_embedding(h_j)
         context_i = self.context_embedding(h_i)
 
-        alpha = (features + context_i + context_j).tanh().mm(self.attention_s)
+        alpha = torch.mm(torch.tanh(features + context_i + context_j), self.attention_s)
         alpha = softmax(alpha, index)
-        alpha = F.dropout(alpha, p=self.dropout_p, training=self.training)
+        alpha = F.dropout(alpha, p=self.dropout_p, training=self.training, inplace=False)
 
         self.alphas[..., t] = alpha
 
@@ -2441,8 +2445,8 @@ class RecurrentEncoderSpatial(MessagePassing):
         inputs = torch.cat([inputs, aggr_out], dim=1)
 
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
-        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training)
-        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training)
+        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=False)
+        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=False)
         for l in range(self.n_lstm_layers - 1):
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 

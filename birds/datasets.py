@@ -50,10 +50,13 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         radar_dir = osp.join(data_dir, 'radar')
         voronoi_radars = voronoi.query('observed == True')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, ['vid'],
-                                                         t_unit=t_unit, mask_days=False, radar_names=voronoi_radars.radar)
+                                                         t_unit=t_unit, mask_days=False,
+                                                         radar_names=voronoi_radars.radar,
+                                                         interpolate_nans=False)
 
         radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['ff', 'dd', 'u', 'v'],
-                                                         t_unit=t_unit, mask_days=False, radar_names=voronoi_radars.radar,
+                                                          t_unit=t_unit, mask_days=False,
+                                                          radar_names=voronoi_radars.radar,
                                                           interpolate_nans=True)
 
         bird_speed = radar_data[:, 0, :]
