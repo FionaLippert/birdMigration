@@ -77,10 +77,14 @@ def train(cfg: DictConfig, output_dir: str, log):
         train_exclude = all_indices[:-n_train] # train indices: n_data - n_train to n_data
         #exclude_indices = torch.from_numpy(rng.choice(len(train_data), size=n_exclude, replace=False))
 
+    print(f'train_exclude = {train_exclude}')
+    print(f'val_exclude = {val_exclude}')
     print(f'number of training sequences = {n_train}')
     print(f'number of validation sequences = {n_val}')
     train_loader = DataLoader(data, batch_size=batch_size, shuffle=True, exclude_keys=list(train_exclude))
+    print(len(train_loader))
     val_loader = DataLoader(data, batch_size=1, shuffle=False, exclude_keys=list(val_exclude))
+    print(len(val_loader))
 
 
     if cfg.edge_type == 'voronoi':
@@ -147,9 +151,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay)
 
+    print('model on GPU?', next(model.parameters()).is_cuda)
+
     tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
     for epoch in range(epochs):
-        print('model on GPU?', next(model.parameters()).is_cuda)
         if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
