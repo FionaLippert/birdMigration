@@ -154,9 +154,9 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_lr = np.zeros(epochs)
     for epoch in range(epochs):
         all_tf[epoch] = tf
-        print(scheduler.get_last_lr())
+        scheduler.step()
         print(scheduler.get_lr())
-        all_lr[epoch] = scheduler.get_last_lr()[-1]
+        # all_lr[epoch] = scheduler.get_last_lr()[-1]
 
         if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
@@ -182,7 +182,6 @@ def train(cfg: DictConfig, output_dir: str, log):
             torch.save(model.state_dict(), osp.join(output_dir, f'model.pkl'))
             best_val_loss = val_loss
 
-        scheduler.step()
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
 
     print(f'validation loss = {best_val_loss}', file=log)
