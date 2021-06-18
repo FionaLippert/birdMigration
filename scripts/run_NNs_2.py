@@ -154,8 +154,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_lr = np.zeros(epochs)
     for epoch in range(epochs):
         all_tf[epoch] = tf
+        print(scheduler.get_last_lr())
+        print(scheduler.get_lr())
         all_lr[epoch] = scheduler.get_last_lr()
-        print(all_lr[epoch])
+
         if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
