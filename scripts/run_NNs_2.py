@@ -155,7 +155,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     for epoch in range(epochs):
         all_tf[epoch] = tf
         #print(scheduler.get_lr())
-        print(optimizer.param_groups[0]["lr"])
+        # print(optimizer.param_groups[0]["lr"])
         all_lr[epoch] = optimizer.param_groups[0]["lr"]
 
         if 'BirdFluxGraphLSTM' in cfg.model.name:
