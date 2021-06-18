@@ -62,13 +62,15 @@ def train(cfg: DictConfig, output_dir: str, log):
     n_nodes = len(data[0].info['radars'])
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
-    print(f'total number of sequences = {n_data}')
 
     # split data into training and validation set
-    rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
+    # rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
     n_val = max(1, int(cfg.datasource.val_train_split * n_data))
     n_train = n_data - n_val
 
+    print('------------------------------------------------------')
+    print('-------------------- data sets -----------------------')
+    print(f'total number of sequences = {n_data}')
     print(f'number of training sequences = {n_train}')
     print(f'number of validation sequences = {n_val}')
 
@@ -120,7 +122,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     else:
         loss_func = utils.MSE
 
-    print('-------------- hyperparamter settings ----------------')
+    print('------------------ model settings --------------------')
     print(cfg.model)
     print('------------------------------------------------------')
 
@@ -148,7 +150,12 @@ def train(cfg: DictConfig, output_dir: str, log):
     print('model on GPU?', next(model.parameters()).is_cuda)
 
     tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
+    all_tf = np.zeros(epochs)
+    all_lr = np.zeros(epochs)
     for epoch in range(epochs):
+        all_tf[epoch] = tf
+        all_lr[epoch] = scheduler.get_lr()
+        print(all_lr[epoch])
         if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
@@ -183,6 +190,8 @@ def train(cfg: DictConfig, output_dir: str, log):
     # save training and validation curves
     np.save(osp.join(output_dir, 'training_curves.npy'), training_curve)
     np.save(osp.join(output_dir, 'validation_curves.npy'), val_curve)
+    np.save(osp.join(output_dir, 'learning_rates.npy'), all_lr)
+    np.save(osp.join(output_dir, 'teacher_forcing.npy'), all_tf)
 
     # plotting
     utils.plot_training_curves(training_curve, val_curve, output_dir, log=True)
