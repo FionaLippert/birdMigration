@@ -154,7 +154,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_lr = np.zeros(epochs)
     for epoch in range(epochs):
         all_tf[epoch] = tf
-        scheduler.step()
         print(scheduler.get_lr())
         # all_lr[epoch] = scheduler.get_last_lr()[-1]
 
@@ -183,6 +182,7 @@ def train(cfg: DictConfig, output_dir: str, log):
             best_val_loss = val_loss
 
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
+        scheduler.step()
 
     print(f'validation loss = {best_val_loss}', file=log)
 
