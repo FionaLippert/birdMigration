@@ -1213,7 +1213,6 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
-            print(len(h_t))
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -2460,7 +2459,7 @@ class RecurrentEncoder(torch.nn.Module):
         self.timesteps = kwargs.get('timesteps', 12)
         self.n_in = 10 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
@@ -2539,7 +2538,7 @@ class RecurrentEncoder2(torch.nn.Module):
         self.timesteps = kwargs.get('timesteps', 12)
         self.n_in = 6 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
