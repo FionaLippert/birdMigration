@@ -133,7 +133,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     print(f'train model')
     print(cfg.datasource.env_vars)
-    model = Model(**cfg.model, timesteps=cfg.model.horizon, seed=(cfg.seed),
+    model = Model(**cfg.model, timesteps=cfg.model.horizon, seed=(cfg.seed + cfg.get('job_id', 0)),
                   n_env=2+len(cfg.datasource.env_vars),
                   n_nodes=n_nodes,
                   edge_type=cfg.edge_type)
@@ -279,7 +279,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         results['outfluxes'] = []
 
 
-    model = Model(**model_cfg['model'], seed=cfg.seed,
+    model = Model(**model_cfg['model'], seed=(cfg.seed + cfg.get('job_id', 0)),
           n_env=2 + len(cfg.datasource.env_vars),
           n_nodes=n_nodes,
           edge_type=cfg.edge_type)
