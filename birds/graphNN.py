@@ -1123,7 +1123,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
         else:
             self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers-1)])
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
@@ -1213,6 +1213,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
+            print(len(h_t))
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -1419,8 +1420,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
         for l in range(self.n_lstm_layers - 1):
-            h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=True)
-            c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=True)
+            h_t[l] = F.dropout(h_t[l], p=self.dropout_p, training=self.training, inplace=True)
+            c_t[l] = F.dropout(c_t[l], p=self.dropout_p, training=self.training, inplace=True)
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         delta = torch.tanh(self.hidden2delta(h_t[-1]))
