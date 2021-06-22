@@ -9,7 +9,7 @@ import run_NNs_2
 def run(cfg: DictConfig):
 
     print(f'output directory: {cfg.output_dir}')
-    os.makedirs(cfg.output_dir, exist_ok=True)
+    os.makedirs(osp.join(cfg.output_dir, f'job_{cfg.get("job_id", 0)}'), exist_ok=True)
 
     log_file = os.path.join(cfg.output_dir, 'log.txt')
     log = open(log_file, 'w')
