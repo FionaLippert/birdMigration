@@ -1,6 +1,6 @@
 # @package _group_
 name: LocalLSTM
-n_hidden: 64
+n_hidden: 128
 n_lstm_layers: 1
 dropout_p: 0.25
 lr: 0.0001

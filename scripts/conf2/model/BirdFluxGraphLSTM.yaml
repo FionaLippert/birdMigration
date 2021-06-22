@@ -1,17 +1,17 @@
 # @package _group_
 name: BirdFluxGraphLSTM
-n_hidden: 64
+n_hidden: 128
 n_fc_layers: 2
 n_fc_layers_fluxmlp: 2
 n_hidden_fluxmlp: 64
 n_lstm_layers: 1
 dropout_p: 0.25
 lr: 0.0001
-lr_decay: 50
+lr_decay: 100
 lr_gamma: 0.1
 teacher_forcing_gamma: 0.95
 conservation_constraint: 0.0
-epochs: 100
+epochs: 200
 horizon: 40
 fixed_boundary: true
 force_zeros: false
