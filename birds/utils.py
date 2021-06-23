@@ -15,6 +15,18 @@ def val_test_split(dataloader, val_ratio, random_seed):
 
     return val_loader, test_loader
 
+def MSE_numpy(output, gt, mask):
+    # errors = (output - gt)**2
+    # errors = errors[mask]
+    # mse = errors.mean()
+
+    #print(output.shape, gt.shape, torch.sum(mask))
+    diff = output - gt
+    # print(torch.isnan(output).sum(), torch.isnan(gt).sum(), torch.isnan(diff).sum())
+    diff2 = np.square(diff)
+    mse = np.sum(diff2 * mask) / np.sum(mask)
+    return mse
+
 def MSE(output, gt, mask):
     # errors = (output - gt)**2
     # errors = errors[mask]

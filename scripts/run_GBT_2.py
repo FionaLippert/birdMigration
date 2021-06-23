@@ -77,7 +77,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
 
     y_hat = gbt.predict(X_val)
-    val_loss = utils.MSE(y_hat, y_val, mask_val)
+    val_loss = utils.MSE_numpy(y_hat, y_val, mask_val)
 
     print(f'validation loss = {val_loss}', file=log)
 
