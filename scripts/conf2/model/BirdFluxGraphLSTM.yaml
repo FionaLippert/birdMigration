@@ -13,6 +13,7 @@ teacher_forcing_gamma: 0.95
 conservation_constraint: 0.0
 epochs: 200
 horizon: 40
+test_horizon: 64
 fixed_boundary: false
 force_zeros: false
 use_encoder: true

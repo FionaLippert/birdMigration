@@ -9,6 +9,7 @@ teacher_forcing_gamma: 0.95
 predict_delta: true
 epochs: 200
 horizon: 40
+test_horizon: 64
 force_zeros: false
 root_transformed_loss: false
 use_encoder: true

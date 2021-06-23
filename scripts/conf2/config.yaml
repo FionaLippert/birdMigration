@@ -2,7 +2,6 @@
 experiment: test
 defaults:
   - datasource: radar
-  - action: training
   - model: LocalLSTM
 root: /home/fiona/birdMigration
 output_dir: results

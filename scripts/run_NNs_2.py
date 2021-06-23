@@ -57,8 +57,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                      env_vars=cfg.datasource.env_vars,
                                      compute_fluxes=cfg.model.get('compute_fluxes', False))
                   for year in cfg.datasource.training_years]
-    print(data[0].info['radars'])
-    print(data[1].info['radars'])
+
     n_nodes = len(data[0].info['radars'])
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
@@ -215,10 +214,9 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     if model_dir is None: model_dir = output_dir
     
     device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
-    birds_per_km2 = cfg.get('birds_per_km2', False)
 
     context = cfg.model.get('context', 0)
-    seq_len = context + cfg.model.horizon
+    seq_len = context + cfg.model.test_horizon
     seq_shift = context // 24
 
     compute_fluxes = cfg.model.get('compute_fluxes', False)
@@ -286,7 +284,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
 
     # adjust model settings for testing
-    model.horizon = cfg.model.horizon
+    model.horizon = cfg.model.test_horizon
     if cfg.model.get('fixed_boundary', 0):
         model.fixed_boundary = True
         model.perturbation_mean = p_mean

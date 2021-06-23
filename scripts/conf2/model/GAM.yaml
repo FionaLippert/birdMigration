@@ -1,3 +1,4 @@
 # @package _group_
 name: GAM
 horizon: 24
+test_horizon: 64

@@ -572,9 +572,9 @@ class LocalLSTM(torch.nn.Module):
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].view(-1, 1) * x + \
-                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
-                # x = data.x[..., t-1].view(-1, 1)
+                # x = data.missing[..., t-1].view(-1, 1) * x + \
+                #     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                x = data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.step(x, data.coords, data.areas, data.local_dusk[:, t-1], data.local_dawn[:, t],
                                     data.env[..., t], data.local_night[:, t], h_t, c_t, enc_states, self.t_context)
@@ -604,8 +604,8 @@ class LocalLSTM(torch.nn.Module):
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.matmul(torch.tanh(enc_states + hidden),
-                                  self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = torch.tanh(enc_states + hidden)
+            scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
@@ -1123,7 +1123,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
         else:
             self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
-        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers-1)])
 
         self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                 torch.nn.Dropout(p=self.dropout_p),
@@ -1409,7 +1409,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.matmul(torch.tanh(enc_states + hidden), self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = torch.tanh(enc_states + hidden)
+            scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
@@ -1419,8 +1420,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
         for l in range(self.n_lstm_layers - 1):
-            h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=True)
-            c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=True)
+            h_t[l] = F.dropout(h_t[l], p=self.dropout_p, training=self.training, inplace=True)
+            c_t[l] = F.dropout(c_t[l], p=self.dropout_p, training=self.training, inplace=True)
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         delta = torch.tanh(self.hidden2delta(h_t[-1]))
@@ -2459,7 +2460,7 @@ class RecurrentEncoder(torch.nn.Module):
         self.timesteps = kwargs.get('timesteps', 12)
         self.n_in = 10 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
@@ -2523,9 +2524,9 @@ class RecurrentEncoder(torch.nn.Module):
 
         inputs = self.node2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
-        h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=False)
-        c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=False)
         for l in range(1, self.n_lstm_layers):
+            h_t[l-1] = F.dropout(h_t[l-1], p=self.dropout_p, training=self.training, inplace=False)
+            c_t[l-1] = F.dropout(c_t[l-1], p=self.dropout_p, training=self.training, inplace=False)
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
         return h_t, c_t
@@ -2538,7 +2539,7 @@ class RecurrentEncoder2(torch.nn.Module):
         self.timesteps = kwargs.get('timesteps', 12)
         self.n_in = 6 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
-        self.n_lstm_layers = kwargs.get('n_layers_lstm', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
         torch.manual_seed(kwargs.get('seed', 1234))
@@ -2590,8 +2591,8 @@ class RecurrentEncoder2(torch.nn.Module):
         inputs = self.node2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
-            h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=False)
-            c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=False)
+            h_t[l-1] = F.dropout(h_t[l-1], p=self.dropout_p, training=self.training, inplace=False)
+            c_t[l-1] = F.dropout(c_t[l-1], p=self.dropout_p, training=self.training, inplace=False)
             h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
 
 
@@ -3009,7 +3010,7 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
 
 
             diff = observed_fluxes - inferred_fluxes
-            diff = observed_fluxes**2 * diff # weight timesteps with larger fluxes more
+            diff = torch.square(observed_fluxes) * diff # weight timesteps with larger fluxes more
             if boundary_constraint_only:
                 edges = data.boundary2inner_edges + data.inner2boundary_edges
             else:
@@ -3098,9 +3099,9 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         gt = data.y
 
         if daymask:
-            mask = data.local_night & ~data.missing
+            mask = torch.logical_and(data.local_night, torch.logical_not(data.missing))
         else:
-            mask = ~data.missing
+            mask = torch.logical_not(data.missing)
 
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
