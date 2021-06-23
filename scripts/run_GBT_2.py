@@ -51,7 +51,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of validation sequences = {n_val}')
 
     train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
-    train_data = torch.utils.data.ConcatDataset(train_data)
     X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=seq_len, mask_daytime=False,
                                                     use_acc_vars=cfg.model.use_acc_vars)
 
