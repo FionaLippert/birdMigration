@@ -572,9 +572,9 @@ class LocalLSTM(torch.nn.Module):
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 # if data is available use ground truth, otherwise use model prediction
-                x = data.missing[..., t-1].view(-1, 1) * x + \
-                    ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
-                # x = data.x[..., t-1].view(-1, 1)
+                # x = data.missing[..., t-1].view(-1, 1) * x + \
+                #     ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+                x = data.x[..., t-1].view(-1, 1)
 
             x, h_t, c_t = self.step(x, data.coords, data.areas, data.local_dusk[:, t-1], data.local_dawn[:, t],
                                     data.env[..., t], data.local_night[:, t], h_t, c_t, enc_states, self.t_context)
