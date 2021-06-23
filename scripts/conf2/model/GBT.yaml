@@ -1,26 +1,9 @@
 # @package _group_
 name: GBT
-hyperparameters:
-  n_estimators:
-    default: 100
-    search_space:
-    - 100
-  lr:
-    default: 0.1
-    search_space:
-    - 0.01
-    - 0.05
-    - 0.1
-    - 0.2
-    - 0.3
-  max_depth:
-    default: 6
-    search_space:
-    - 4
-    - 6
-    - 8
-    - 10
-    - 12
+n_estimators: 100
+lr: 0.1
+max_depth: 6
 horizon: 24
+test_horizon: 64
 tolerance: 1e-8
 use_acc_vars: true

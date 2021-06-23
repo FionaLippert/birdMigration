@@ -117,10 +117,10 @@ def prepare_data_nights_and_radars_gam(dataset, timesteps, mask_daytime=False):
     return X, y, mask
 
 
-def fit_GBT(X, y, n_estimators=100, lr=0.05, max_depth=5, seed=1234, tol=1e-6):
+def fit_GBT(X, y, n_estimators=100, lr=0.05, max_depth=5, seed=1234, tolerance=1e-6):
 
     gbt = GradientBoostingRegressor(random_state=seed, n_estimators=n_estimators, learning_rate=lr,
-                                    max_depth=max_depth, tol=tol, n_iter_no_change=10)
+                                    max_depth=max_depth, tol=tolerance, n_iter_no_change=10)
     gbt.fit(X, y)
     return gbt
 

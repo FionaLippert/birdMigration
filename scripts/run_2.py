@@ -3,7 +3,7 @@ import hydra
 import os.path as osp
 import os
 import traceback
-import run_NNs_2
+import run_NNs_2, run_GAM_2
 
 @hydra.main(config_path="conf2", config_name="config")
 def run(cfg: DictConfig):
@@ -16,8 +16,18 @@ def run(cfg: DictConfig):
     log = open(log_file, 'w')
 
     try:
-        run_NNs_2.train(cfg, out, log)
-        run_NNs_2.test(cfg, out, log)
+        if cfg.model.name == 'GBT':
+            run_GBT_2.train(cfg, out, log)
+            run_GBT_2.test(cfg, out, log)
+        elif cfg.model.name == 'GAM':
+            run_GAM_2.train(cfg, out, log)
+            run_GAM_2.test(cfg, out, log)
+        elif cfg.model.name == 'HA':
+            run_HA_2.train(cfg, out, log)
+            run_HA_2.test(cfg, out, log)
+        else:
+            run_NNs_2.train(cfg, out, log)
+            run_NNs_2.test(cfg, out, log)
     except Exception:
         print(traceback.format_exc(), file=log)
     print('flush log')
