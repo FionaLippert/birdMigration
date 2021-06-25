@@ -38,7 +38,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    print(f'number of GPUs available: {torch.cuda.device_count()}')
     device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     batch_size = cfg.model.batch_size
     epochs = cfg.model.epochs
