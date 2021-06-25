@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run.py", line 29, in run
+    run_NNs.run(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 499, in run
+    train(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 84, in train
+    train_data = [dataloader.RadarData(year, seq_len, **cfg,
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 84, in <listcomp>
+    train_data = [dataloader.RadarData(year, seq_len, **cfg,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py", line 193, in __init__
+    super(RadarData, self).__init__(root, transform, pre_transform)
+NameError: name 'root' is not defined
+

@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run.py", line 29, in run
+    run_NNs.run(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 522, in run
+    train(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 288, in train
+    for key, val in best_hp_settings.items():
+AttributeError: 'NoneType' object has no attribute 'items'
+

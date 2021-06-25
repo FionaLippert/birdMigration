@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 161, in train
+    training_curve[epoch] = loss / len(train_data)
+NameError: name 'train_data' is not defined
+

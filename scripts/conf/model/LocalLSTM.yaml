@@ -2,7 +2,7 @@
 name: LocalLSTM
 hyperparameters:
   n_hidden:
-    default: 128
+    default: 64
     search_space:
     - 64
     - 128
@@ -15,28 +15,28 @@ hyperparameters:
     search_space:
     - 0.25
   lr:
-    default: 0.001
+    default: 0.0001
     search_space:
       - 0.001
       - 0.0001
       - 0.00001
       - 0.000001
   lr_decay:
-    default: 50
+    default: 100
     search_space:
     - 50
   teacher_forcing_gamma:
-    default: 0.9
+    default: 0.95
     search_space:
     - 0.9
   predict_delta:
     default: true
     search_space:
     - true
-epochs: 10
+epochs: 200
 horizon: 40
 force_zeros: false
 root_transformed_loss: false
-use_encoder: false
-context: 0
+use_encoder: true
+context: 24
 batch_size: 1

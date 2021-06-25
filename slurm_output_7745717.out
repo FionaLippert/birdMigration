@@ -1,0 +1,10 @@
+Could not override 'data_parallel'.
+To append to your config use +data_parallel=False
+Key 'data_parallel' is not in struct
+	full_key: data_parallel
+	reference_type=Optional[Dict[Union[str, Enum], Any]]
+	object_type=dict
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+srun: error: r30n6: task 0: Exited with exit code 1
+cp: cannot stat '/scratch/results': No such file or directory

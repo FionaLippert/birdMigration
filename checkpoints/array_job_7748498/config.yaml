@@ -1,0 +1,55 @@
+experiment: encoder_nights_2
+root: /scratch
+output_dir: /home/flippert/birdMigration/checkpoints/array_job_7748498
+season: fall
+seed: 7748498
+repeats: 1
+cuda: true
+root_transform: 0
+missing_data_threshold: 0.1
+t_unit: 1H
+edge_type: none
+birds_per_km2: true
+max_distance: 0
+n_dummy_radars: 0
+use_nights: true
+data_perc: 0.1
+exclude: []
+datasource:
+  name: radar
+  training_years:
+  - 2016
+  - 2017
+  validation_year: 2015
+  test_year: 2015
+  val_test_split: 0.25
+  val_train_split: 0.1
+  env_vars:
+  - u
+  - v
+  - cc
+  - tp
+  - sp
+  - t2m
+  - sshf
+  use_buffers: true
+  bird_scale: 293.01498
+action:
+  name: training
+  grid_search: true
+model:
+  name: LocalLSTM
+  n_hidden: 64
+  n_lstm_layers: 1
+  dropout_p: 0.25
+  lr: 0.0001
+  lr_decay: 100
+  teacher_forcing_gamma: 0.95
+  predict_delta: true
+  epochs: 2
+  horizon: 40
+  force_zeros: false
+  root_transformed_loss: false
+  use_encoder: true
+  context: 24
+  batch_size: 1

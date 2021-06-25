@@ -1,0 +1,81 @@
+experiment: encoder_no_nights
+root: /scratch
+season: fall
+seed: 1234
+repeats: 1
+cuda: true
+root_transform: 0
+missing_data_threshold: 0.1
+t_unit: 1H
+edge_type: none
+birds_per_km2: true
+max_distance: 0
+n_dummy_radars: 0
+use_nights: false
+data_perc: 0.1
+exclude: []
+data_parallel: false
+n_gpus: 1
+datasource:
+  name: radar
+  training_years:
+  - 2016
+  - 2017
+  validation_year: 2015
+  test_year: 2015
+  val_test_split: 0.25
+  env_vars:
+  - u
+  - v
+  - cc
+  - tp
+  - sp
+  - t2m
+  - sshf
+  use_buffers: true
+  bird_scale: 293.01498
+action:
+  name: training
+  grid_search: false
+model:
+  name: LocalLSTM
+  hyperparameters:
+    n_hidden:
+      default: 64
+      search_space:
+      - 64
+      - 128
+    n_lstm_layers:
+      default: 1
+      search_space:
+      - 1
+    dropout_p:
+      default: 0.25
+      search_space:
+      - 0.25
+    lr:
+      default: 0.0001
+      search_space:
+      - 0.001
+      - 0.0001
+      - 1.0e-05
+      - 1.0e-06
+    lr_decay:
+      default: 100
+      search_space:
+      - 50
+    teacher_forcing_gamma:
+      default: 0.95
+      search_space:
+      - 0.9
+    predict_delta:
+      default: true
+      search_space:
+      - true
+  epochs: 5
+  horizon: 40
+  force_zeros: false
+  root_transformed_loss: false
+  use_encoder: true
+  context: 24
+  batch_size: 1

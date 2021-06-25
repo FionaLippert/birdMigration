@@ -1,0 +1,72 @@
+normalize features
+load year 2016
+load year 2017
+load training data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+Use other edge type
+input col birds_km2
+55990 870
+birds_km2
+bird scale = 293.01498
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:509: RuntimeWarning: invalid value encountered in true_divide
+  edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2017
+number of nans:  8169
+max bird measurement 9580697.41157437
+Use other edge type
+input col birds_km2
+55990 8169
+birds_km2
+bird scale = 293.01498
+number of sequences = 81
+discarded 23 sequences due to missing data
+Done!
+training set size = 185
+loaded training data
+load val data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2015
+number of nans:  228
+max bird measurement 12157881.069388226
+Use other edge type
+input col birds_km2
+55990 228
+birds_km2
+bird scale = 293.01498
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+loaded val data
+----------------------------------------
+hyperparameter settings: {'n_hidden': 64, 'n_lstm_layers': 1, 'dropout_p': 0.25, 'lr': 0.0001, 'lr_decay': 100, 'teacher_forcing_gamma': 0.95, 'predict_delta': True}
+train model [trial 0]
+['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
+model on GPU? True
+epoch 1: loss = 0.0024107673186557115
+epoch 1: val loss = 0.00023135609808377922
+best model so far; save to disk ...
+model on GPU? True
+epoch 2: loss = 0.0007497080415329972
+epoch 2: val loss = 0.00020490919996518642
+best model so far; save to disk ...
+model on GPU? True
+epoch 3: loss = 0.0006444444586884709
+epoch 3: val loss = 0.00021679689234588295
+model on GPU? True
+epoch 4: loss = 0.0006579030473084139
+epoch 4: val loss = 0.00024021345598157495
+model on GPU? True
+epoch 5: loss = 0.0006410365952163104
+epoch 5: val loss = 0.0002595871628727764
+done with training
+plotting...
+completed training successfully
+free(): invalid pointer
+srun: error: r33n2: task 0: Aborted

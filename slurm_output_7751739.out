@@ -1,0 +1,14 @@
+drwx------              6 2021/06/11 20:42:49 .
+normalize features
+load year 2016
+load year 2017
+load data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+Use other edge type
+input col birds_km2
+55990 870
+birds_km2
+bird scale = 293.01498

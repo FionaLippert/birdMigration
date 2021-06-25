@@ -1,0 +1,8 @@
+validation loss = 0.000466413504909724
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 163, in train
+    print(f'epoch {epoch + 1}: loss = {training_curve[epoch]}')
+IndexError: index 1 is out of bounds for axis 0 with size 1
+

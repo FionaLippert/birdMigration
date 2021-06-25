@@ -1,0 +1,88 @@
+normalize features
+load training data
+Processing...
+/scratch/data/preprocessed/1H/voronoi_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+Use Voronoi tessellation
+input col birds_from_buffer
+55990 870
+birds_from_buffer
+bird scale = 9938497.9440479
+compute fluxes
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:475: RuntimeWarning: invalid value encountered in remainder
+  dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:490: RuntimeWarning: invalid value encountered in remainder
+  data['direction'] = (data['direction'] + 360) % 360
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+Processing...
+/scratch/data/preprocessed/1H/voronoi_dummy_radars=0_exclude=[]/radar/fall/2017
+number of nans:  8169
+max bird measurement 9580697.41157437
+Use Voronoi tessellation
+input col birds_from_buffer
+55990 8169
+birds_from_buffer
+bird scale = 9938497.9440479
+compute fluxes
+number of sequences = 81
+discarded 23 sequences due to missing data
+Done!
+training set size = 185
+loaded training data
+load val data
+Processing...
+/scratch/data/preprocessed/1H/voronoi_dummy_radars=0_exclude=[]/radar/fall/2015
+number of nans:  228
+max bird measurement 12157881.069388226
+Use Voronoi tessellation
+input col birds_from_buffer
+55990 228
+birds_from_buffer
+bird scale = 9938497.9440479
+compute fluxes
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+loaded val data
+----------------------------------------
+hyperparameter settings: {'n_hidden': 64, 'n_fc_layers': 2, 'n_fc_layers_fluxmlp': 2, 'n_hidden_fluxmlp': 64, 'n_lstm_layers': 1, 'dropout_p': 0.25, 'lr': 0.0001, 'lr_decay': 100, 'teacher_forcing_gamma': 0.95, 'conservation_constraint': 0.0}
+train model [trial 0]
+['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
+model on GPU? True
+epoch 1: loss = 0.001902577976658437
+epoch 1: val loss = 0.00012194404553156346
+best model so far; save to disk ...
+model on GPU? True
+epoch 2: loss = 0.00045392767324055724
+epoch 2: val loss = 4.303246896597557e-05
+best model so far; save to disk ...
+model on GPU? True
+epoch 3: loss = 0.00021627916745224816
+epoch 3: val loss = 3.902940443367697e-05
+best model so far; save to disk ...
+model on GPU? True
+epoch 4: loss = 0.0001623431081719212
+epoch 4: val loss = 4.049374183523469e-05
+model on GPU? True
+epoch 5: loss = 0.00014870786799784164
+epoch 5: val loss = 5.184097244637087e-05
+model on GPU? True
+epoch 6: loss = 0.00014347732410749665
+epoch 6: val loss = 5.078558388049714e-05
+model on GPU? True
+epoch 7: loss = 0.00014733626157976688
+epoch 7: val loss = 4.3976226152153686e-05
+model on GPU? True
+epoch 8: loss = 0.00015357691395242787
+epoch 8: val loss = 5.2617062465287745e-05
+model on GPU? True
+epoch 9: loss = 0.00016188471481409333
+epoch 9: val loss = 5.921184128965251e-05
+model on GPU? True
+epoch 10: loss = 0.00016359312664733166
+epoch 10: val loss = 5.09111414430663e-05
+free(): invalid pointer
+srun: error: r30n7: task 0: Aborted

@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 51, in train
+    data = [dataloader.RadarData(year, seq_len, **cfg,
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 51, in <listcomp>
+    data = [dataloader.RadarData(year, seq_len, **cfg,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py", line 193, in __init__
+    super(RadarData, self).__init__(self.root, transform, pre_transform)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch_geometric/data/in_memory_dataset.py", line 54, in __init__
+    super(InMemoryDataset, self).__init__(root, transform, pre_transform,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch_geometric/data/dataset.py", line 92, in __init__
+    self._process()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch_geometric/data/dataset.py", line 165, in _process
+    self.process()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py", line 427, in process
+    print('bird_uv shape = ', data['bird_uv'].shape)
+KeyError: 'bird_uv'
+

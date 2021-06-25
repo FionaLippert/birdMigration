@@ -1,0 +1,9 @@
+validation loss = 0.0005098255933262408
+validation loss = 0.0004950253642164171
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 18, in run
+    run_NNs_2.test(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 199, in test
+    assert cfg.action.name == 'testing'
+AssertionError
+

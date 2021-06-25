@@ -1,0 +1,9 @@
+validation loss = 0.0004911321448162198
+validation loss = 0.00047566345892846584
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 18, in run
+    run_NNs_2.test(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 240, in test
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len, **cfg,
+TypeError: birds.dataloader.RadarData() got multiple values for keyword argument 'use_nights'
+

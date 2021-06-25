@@ -1,0 +1,32 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 66, in train
+    n_val = int(cfg.datasource.val_train_split * n_data)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/dictconfig.py", line 305, in __getattr__
+    self._format_and_raise(key=key, value=None, cause=e)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/base.py", line 95, in _format_and_raise
+    format_and_raise(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/_utils.py", line 629, in format_and_raise
+    _raise(ex, cause)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/_utils.py", line 610, in _raise
+    raise ex  # set end OC_CAUSE=1 for full backtrace
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/dictconfig.py", line 303, in __getattr__
+    return self._get_impl(key=key, default_value=DEFAULT_VALUE_MARKER)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/dictconfig.py", line 361, in _get_impl
+    node = self._get_node(key=key)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/dictconfig.py", line 383, in _get_node
+    self._validate_get(key)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/dictconfig.py", line 135, in _validate_get
+    self._format_and_raise(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/base.py", line 95, in _format_and_raise
+    format_and_raise(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/_utils.py", line 694, in format_and_raise
+    _raise(ex, cause)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/omegaconf/_utils.py", line 610, in _raise
+    raise ex  # set end OC_CAUSE=1 for full backtrace
+omegaconf.errors.ConfigAttributeError: Key 'val_train_split' is not in struct
+	full_key: datasource.val_train_split
+	reference_type=Optional[Dict[Union[str, Enum], Any]]
+	object_type=dict
+

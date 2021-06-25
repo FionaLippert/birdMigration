@@ -1,0 +1,15 @@
+/home/flippert/.conda/envs/birds/bin/python
+srun: Warning: can't run 1 processes on 2 nodes, setting nnodes to 1
+srun: Job 7744352 step creation temporarily disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: Job 7744352 step creation still disabled, retrying (Requested nodes are busy)
+srun: error: Unable to create step for job 7744352: Job/step already completing or completed
+slurmstepd: error: *** JOB 7744352 ON r30n7 CANCELLED AT 2021-06-08T17:14:24 ***

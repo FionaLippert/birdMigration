@@ -1,0 +1,27 @@
+drwx------             10 2021/06/24 17:19:39 .
+output directory: /home/flippert/birdMigration/checkpoints/boundary_extrapolation_birdflux/array_job_7792668/job_1
+number of GPUs available: 2
+normalize features
+load year 2016
+load year 2017
+load data
+Processing...
+/scratch/data/preprocessed/1H/voronoi_dummy_radars=15_exclude=[]/radar/fall/2016
+number of nans:  39045
+max bird measurement 6549825.8914035065
+Use Voronoi tessellation
+input col birds_from_buffer
+94165 39045
+birds_from_buffer
+bird scale = 6549825.8914035065
+compute fluxes
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+flush log
+done
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:492: RuntimeWarning: invalid value encountered in remainder
+  dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:507: RuntimeWarning: invalid value encountered in remainder
+  data['direction'] = (data['direction'] + 360) % 360
+slurmstepd: error: *** JOB 7792668 ON r30n4 CANCELLED AT 2021-06-24T18:19:46 DUE TO TIME LIMIT ***

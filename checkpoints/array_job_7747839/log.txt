@@ -1,0 +1,23 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 47, in train
+    normalization = dataloader.Normalization(cfg.datasource.training_years,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py", line 91, in __init__
+    dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/parsers.py", line 610, in read_csv
+    return _read(filepath_or_buffer, kwds)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/parsers.py", line 462, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/parsers.py", line 819, in __init__
+    self._engine = self._make_engine(self.engine)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/parsers.py", line 1050, in _make_engine
+    return mapping[engine](self.f, **self.options)  # type: ignore[call-arg]
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/parsers.py", line 1867, in __init__
+    self._open_handles(src, kwds)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/parsers.py", line 1362, in _open_handles
+    self.handles = get_handle(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/pandas/io/common.py", line 642, in get_handle
+    handle = open(
+FileNotFoundError: [Errno 2] No such file or directory: '/scratch/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2016/dynamic_features.csv'
+

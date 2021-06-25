@@ -1,0 +1,17 @@
+/home/flippert/.conda/envs/birds/bin/python
+normalize features
+load training data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+[(0, 0, {'distance': 0.0, 'angle': 360.0}), (1, 1, {'distance': 0.0, 'angle': 360.0}), (2, 2, {'distance': 0.0, 'angle': 360.0}), (3, 3, {'distance': 0.0, 'angle': 360.0}), (4, 4, {'distance': 0.0, 'angle': 360.0}), (5, 5, {'distance': 0.0, 'angle': 360.0}), (6, 6, {'distance': 0.0, 'angle': 360.0}), (7, 7, {'distance': 0.0, 'angle': 360.0}), (8, 8, {'distance': 0.0, 'angle': 360.0}), (9, 9, {'distance': 0.0, 'angle': 360.0}), (10, 10, {'distance': 0.0, 'angle': 360.0}), (11, 11, {'distance': 0.0, 'angle': 360.0}), (12, 12, {'distance': 0.0, 'angle': 360.0}), (13, 13, {'distance': 0.0, 'angle': 360.0}), (14, 14, {'distance': 0.0, 'angle': 360.0}), (15, 15, {'distance': 0.0, 'angle': 360.0}), (16, 16, {'distance': 0.0, 'angle': 360.0}), (17, 17, {'distance': 0.0, 'angle': 360.0}), (18, 18, {'distance': 0.0, 'angle': 360.0}), (19, 19, {'distance': 0.0, 'angle': 360.0}), (20, 20, {'distance': 0.0, 'angle': 360.0}), (21, 21, {'distance': 0.0, 'angle': 360.0})]
+normalize distances
+normalize angles
+Use other edge type
+input col birds_km2
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:33: RuntimeWarning: invalid value encountered in true_divide
+  return (features - min) / (max - min)
+55990 870
+birds_km2
+bird scale = 293.01498

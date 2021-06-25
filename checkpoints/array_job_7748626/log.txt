@@ -1,0 +1,9 @@
+validation loss = 0.00047931558219715953
+validation loss = 0.00047170554171316326
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 18, in run
+    run_NNs_2.test(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 271, in test
+    model = Model(**model_cfg.model, seed=cfg.seed,
+AttributeError: 'CommentedMap' object has no attribute 'model'
+

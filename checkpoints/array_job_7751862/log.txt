@@ -1,0 +1,2 @@
+validation loss = 0.00042377194040454924
+successfully saved results to /home/flippert/birdMigration/checkpoints/array_job_7751862/results.csv

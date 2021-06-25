@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 29, in run
+    run_NNs_2.train(cfg, out, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 53, in train
+    data = [dataloader.RadarData(year, seq_len, **cfg,
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 53, in <listcomp>
+    data = [dataloader.RadarData(year, seq_len, **cfg,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py", line 201, in __init__
+    self.data, self.slices = torch.load(self.processed_paths[0])
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/serialization.py", line 594, in load
+    return _load(opened_zipfile, map_location, pickle_module, **pickle_load_args)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/serialization.py", line 853, in _load
+    result = unpickler.load()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/serialization.py", line 845, in persistent_load
+    load_tensor(data_type, size, key, _maybe_decode_ascii(location))
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/serialization.py", line 833, in load_tensor
+    storage = zip_file.get_storage_from_record(name, size, dtype).storage()
+RuntimeError: [enforce fail at inline_container.cc:222] . file not found: archive/data/94597262233888
+

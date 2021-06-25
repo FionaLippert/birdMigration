@@ -1,0 +1,174 @@
+drwx------              6 2021/06/12 01:13:16 .
+normalize features
+load year 2016
+load year 2017
+load data
+Processing...
+/scratch/data/preprocessed/1H/voronoi_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+Use Voronoi tessellation
+input col birds_from_buffer
+55990 870
+birds_from_buffer
+bird scale = 9938497.9440479
+compute fluxes
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:478: RuntimeWarning: invalid value encountered in remainder
+  dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:493: RuntimeWarning: invalid value encountered in remainder
+  data['direction'] = (data['direction'] + 360) % 360
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+Processing...
+/scratch/data/preprocessed/1H/voronoi_dummy_radars=0_exclude=[]/radar/fall/2017
+number of nans:  8169
+max bird measurement 9580697.41157437
+Use Voronoi tessellation
+input col birds_from_buffer
+55990 8169
+birds_from_buffer
+bird scale = 9938497.9440479
+compute fluxes
+number of sequences = 81
+discarded 23 sequences due to missing data
+Done!
+total number of sequences = 185
+number of training sequences = 167
+number of validation sequences = 18
+-------------- hyperparamter settings ----------------
+{'name': 'BirdFluxGraphLSTM', 'n_hidden': 64, 'n_fc_layers': 2, 'n_fc_layers_fluxmlp': 2, 'n_hidden_fluxmlp': 64, 'n_lstm_layers': 1, 'dropout_p': 0.25, 'lr': 0.0001, 'lr_decay': 50, 'teacher_forcing_gamma': 0.95, 'conservation_constraint': 0.0, 'epochs': 2, 'horizon': 40, 'fixed_boundary': True, 'force_zeros': False, 'use_encoder': True, 'context': 24, 'root_transformed_loss': False, 'enforce_conservation': False, 'compute_fluxes': True, 'boundary_constraint_only': True, 'perturbation_std': 0, 'perturbation_mean': 0, 'batch_size': 1, 'boundary_model': 'none', 'load_states_from': 'none'}
+------------------------------------------------------
+train model
+['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
+model on GPU? True
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+tensor(0, device='cuda:0') tensor(0, device='cuda:0') tensor(0, device='cuda:0')
+[W python_anomaly_mode.cpp:104] Warning: Error detected in MmBackward. Traceback of forward call that caused the error:
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 26, in <module>
+    run()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/main.py", line 32, in decorated_main
+    _run_hydra(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/utils.py", line 346, in _run_hydra
+    run_and_report(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/utils.py", line 198, in run_and_report
+    return func()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/utils.py", line 347, in <lambda>
+    lambda: hydra.run(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/hydra.py", line 107, in run
+    return run_job(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/core/utils.py", line 127, in run_job
+    ret.return_value = task_function(task_cfg)
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 153, in train
+    loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 2966, in train_fluxes
+    output = model(data) #.view(-1)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 1257, in forward
+    x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch_geometric/nn/conv/message_passing.py", line 256, in propagate
+    return self.update(out, **update_kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 1392, in update
+    enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/linear.py", line 93, in forward
+    return F.linear(input, self.weight, self.bias)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/functional.py", line 1692, in linear
+    output = input.matmul(weight.t())
+ (function _print_stack)
+srun: error: r30n6: task 0: Segmentation fault

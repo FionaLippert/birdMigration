@@ -1,0 +1,102 @@
+/home/flippert/.conda/envs/birds/bin/python
+normalize features
+load training data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+[(0, 0, {'distance': 0.0, 'angle': 360.0}), (1, 1, {'distance': 0.0, 'angle': 360.0}), (2, 2, {'distance': 0.0, 'angle': 360.0}), (3, 3, {'distance': 0.0, 'angle': 360.0}), (4, 4, {'distance': 0.0, 'angle': 360.0}), (5, 5, {'distance': 0.0, 'angle': 360.0}), (6, 6, {'distance': 0.0, 'angle': 360.0}), (7, 7, {'distance': 0.0, 'angle': 360.0}), (8, 8, {'distance': 0.0, 'angle': 360.0}), (9, 9, {'distance': 0.0, 'angle': 360.0}), (10, 10, {'distance': 0.0, 'angle': 360.0}), (11, 11, {'distance': 0.0, 'angle': 360.0}), (12, 12, {'distance': 0.0, 'angle': 360.0}), (13, 13, {'distance': 0.0, 'angle': 360.0}), (14, 14, {'distance': 0.0, 'angle': 360.0}), (15, 15, {'distance': 0.0, 'angle': 360.0}), (16, 16, {'distance': 0.0, 'angle': 360.0}), (17, 17, {'distance': 0.0, 'angle': 360.0}), (18, 18, {'distance': 0.0, 'angle': 360.0}), (19, 19, {'distance': 0.0, 'angle': 360.0}), (20, 20, {'distance': 0.0, 'angle': 360.0}), (21, 21, {'distance': 0.0, 'angle': 360.0})]
+normalize distances
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:33: RuntimeWarning: invalid value encountered in true_divide
+  return (features - min) / (max - min)
+normalize angles
+Use other edge type
+input col birds_km2
+55990 870
+birds_km2
+bird scale = 293.01498
+number of sequences = 2480
+discarded 0 sequences due to missing data
+Done!
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2017
+number of nans:  8169
+max bird measurement 9580697.41157437
+[(0, 0, {'distance': 0.0, 'angle': 360.0}), (1, 1, {'distance': 0.0, 'angle': 360.0}), (2, 2, {'distance': 0.0, 'angle': 360.0}), (3, 3, {'distance': 0.0, 'angle': 360.0}), (4, 4, {'distance': 0.0, 'angle': 360.0}), (5, 5, {'distance': 0.0, 'angle': 360.0}), (6, 6, {'distance': 0.0, 'angle': 360.0}), (7, 7, {'distance': 0.0, 'angle': 360.0}), (8, 8, {'distance': 0.0, 'angle': 360.0}), (9, 9, {'distance': 0.0, 'angle': 360.0}), (10, 10, {'distance': 0.0, 'angle': 360.0}), (11, 11, {'distance': 0.0, 'angle': 360.0}), (12, 12, {'distance': 0.0, 'angle': 360.0}), (13, 13, {'distance': 0.0, 'angle': 360.0}), (14, 14, {'distance': 0.0, 'angle': 360.0}), (15, 15, {'distance': 0.0, 'angle': 360.0}), (16, 16, {'distance': 0.0, 'angle': 360.0}), (17, 17, {'distance': 0.0, 'angle': 360.0}), (18, 18, {'distance': 0.0, 'angle': 360.0}), (19, 19, {'distance': 0.0, 'angle': 360.0}), (20, 20, {'distance': 0.0, 'angle': 360.0}), (21, 21, {'distance': 0.0, 'angle': 360.0})]
+normalize distances
+normalize angles
+Use other edge type
+input col birds_km2
+55990 8169
+birds_km2
+bird scale = 293.01498
+number of sequences = 1936
+discarded 544 sequences due to missing data
+Done!
+training set size = 442
+loaded training data
+load val data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2015
+number of nans:  228
+max bird measurement 12157881.069388226
+[(0, 0, {'distance': 0.0, 'angle': 360.0}), (1, 1, {'distance': 0.0, 'angle': 360.0}), (2, 2, {'distance': 0.0, 'angle': 360.0}), (3, 3, {'distance': 0.0, 'angle': 360.0}), (4, 4, {'distance': 0.0, 'angle': 360.0}), (5, 5, {'distance': 0.0, 'angle': 360.0}), (6, 6, {'distance': 0.0, 'angle': 360.0}), (7, 7, {'distance': 0.0, 'angle': 360.0}), (8, 8, {'distance': 0.0, 'angle': 360.0}), (9, 9, {'distance': 0.0, 'angle': 360.0}), (10, 10, {'distance': 0.0, 'angle': 360.0}), (11, 11, {'distance': 0.0, 'angle': 360.0}), (12, 12, {'distance': 0.0, 'angle': 360.0}), (13, 13, {'distance': 0.0, 'angle': 360.0}), (14, 14, {'distance': 0.0, 'angle': 360.0}), (15, 15, {'distance': 0.0, 'angle': 360.0}), (16, 16, {'distance': 0.0, 'angle': 360.0}), (17, 17, {'distance': 0.0, 'angle': 360.0}), (18, 18, {'distance': 0.0, 'angle': 360.0}), (19, 19, {'distance': 0.0, 'angle': 360.0}), (20, 20, {'distance': 0.0, 'angle': 360.0}), (21, 21, {'distance': 0.0, 'angle': 360.0})]
+normalize distances
+normalize angles
+Use other edge type
+input col birds_km2
+55990 228
+birds_km2
+bird scale = 293.01498
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+loaded val data
+----------------------------------------
+hyperparameter settings: {'n_hidden': 128, 'n_lstm_layers': 1, 'dropout_p': 0.25, 'lr': 0.0001, 'lr_decay': 100, 'teacher_forcing_gamma': 0.95, 'predict_delta': True}
+train model [trial 0]
+['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
+model on GPU? True
+epoch 1: loss = 0.0005178881507468806
+epoch 1: val loss = 0.00016958142805378884
+best model so far; save to disk ...
+model on GPU? True
+[W python_anomaly_mode.cpp:104] Warning: Error detected in MmBackward. Traceback of forward call that caused the error:
+  File "/home/flippert/birdMigration/scripts/run.py", line 38, in <module>
+    run()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/main.py", line 32, in decorated_main
+    _run_hydra(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/utils.py", line 346, in _run_hydra
+    run_and_report(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/utils.py", line 198, in run_and_report
+    return func()
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/utils.py", line 347, in <lambda>
+    lambda: hydra.run(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/_internal/hydra.py", line 107, in run
+    return run_job(
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/hydra/core/utils.py", line 127, in run_job
+    ret.return_value = task_function(task_cfg)
+  File "/home/flippert/birdMigration/scripts/run.py", line 29, in run
+    run_NNs.run(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 506, in run
+    results['residual'] = results['gt'] - results['prediction']
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 216, in train
+    tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 3162, in train_dynamics
+    output = model(data)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 586, in forward
+    x, h_t, c_t = self.propagate(data.edge_index, x=x, coords=data.coords, areas=data.areas,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch_geometric/nn/conv/message_passing.py", line 256, in propagate
+    return self.update(out, **update_kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 625, in update
+    enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/linear.py", line 93, in forward
+    return F.linear(input, self.weight, self.bias)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/functional.py", line 1692, in linear
+    output = input.matmul(weight.t())
+ (function _print_stack)
+srun: error: r32n7: task 0: Segmentation fault

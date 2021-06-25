@@ -1,0 +1,8 @@
+validation loss = 0.0004466797399800271
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 18, in run
+    run_NNs_2.test(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 375, in test
+    if torch.is_tensor(v[0]):
+IndexError: list index out of range
+

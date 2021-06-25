@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run.py", line 29, in run
+    run_NNs.run(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 499, in run
+    train(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 139, in train
+    val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
+TypeError: birds.dataloader.RadarData() got multiple values for keyword argument 'use_nights'
+

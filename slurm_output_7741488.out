@@ -1,0 +1,84 @@
+/home/flippert/.conda/envs/birds/bin/python
+normalize features
+load training data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2016
+number of nans:  870
+max bird measurement 9938497.9440479
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:33: RuntimeWarning: invalid value encountered in true_divide
+  return (features - min) / (max - min)
+Use other edge type
+input col birds_km2
+55990 870
+birds_km2
+bird scale = 293.01498
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:488: UserWarning: indexing with dtype torch.uint8 is now deprecated, please use a dtype torch.bool instead. (Triggered internally at  /opt/conda/conda-bld/pytorch_1607370151529/work/aten/src/ATen/native/IndexingUtils.h:25.)
+  data['speed'][np.isnan(data['speed'])] = -1
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:489: UserWarning: indexing with dtype torch.uint8 is now deprecated, please use a dtype torch.bool instead. (Triggered internally at  /opt/conda/conda-bld/pytorch_1607370151529/work/aten/src/ATen/native/IndexingUtils.h:25.)
+  data['bird_uv'][np.isnan(data['bird_uv'])] = 0 #TODO necessary?
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:527: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float),
+/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/dataloader.py:528: UserWarning: To copy construct from a tensor, it is recommended to use sourceTensor.clone().detach() or sourceTensor.clone().detach().requires_grad_(True), rather than torch.tensor(sourceTensor).
+  bird_uv=torch.tensor(data['bird_uv'][..., nidx], dtype=torch.float))
+number of sequences = 2480
+discarded 0 sequences due to missing data
+Done!
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2017
+number of nans:  8169
+max bird measurement 9580697.41157437
+Use other edge type
+input col birds_km2
+55990 8169
+birds_km2
+bird scale = 293.01498
+number of sequences = 1936
+discarded 544 sequences due to missing data
+Done!
+training set size = 4416
+loaded training data
+load val data
+Processing...
+/scratch/data/preprocessed/1H/none_dummy_radars=0_exclude=[]/radar/fall/2015
+number of nans:  228
+max bird measurement 12157881.069388226
+Use other edge type
+input col birds_km2
+55990 228
+birds_km2
+bird scale = 293.01498
+number of sequences = 104
+discarded 0 sequences due to missing data
+Done!
+loaded val data
+----------------------------------------
+hyperparameter settings: {'n_hidden': 128, 'n_lstm_layers': 1, 'dropout_p': 0.25, 'lr': 0.0001, 'lr_decay': 100, 'teacher_forcing_gamma': 0.95, 'predict_delta': True}
+train model [trial 0]
+['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
+epoch 1: loss = 0.000474611543737275
+epoch 1: val loss = 0.00016939840861596167
+best model so far; save to disk ...
+epoch 2: loss = nan
+epoch 2: val loss = 0.0
+best model so far; save to disk ...
+epoch 3: loss = nan
+epoch 3: val loss = 0.0
+best model so far; save to disk ...
+epoch 4: loss = nan
+epoch 4: val loss = 0.0
+best model so far; save to disk ...
+epoch 5: loss = nan
+epoch 5: val loss = 0.0
+best model so far; save to disk ...
+epoch 6: loss = nan
+epoch 6: val loss = 0.0
+best model so far; save to disk ...
+epoch 7: loss = nan
+epoch 7: val loss = 0.0
+best model so far; save to disk ...
+epoch 8: loss = nan
+epoch 8: val loss = 0.0
+best model so far; save to disk ...
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** JOB 7741488 ON r32n7 CANCELLED AT 2021-06-08T14:30:01 ***
+slurmstepd: error: *** STEP 7741488.0 ON r32n7 CANCELLED AT 2021-06-08T14:30:01 ***

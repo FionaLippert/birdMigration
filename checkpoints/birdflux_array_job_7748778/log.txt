@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run_2.py", line 17, in run
+    run_NNs_2.train(cfg, cfg.output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 153, in train
+    loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 2934, in train_fluxes
+    output = model(data) #.view(-1)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 1188, in forward
+    enc_states, h_t, c_t = self.encoder(data)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/torch/nn/modules/module.py", line 727, in _call_impl
+    result = self.forward(*input, **kwargs)
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 2449, in forward
+    h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
+  File "/home/flippert/.conda/envs/birds/lib/python3.9/site-packages/birds-0.1.0-py3.9.egg/birds/graphNN.py", line 2461, in update
+    inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
+RuntimeError: Tensors must have same number of dimensions: got 2 and 1
+

@@ -1,0 +1,13 @@
+best settings so far with settings {'n_hidden': 64, 'n_lstm_layers': 1, 'dropout_p': 0.25, 'lr': 0.0001, 'lr_decay': 100, 'teacher_forcing_gamma': 0.95, 'predict_delta': True}
+validation loss = 0.00022892304987180977
+---------------------
+saving best settings as default
+Traceback (most recent call last):
+  File "/home/flippert/birdMigration/scripts/run.py", line 29, in run
+    run_NNs.run(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 518, in run
+    train(cfg, output_dir, log)
+  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 276, in train
+    with open(fp, 'r') as f:
+FileNotFoundError: [Errno 2] No such file or directory: '/scratch/scripts/conf/model/LocalLSTM.yaml'
+
