@@ -152,6 +152,7 @@ class RadarData(InMemoryDataset):
     def __init__(self, year, timesteps, transform=None, pre_transform=None, **kwargs):
 
         self.root = kwargs.get('data_root')
+        self.sub_dir = osp.join(self.root, kwargs.get('sub_dir', ''))
         self.season = kwargs.get('season')
         self.year = str(year)
         self.timesteps = timesteps
@@ -218,7 +219,7 @@ class RadarData(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        return osp.join(self.root, 'processed', self.processed_dirname, self.data_source, self.season, self.year)
+        return osp.join(self.sub_dir, 'processed', self.processed_dirname, self.data_source, self.season, self.year)
 
     @property
     def processed_file_names(self):

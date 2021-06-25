@@ -38,7 +38,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
+    device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     batch_size = cfg.model.batch_size
     epochs = cfg.model.epochs
     seq_len = cfg.model.get('context', 0) + cfg.model.horizon

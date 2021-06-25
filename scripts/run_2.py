@@ -8,7 +8,7 @@ import run_NNs_2, run_GAM_2, run_GBT_2, run_HA_2
 @hydra.main(config_path="conf2", config_name="config")
 def run(cfg: DictConfig):
 
-    out = osp.join(cfg.output_dir, f'job_{cfg.get("job_id", 0)}')
+    out = osp.join(cfg.output_dir, cfg.get('sub_dir', ''))
     print(f'output directory: {out}')
     os.makedirs(out, exist_ok=True)
 

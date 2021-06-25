@@ -1,5 +1,6 @@
 # main config file
 experiment: test
+job_id: 0
 defaults:
   - datasource: radar
   - model: LocalLSTM
