@@ -598,11 +598,13 @@ class LocalLSTM(torch.nn.Module):
 
         inputs = torch.cat([x.view(-1, 1), coords, env, dusk.float().view(-1, 1),
                             dawn.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+        assert torch.all(torch.isfinite(inputs))
         inputs = self.fc_in(inputs)
 
         if self.use_encoder:
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            assert torch.all(torch.isfinite(enc_states))
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states + hidden)
             scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
@@ -1323,6 +1325,8 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         inputs = torch.cat(inputs, dim=1)
 
+        assert torch.all(torch.isfinite(inputs))
+
 
         inputs = self.fc_edge_embedding(inputs)
         inputs = torch.cat([inputs, h_j], dim=1)
@@ -1403,11 +1407,15 @@ class BirdFluxGraphLSTM(MessagePassing):
         else:
             inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
                                 dusk.float().view(-1, 1), night.float().view()], dim=1)
+
+        assert torch.all(torch.isfinite(inputs))
         inputs = self.node2hidden(inputs)
 
         if self.use_encoder:
             # temporal attention based on encoder states
             enc_states = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            assert torch.all(torch.isfinite(enc_states))
+
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states + hidden)
             scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
@@ -2517,6 +2525,7 @@ class RecurrentEncoder(torch.nn.Module):
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
                             local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv,
                             directions.view(-1, 1), speeds.view(-1, 1)], dim=1)
+        assert torch.all(torch.isfinite(inputs))
 
         # inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
         #                     local_dusk.float().view(-1, 1), local_night.float().view(-1, 1),
@@ -2588,6 +2597,7 @@ class RecurrentEncoder2(torch.nn.Module):
     def update(self, env, coords, x, local_night, local_dawn, local_dusk, h_t, c_t):
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
                             local_dusk.float().view(-1, 1), local_night.float().view(-1, 1)], dim=1)
+        assert torch.all(torch.isfinite(inputs))
         inputs = self.node2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
