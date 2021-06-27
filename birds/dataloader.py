@@ -505,14 +505,15 @@ class RadarData(InMemoryDataset):
             data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
             data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
-        data['direction'] = (data['direction'] + 360) % 360
-        data['direction'] = rescale(data['direction'], min=0, max=360)
+        dir_mask = np.isfinite(data['direction'])
+        data['direction'][dir_mask] = (data['direction'][dir_mask] + 360) % 360
+        data['direction'][dir_mask] = rescale(data['direction'][dir_mask], min=0, max=360)
+        data['direction'][~dir_mask] = -1
 
-        data['direction'][np.isnan(data['direction'])] = -1
         data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
                                                                                   - self.normalization.min('bird_speed'))
-        data['speed'][np.isnan(data['speed'])] = -1
-        data['bird_uv'][np.isnan(data['bird_uv'])] = 0 #TODO necessary?
+        data['speed'][~np.isfinite(data['speed'])] = -1
+        data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
@@ -523,7 +524,7 @@ class RadarData(InMemoryDataset):
         data['inputs'] = data['inputs'] * data['nighttime']
         data['targets'] = data['targets'] * data['nighttime']
 
-        edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
+        # edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
         R, T, N = data['inputs'].shape
 
         # create graph data objects per night
@@ -541,7 +542,7 @@ class RadarData(InMemoryDataset):
                           boundary2boundary_edges=boundary2boundary_edges.bool(),
                           inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
-                          edge_weight=torch.tensor(edge_weights, dtype=torch.float),
+                          # edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
                           day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
