@@ -374,7 +374,6 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         # with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
         #     pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
 
-    del data, model
 
     with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
         pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
