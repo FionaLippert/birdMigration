@@ -1423,7 +1423,11 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # temporal attention based on encoder states
             enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
-            assert torch.all(torch.isfinite(enc_states))
+            if not torch.all(torch.isfinite(enc_states_new)):
+                # TODO run again to see if weights are exploding or vanishing
+                print('enc_states_new', enc_states_new)
+                print('weights', self.fc_encoder.weight)
+                print('gradients', self.fc_encoder.weight.grad)
 
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states_new + hidden)
