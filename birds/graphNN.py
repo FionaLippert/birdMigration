@@ -3125,8 +3125,8 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
-        print('gt shape: ', gt.shape)
-        print('mask size: ', mask.sum())
+        # print('gt shape: ', gt.shape)
+        # print('mask size: ', mask.sum())
         if not torch.all(torch.isfinite(gt)):
             print(gt)
             assert 0

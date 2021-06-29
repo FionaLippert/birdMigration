@@ -188,12 +188,6 @@ def train(cfg: DictConfig, output_dir: str, log):
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
         scheduler.step()
 
-        print('model on GPU?', next(model.parameters()).is_cuda)
-        cd = torch.cuda.current_device()
-        print('on which GPU?', torch.cuda.current_device())
-        print('how many GPUs do I see?', torch.cuda.device_count())
-        print('GPU name', torch.cuda.get_device_name(cd))
-
     print(f'validation loss = {best_val_loss}', file=log)
 
     log.flush()
@@ -214,7 +208,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     log.flush()
 
 
-def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
+def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
     assert cfg.model.name in MODEL_MAPPING
     #assert cfg.action.name == 'testing'
 
@@ -372,14 +366,14 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
 
 
     if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
-        with open(osp.join(output_dir, f'local_fluxes.pickle'), 'wb') as f:
+        with open(osp.join(output_dir, f'local_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
-        with open(osp.join(output_dir, f'radar_fluxes.pickle'), 'wb') as f:
+        with open(osp.join(output_dir, f'radar_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
-        with open(osp.join(output_dir, f'radar_mtr.pickle'), 'wb') as f:
+        with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:
             pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
     if cfg.model.name == 'AttentionGraphLSTM':
-        with open(osp.join(output_dir, f'attention_weights.pickle'), 'wb') as f:
+        with open(osp.join(output_dir, f'attention_weights{ext}.pickle'), 'wb') as f:
             pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
         # with open(osp.join(output_dir, f'attention_weights_state_{r}.pickle'), 'wb') as f:
         #     pickle.dump(attention_weights_state, f, pickle.HIGHEST_PROTOCOL)
@@ -397,9 +391,9 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     results['residual'] = results['gt'] - results['prediction']
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
     df = pd.DataFrame(results)
-    df.to_csv(osp.join(output_dir, 'results.csv'))
+    df.to_csv(osp.join(output_dir, f'results{ext}.csv'))
 
-    print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
+    print(f'successfully saved results to {osp.join(output_dir, f"results{ext}.csv")}', file=log)
     log.flush()
 
 

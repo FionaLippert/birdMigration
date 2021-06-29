@@ -28,6 +28,8 @@ def run(cfg: DictConfig):
         else:
             run_NNs_2.train(cfg, out, log)
             run_NNs_2.test(cfg, out, log)
+            cfg['use_nights'] = False
+            run_NNs_2.test(cfg, out, log, ext='_no_nights')
     except Exception:
         print(traceback.format_exc(), file=log)
     print('flush log')
