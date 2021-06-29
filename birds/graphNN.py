@@ -544,7 +544,9 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
-            assert torch.all(torch.isfinite(enc_states))
+            if not torch.all(torch.isfinite(enc_states)):
+                print(enc_states)
+                assert 0
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -605,7 +607,9 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             # temporal attention based on encoder states
             enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
-            assert torch.all(torch.isfinite(enc_states))
+            if not torch.all(torch.isfinite(enc_states_new)):
+                print(enc_states_new)
+                assert 0
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states_new + hidden)
             scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
@@ -626,6 +630,9 @@ class LocalLSTM(torch.nn.Module):
 
         if self.predict_delta:
             delta = torch.tanh(self.mlp_out(h_t[-1]))
+            if not torch.all(torch.isfinite(delta)):
+                print(delta)
+                assert 0
             x = x + delta
         else:
             x = torch.sigmoid(self.mlp_out(h_t[-1]))
@@ -3118,6 +3125,14 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         if hasattr(model, 't_context'):
             gt = gt[:, model.t_context:]
             mask = mask[:, model.t_context:]
+        print('gt shape: ', gt.shape)
+        print('mask size: ', mask.sum())
+        if not torch.all(torch.isfinite(gt)):
+            print(gt)
+            assert 0
+        if not torch.all(torch.isfinite(output)):
+            print(output)
+            assert 0
         loss = loss_func(output, gt, mask)
         loss_all += data.num_graphs * float(loss)
         loss.backward()
