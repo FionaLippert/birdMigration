@@ -7,6 +7,8 @@ import os
 import pandas as pd
 import pickle5 as pickle
 import itertools as it
+import warnings
+warnings.filterwarnings("ignore")
 
 
 def angle(x1, y1, x2, y2):

@@ -147,6 +147,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay, gamma=cfg.model.get('lr_gamma', 0.1))
 
     print('model on GPU?', next(model.parameters()).is_cuda)
+    cd = torch.cuda.current_device()
+    print('on which GPU?', torch.cuda.current_device())
+    print('how many GPUs do I see?', torch.cuda.device_count())
+    print('GPU name', torch.cuda.get_device_name(cd))
 
     tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
     all_tf = np.zeros(epochs)
@@ -184,6 +188,12 @@ def train(cfg: DictConfig, output_dir: str, log):
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
         scheduler.step()
 
+        print('model on GPU?', next(model.parameters()).is_cuda)
+        cd = torch.cuda.current_device()
+        print('on which GPU?', torch.cuda.current_device())
+        print('how many GPUs do I see?', torch.cuda.device_count())
+        print('GPU name', torch.cuda.get_device_name(cd))
+
     print(f'validation loss = {best_val_loss}', file=log)
 
     log.flush()
@@ -213,7 +223,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     data_root = osp.join(cfg.root, 'data')
     if model_dir is None: model_dir = output_dir
     
-    device = 'cuda:0' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
+    device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
 
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.test_horizon
@@ -349,7 +359,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
             results['seqID'].append([nidx] * y_hat.shape[1])
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
-            #results['trial'].append([r] * y_hat.shape[1])
+            results['trial'].append([cfg.get('job_id', 0)] * y_hat.shape[1])
             results['horizon'].append(np.arange(y_hat.shape[1]))
             results['missing'].append(missing[ridx, context:])
 
