@@ -2599,7 +2599,7 @@ class RecurrentEncoder2(torch.nn.Module):
 
         for t in range(self.timesteps):
             h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
-                                   data.local_dawn[:, t], data.local_dusk[:, t], h_t, c_t)
+                                   data.local_dawn[:, t], data.local_dusk[:, t], h_t, c_t, t)
 
             states.append(h_t[-1])
         states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
@@ -2607,11 +2607,25 @@ class RecurrentEncoder2(torch.nn.Module):
 
 
 
-    def update(self, env, coords, x, local_night, local_dawn, local_dusk, h_t, c_t):
+    def update(self, env, coords, x, local_night, local_dawn, local_dusk, h_t, c_t, t):
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
                             local_dusk.float().view(-1, 1), local_night.float().view(-1, 1)], dim=1)
         assert torch.all(torch.isfinite(inputs))
         inputs = self.node2hidden(inputs)
+        if not torch.all(torch.isfinite(inputs)):
+            print('timestep', t)
+            print('inputs', inputs)
+            print('grad', self.node2hidden.weight.grad)
+            print('weights', self.node2hidden.weight)
+            assert 0
+        if not torch.all(torch.isfinite(h_t[0])):
+            print('timestep', t)
+            print('h_t0', h_t[0])
+            assert 0
+        if not torch.all(torch.isfinite(c_t[0])):
+            print('timestep', t)
+            print('c_t0', c_t[0])
+            assert 0
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
         for l in range(1, self.n_lstm_layers):
             h_t[l-1] = F.dropout(h_t[l-1], p=self.dropout_p, training=self.training, inplace=False)

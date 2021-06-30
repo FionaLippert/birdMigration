@@ -61,23 +61,23 @@ def compute_error(row, bird_scale, prediction_col='prediction_km2', boundary=[])
 def plot_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False):
     fig, ax = plt.subplots(figsize=(15, 6))
     for idx, m in enumerate(results.keys()):
-        if m == 'GAM':
-
-            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                                    'constant_prediction',
-                                                                                    boundary=boundary,
-                                                                                    bird_thr=bird_thr,
-                                                                                    night_only=night_only), axis=1)
-            mse = results[m].groupby(['horizon', 'trial']).constant_error.mean().apply(np.sqrt)
-            mean_mse = mse.groupby('horizon').aggregate(np.mean)
-            ax.plot(mean_mse, label='constant prediction')
-
-            end_night = np.concatenate(
-                [np.where((mean_mse.iloc[1:] == 0) & (mean_mse.iloc[:-1] > 0))[0], [len(mean_mse)]])
-            start_night = np.where((mean_mse.iloc[:-1] == 0) & (mean_mse.iloc[1:] > 0))[0]
-
-            for i, tidx in enumerate(start_night):
-                ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
+        # if m == 'GAM':
+        #
+        #     results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
+        #                                                                             'constant_prediction',
+        #                                                                             boundary=boundary,
+        #                                                                             bird_thr=bird_thr,
+        #                                                                             night_only=night_only), axis=1)
+        #     mse = results[m].groupby(['horizon', 'trial']).constant_error.mean().apply(np.sqrt)
+        #     mean_mse = mse.groupby('horizon').aggregate(np.mean)
+        #     ax.plot(mean_mse, label='constant prediction')
+        #
+        #     end_night = np.concatenate(
+        #         [np.where((mean_mse.iloc[1:] == 0) & (mean_mse.iloc[:-1] > 0))[0], [len(mean_mse)]])
+        #     start_night = np.where((mean_mse.iloc[:-1] == 0) & (mean_mse.iloc[1:] > 0))[0]
+        #
+        #     for i, tidx in enumerate(start_night):
+        #         ax.fill_between([tidx + 1, end_night[i]], 0, 0.1, color='lightgray')
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
                                                                        boundary=boundary,
@@ -126,7 +126,7 @@ def plot_errors_per_hour(results, model, bird_scales={}):
     mean_res = results[model].groupby(['horizon', 'radar']).error.aggregate(np.nanmean)
     # mean_mse = mse.groupby('horizon').aggregate(np.nanmean)
     # std_mse = mse.groupby('horizon').aggregate(np.nanstd)
-    print()
+
     sb.lineplot(x='horizon', y='error', hue='radar', data=mean_res.dropna(), ax=ax)
     ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.grid()
@@ -196,14 +196,14 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_
     rmse_list = []
     labels = []
     for idx, m in enumerate(results.keys()):
-        if m == 'GAM':
-            results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
-                                                                'constant_prediction', boundary=boundary,
-                                                                bird_thr=bird_thr, night_only=night_only,
-                                                                root_transform=root_transform), axis=1)
-            rmse = results[m].query(f'horizon <= {horizon}').groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
-            rmse_list.append(rmse.values)
-            labels.append(['constant'] * len(rmse))
+        # if m == 'GAM':
+        #     results[m]['constant_error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
+        #                                                         'constant_prediction', boundary=boundary,
+        #                                                         bird_thr=bird_thr, night_only=night_only,
+        #                                                         root_transform=root_transform), axis=1)
+        #     rmse = results[m].query(f'horizon <= {horizon}').groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
+        #     rmse_list.append(rmse.values)
+        #     labels.append(['constant'] * len(rmse))
 
 
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
@@ -234,24 +234,24 @@ def plot_average_errors_comparison(models, results1, results2, group_names, bird
     labels = []
     groups = []
     for idx, m in enumerate(models):
-        if m == 'GAM':
-            results1[m]['constant_prediction_other'] = results2[m]['constant_prediction'] / bird_scales2.get(m,1) * bird_scales1.get(m, 1)
-            results1[m]['constant_error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
-                                                                                    'constant_prediction',
-                                                                                      boundary=boundary,
-                                                                                      night_only=night_only), axis=1)
-            results1[m]['constant_error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
-                                                                         'constant_prediction_other', boundary=boundary,
-                                                                                            night_only=night_only), axis=1)
-            rmse = results1[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
-            rmse_list.append(rmse.values)
-            labels.append(['constant'] * len(rmse))
-            groups.append([group_names[0]] * len(rmse))
-
-            rmse = results1[m].groupby(['trial']).constant_error_other.aggregate(np.nanmean).apply(np.sqrt)
-            rmse_list.append(rmse.values)
-            labels.append(['constant'] * len(rmse))
-            groups.append([group_names[1]] * len(rmse))
+        # if m == 'GAM':
+        #     results1[m]['constant_prediction_other'] = results2[m]['constant_prediction'] / bird_scales2.get(m,1) * bird_scales1.get(m, 1)
+        #     results1[m]['constant_error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
+        #                                                                             'constant_prediction',
+        #                                                                               boundary=boundary,
+        #                                                                               night_only=night_only), axis=1)
+        #     results1[m]['constant_error_other'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1),
+        #                                                                  'constant_prediction_other', boundary=boundary,
+        #                                                                                     night_only=night_only), axis=1)
+        #     rmse = results1[m].groupby(['trial']).constant_error.aggregate(np.nanmean).apply(np.sqrt)
+        #     rmse_list.append(rmse.values)
+        #     labels.append(['constant'] * len(rmse))
+        #     groups.append([group_names[0]] * len(rmse))
+        #
+        #     rmse = results1[m].groupby(['trial']).constant_error_other.aggregate(np.nanmean).apply(np.sqrt)
+        #     rmse_list.append(rmse.values)
+        #     labels.append(['constant'] * len(rmse))
+        #     groups.append([group_names[1]] * len(rmse))
 
 
         results1[m]['error'] = results1[m].apply(lambda row: compute_mse(row, bird_scales1.get(m, 1), boundary=boundary,
