@@ -531,7 +531,7 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             init_weights(self.fc_encoder)
             init_weights(self.fc_hidden)
-            init_weights(self.attention_t)
+            inits.glorot(self.attention_t)
 
 
     def forward(self, data):
@@ -543,10 +543,15 @@ class LocalLSTM(torch.nn.Module):
         enc_states = None
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
-            enc_states, h_t, c_t = self.encoder(data)
-            if not torch.all(torch.isfinite(enc_states)):
-                print(enc_states)
+            enc_states_pre, h_t, c_t = self.encoder(data)
+            if not torch.all(torch.isfinite(enc_states_pre)):
+                print(enc_states_pre)
                 assert 0
+            enc_states = self.fc_encoder(enc_states_pre)
+            if not torch.all(torch.isfinite(enc_states)):
+                print('enc states before', enc_states_pre)
+                print('enc states after', enc_states)
+                print('fc_encoder weights', self.fc_encoder.weight)
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -606,18 +611,18 @@ class LocalLSTM(torch.nn.Module):
 
         if self.use_encoder:
             # temporal attention based on encoder states
-            enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
-            if not torch.all(torch.isfinite(enc_states_new)):
-                print(enc_states_new)
-                assert 0
+            # enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            # if not torch.all(torch.isfinite(enc_states_new)):
+            #    print(enc_states_new)
+            #    assert 0
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states_new + hidden)
+            scores = torch.tanh(enc_states + hidden)
             scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
             context = torch.matmul(alpha.unsqueeze(1),
-                                   enc_states_new).squeeze() # shape (radars x hidden)
+                                   enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
@@ -1224,6 +1229,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
             assert torch.all(torch.isfinite(enc_states))
+            enc_states = self.fc_encoder(enc_states)
+            assert torch.all(torch.isfinite(enc_states))
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -1422,20 +1429,20 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         if self.use_encoder:
             # temporal attention based on encoder states
-            enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
-            if not torch.all(torch.isfinite(enc_states_new)):
+            # enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+            if not torch.all(torch.isfinite(enc_states)):
                 # TODO run again to see if weights are exploding or vanishing
-                print('enc_states_new', enc_states_new)
+                print('enc_states_new', enc_states)
                 print('weights', self.fc_encoder.weight)
                 print('gradients', self.fc_encoder.weight.grad)
 
             hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states_new + hidden)
+            scores = torch.tanh(enc_states + hidden)
             scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
-            context = torch.matmul(alpha.unsqueeze(1), enc_states_new).squeeze() # shape (radars x hidden)
+            context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 

@@ -16,8 +16,8 @@ horizon: 40
 test_horizon: 64
 fixed_boundary: false
 force_zeros: false
-use_encoder: true
-context: 24
+use_encoder: false
+context: 0
 root_transformed_loss: false
 enforce_conservation: false
 compute_fluxes: true

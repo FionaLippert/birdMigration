@@ -2,7 +2,7 @@
 name: BirdFluxGraphLSTM
 hyperparameters:
   n_hidden:
-    default: 64
+    default: 128
     search_space:
     - 64
     - 128
@@ -17,7 +17,7 @@ hyperparameters:
       - 1
       - 2
   n_hidden_fluxmlp:
-    default: 64
+    default: 128
     search_space:
       - 64
       - 128
@@ -30,13 +30,13 @@ hyperparameters:
     search_space:
     - 0.25
   lr:
-    default: 0.0001
+    default: 0.001
     search_space:
       - 0.001
       - 0.0001
       - 0.00001
   lr_decay:
-    default: 100
+    default: 50
     search_space:
     - 50
   teacher_forcing_gamma:
@@ -49,16 +49,16 @@ hyperparameters:
       - 0.0
       - 0.01
       - 0.1
-epochs: 200
+epochs: 100
 horizon: 40
-fixed_boundary: true
+fixed_boundary: false
 force_zeros: false
 use_encoder: true
 context: 24
-root_transformed_loss: false
+root_transformed_loss: true
 enforce_conservation: false
-compute_fluxes: true
-boundary_constraint_only: false
+compute_fluxes: false
+boundary_constraint_only: true
 perturbation_std: 0
 perturbation_mean: 0
 batch_size: 1

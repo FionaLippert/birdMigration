@@ -161,6 +161,10 @@ def train(cfg: DictConfig, output_dir: str, log):
         # print(optimizer.param_groups[0]["lr"])
         all_lr[epoch] = optimizer.param_groups[0]["lr"]
 
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print(name, param.data, param.grad)
+
         if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
