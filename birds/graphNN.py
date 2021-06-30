@@ -497,15 +497,16 @@ class LocalLSTM(torch.nn.Module):
                                           torch.nn.Linear(self.n_hidden, 1))
 
         if self.use_encoder:
-            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+            # self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+            self.fc_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
             if self.use_mtr_features:
                 self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                                 n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
             else:
                 self.encoder = RecurrentEncoder2(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                                  n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
-            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
-            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
+            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
 
         self.reset_parameters()
 
@@ -529,9 +530,12 @@ class LocalLSTM(torch.nn.Module):
         init_weights(self.fc_in)
 
         if self.use_encoder:
-            init_weights(self.fc_encoder)
-            init_weights(self.fc_hidden)
-            init_weights(self.attention_t)
+            # init_weights(self.fc_encoder)
+            inits.glorot(self.fc_encoder.weight)
+            # init_weights(self.fc_hidden)
+            inits.glorot(self.fc_hidden.weight)
+            # init_weights(self.fc_attention)
+            inits.glorot(self.fc_attention.weight)
 
 
     def forward(self, data):
@@ -614,14 +618,15 @@ class LocalLSTM(torch.nn.Module):
             if not torch.all(torch.isfinite(enc_states)):
                 print(enc_states)
                 assert 0
-            hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
+            hidden = self.fc_hidden(h_t[-1]) #.unsqueeze(1) # shape (radars x 1 x hidden)
             scores = torch.tanh(enc_states + hidden)
-            scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
+            # scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = self.fc_attention(scores)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
-            context = torch.matmul(alpha.unsqueeze(1),
-                                   enc_states).squeeze() # shape (radars x hidden)
+            # context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
+            context = torch.matmul(alpha, enc_states) # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
@@ -1115,7 +1120,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         torch.manual_seed(seed)
 
 
-        self.fc_edge_embedding = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+        self.fc_edge_embedding = torch.nn.Linear(self.n_edge_in, self.n_hidden, bias=False)
         self.fc_edge_in = torch.nn.Linear(self.n_hidden * 2, self.n_hidden)
         # self.fc_edge_in = torch.nn.Linear(self.n_hidden, self.n_hidden)
         self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
@@ -1132,9 +1137,9 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
-            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden)
-            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden)
-            self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
+            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            self.fc_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
         else:
             self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers-1)])
@@ -1181,13 +1186,17 @@ class BirdFluxGraphLSTM(MessagePassing):
         init_weights(self.lstm_in)
 
         init_weights(self.fc_edge_in)
-        init_weights(self.fc_edge_embedding)
+        # init_weights(self.fc_edge_embedding)
+        inits.glorot(self.fc_edge_embedding.weight)
         init_weights(self.fc_edge_out)
 
         if self.use_encoder:
-            init_weights(self.fc_encoder)
-            init_weights(self.fc_hidden)
-            init_weights(self.attention_t)
+            # init_weights(self.fc_encoder)
+            # init_weights(self.fc_hidden)
+            # init_weights(self.attention_t)
+            inits.glorot(self.fc_encoder.weight)
+            inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.fc_attention.weight)
 
 
 
@@ -1431,7 +1440,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             # enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
 
 
-            hidden = self.fc_hidden(h_t[-1]).unsqueeze(1) # shape (radars x 1 x hidden)
+            hidden = self.fc_hidden(h_t[-1]) #.unsqueeze(1) # shape (radars x 1 x hidden)
 
             if not torch.all(torch.isfinite(enc_states)):
                 # TODO run again to see if weights are exploding or vanishing
@@ -1445,11 +1454,12 @@ class BirdFluxGraphLSTM(MessagePassing):
                 print('gradients', self.fc_hidden.weight.grad)
 
             scores = torch.tanh(enc_states + hidden)
-            scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
+            # scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
+            scores = self.fc_attention(scores)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
-            context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
+            context = torch.matmul(alpha, enc_states) # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
@@ -2500,7 +2510,7 @@ class RecurrentEncoder(torch.nn.Module):
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
-        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden, bias=False)
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
 
@@ -2521,7 +2531,7 @@ class RecurrentEncoder(torch.nn.Module):
                         inits.glorot(param)
 
         self.lstm_layers.apply(init_weights)
-        init_weights(self.node2hidden)
+        inits.glorot(self.node2hidden.weight)
 
 
     def forward(self, data):
@@ -2580,7 +2590,7 @@ class RecurrentEncoder2(torch.nn.Module):
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
-        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden)
+        self.node2hidden = torch.nn.Linear(self.n_in, self.n_hidden, bias=False)
 
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
 
