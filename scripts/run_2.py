@@ -13,23 +13,26 @@ def run(cfg: DictConfig):
     os.makedirs(out, exist_ok=True)
 
     log_file = os.path.join(out, 'log.txt')
-    log = open(log_file, 'w')
+    log = open(log_file, 'w+')
+
+    action = cfg.get('action', 'training+testing')
 
     try:
         if cfg.model.name == 'GBT':
-            run_GBT_2.train(cfg, out, log)
-            run_GBT_2.test(cfg, out, log)
+            if 'training' in action: run_GBT_2.train(cfg, out, log)
+            if 'testing' in action: run_GBT_2.test(cfg, out, log)
         elif cfg.model.name == 'GAM':
-            run_GAM_2.train(cfg, out, log)
-            run_GAM_2.test(cfg, out, log)
+            if 'training' in action: run_GAM_2.train(cfg, out, log)
+            if 'testing' in action: run_GAM_2.test(cfg, out, log)
         elif cfg.model.name == 'HA':
-            run_HA_2.train(cfg, out, log)
-            run_HA_2.test(cfg, out, log)
+            if 'training' in action: run_HA_2.train(cfg, out, log)
+            if 'testing' in action: run_HA_2.test(cfg, out, log)
         else:
-            run_NNs_2.train(cfg, out, log)
-            run_NNs_2.test(cfg, out, log)
-            cfg['use_nights'] = False
-            run_NNs_2.test(cfg, out, log, ext='_no_nights')
+            if 'training' in action: run_NNs_2.train(cfg, out, log)
+            if 'testing' in action:
+                run_NNs_2.test(cfg, out, log)
+                cfg['use_nights'] = False
+                run_NNs_2.test(cfg, out, log, ext='_no_nights')
     except Exception:
         print(traceback.format_exc(), file=log)
     print('flush log')

@@ -208,14 +208,15 @@ def train(cfg: DictConfig, output_dir: str, log):
     log.flush()
 
 
-def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
+def test(cfg: DictConfig, output_dir: str, log, ext=''):
     assert cfg.model.name in MODEL_MAPPING
     #assert cfg.action.name == 'testing'
 
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
-    if model_dir is None: model_dir = output_dir
+    # if model_dir is None: model_dir = output_dir
+    model_dir = cfg.get('model_dir', output_dir)
     
     device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
 
@@ -272,7 +273,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
 
     # load models and predict
     results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
-                   tidx=[], datetime=[], horizon=[], missing=[])
+                   tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
         results['fluxes'] = []
         results['local_deltas'] = []
