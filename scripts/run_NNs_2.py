@@ -146,6 +146,9 @@ def train(cfg: DictConfig, output_dir: str, log):
     optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay, gamma=cfg.model.get('lr_gamma', 0.1))
 
+    for p in model.parameters():
+        p.register_hook(lambda grad: torch.clamp(grad, -1.0, 1.0))
+
     print('model on GPU?', next(model.parameters()).is_cuda)
     cd = torch.cuda.current_device()
     print('on which GPU?', torch.cuda.current_device())
@@ -161,9 +164,9 @@ def train(cfg: DictConfig, output_dir: str, log):
         # print(optimizer.param_groups[0]["lr"])
         all_lr[epoch] = optimizer.param_groups[0]["lr"]
 
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                print(name, param.data, param.grad)
+        #for name, param in model.named_parameters():
+        #    if param.requires_grad:
+        #        print(name, param.data, param.grad)
 
         if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,

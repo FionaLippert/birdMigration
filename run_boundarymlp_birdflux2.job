@@ -38,8 +38,8 @@ module load NCCL/2.7.8-gcccuda-2020a
 
 module load parallel
 
-JOBFILE=$HOME/birdMigration/run_birdflux2.job
-CHECKPOINTDIR=$HOME/birdMigration/checkpoints/birdflux/array_job_${SLURM_ARRAY_JOB_ID}
+JOBFILE=$HOME/birdMigration/run_boundarymlp_birdflux2.job
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/boundary_mlp_birdflux/array_job_${SLURM_ARRAY_JOB_ID}
 mkdir -p $CHECKPOINTDIR
 rsync $JOBFILE $CHECKPOINTDIR/
 
@@ -54,7 +54,7 @@ cd $HOME/birdMigration/scripts
 
 # run tasks in parallel
 #$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False experiment=no_boundary_nights model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.00005 model.boundary_model=None output_dir=$CHECKPOINTDIR n_dummy_radars=0 missing_data_threshold=0.1 model.lr_decay=200
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False experiment=boundary_mlp_nights model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.00005 model.boundary_model=FluxMLP output_dir=$CHECKPOINTDIR n_dummy_radars=15 missing_data_threshold=0.75 model.lr_decay=200
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home
