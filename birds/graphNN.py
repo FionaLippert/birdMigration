@@ -619,9 +619,9 @@ class LocalLSTM(torch.nn.Module):
                 print(enc_states)
                 assert 0
             hidden = self.fc_hidden(h_t[-1]) #.unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states + hidden)
+            scores = torch.tanh(enc_states.unsqueeze(1) + hidden) # shape (radars x timesteps x hidden)
             # scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
-            scores = self.fc_attention(scores)
+            scores = self.fc_attention(scores) # shape (radars x timesteps)
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
@@ -1137,9 +1137,10 @@ class BirdFluxGraphLSTM(MessagePassing):
             self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
             self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                             n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
-            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
-            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
-            self.fc_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
+            #self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            #self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            self.fc_attention = torch.nn.Linear(self.n_hidden * 2, self.n_hidden)
+            self.v_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
         else:
             self.lstm_in = nn.LSTMCell(self.n_hidden, self.n_hidden)
         self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers-1)])
@@ -1194,9 +1195,10 @@ class BirdFluxGraphLSTM(MessagePassing):
             # init_weights(self.fc_encoder)
             # init_weights(self.fc_hidden)
             # init_weights(self.attention_t)
-            inits.glorot(self.fc_encoder.weight)
-            inits.glorot(self.fc_hidden.weight)
-            inits.glorot(self.fc_attention.weight)
+            #inits.glorot(self.fc_encoder.weight)
+            #inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.v_attention.weight)
+            init_weights(self.fc_attention)
 
 
 
@@ -1237,8 +1239,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
             assert torch.all(torch.isfinite(enc_states))
-            enc_states = self.fc_encoder(enc_states)
-            assert torch.all(torch.isfinite(enc_states))
+            # enc_states = self.fc_encoder(enc_states)
+            # assert torch.all(torch.isfinite(enc_states))
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -1408,7 +1410,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
             flux = self.inner_edges.view(-1, 1) * flux + \
                     self.boundary2inner_edges.view(-1, 1) * boundary_fluxes - \
-                     self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reverse_edges]
+                     self.inner2boundary_edges.view(-1, 1) * boundary_fluxes[self.reversensorsse_edges]
 
             self.local_fluxes[..., t] = flux
 
@@ -1459,7 +1461,7 @@ class BirdFluxGraphLSTM(MessagePassing):
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
-            context = torch.matmul(alpha, enc_states) # shape (radars x hidden)
+            context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
