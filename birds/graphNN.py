@@ -498,15 +498,16 @@ class LocalLSTM(torch.nn.Module):
 
         if self.use_encoder:
             # self.attention_t = torch.nn.Parameter(torch.Tensor(self.n_hidden, 1))
-            self.fc_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
+            self.fc_attention = torch.nn.Linear(self.n_hidden * 2, self.n_hidden)
+            self.v_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
             if self.use_mtr_features:
                 self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                                 n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
             else:
                 self.encoder = RecurrentEncoder2(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
                                                  n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
-            self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
-            self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            #self.fc_encoder = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
+            #self.fc_hidden = torch.nn.Linear(self.n_hidden, self.n_hidden, bias=False)
 
         self.reset_parameters()
 
@@ -531,12 +532,12 @@ class LocalLSTM(torch.nn.Module):
 
         if self.use_encoder:
             # init_weights(self.fc_encoder)
-            inits.glorot(self.fc_encoder.weight)
+            #inits.glorot(self.fc_encoder.weight)
             # init_weights(self.fc_hidden)
-            inits.glorot(self.fc_hidden.weight)
-            # init_weights(self.fc_attention)
-            inits.glorot(self.fc_attention.weight)
-
+            #inits.glorot(self.fc_hidden.weight)
+            inits.glorot(self.v_attention.weight)
+            init_weights(self.fc_attention)
+            #inits.glorot(self.fc_attention.weight)
 
     def forward(self, data):
 
@@ -548,13 +549,13 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
+            #if not torch.all(torch.isfinite(enc_states_pre)):
+            #    print('enc states before', enc_states_pre)
+            #enc_states = self.fc_encoder(enc_states_pre)
             if not torch.all(torch.isfinite(enc_states)):
-                print('enc_states before', enc_states)
-                assert 0
-            enc_states = self.fc_encoder(enc_states)
-            if not torch.all(torch.isfinite(enc_states)):
-                print('enc_states after', enc_states)
-                assert 0
+                #print('enc states before', enc_states_pre)
+                print('enc states', enc_states)
+                #print('fc_encoder weights', self.fc_encoder.weight)
             #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -615,19 +616,24 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             # temporal attention based on encoder states
             # enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
+
             if not torch.all(torch.isfinite(enc_states)):
                 print(enc_states)
                 assert 0
-            hidden = self.fc_hidden(h_t[-1]) #.unsqueeze(1) # shape (radars x 1 x hidden)
-            scores = torch.tanh(enc_states.unsqueeze(1) + hidden) # shape (radars x timesteps x hidden)
+
+            # hidden = self.fc_hidden(h_t[-1]) #.unsqueeze(1) # shape (radars x 1 x hidden)
+            hidden = h_t[-1].unsqueeze(1).repeat(1, enc_states.size(1), 1)
+            energy = torch.tanh(self.fc_attention(torch.cat([enc_states, hidden], dim=2)))
+            # scores = torch.tanh(enc_states + hidden.unsqueeze(1))
             # scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
-            scores = self.fc_attention(scores) # shape (radars x timesteps)
+            # scores = self.fc_attention(scores).squeeze()
+            scores = self.v_attention(energy).squeeze()
+
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
             # context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
-            context = torch.matmul(alpha, enc_states) # shape (radars x hidden)
-
+            context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
             inputs = torch.cat([inputs, context], dim=1)
 
 
@@ -1064,24 +1070,6 @@ class BirdFlowGraphLSTM(MessagePassing):
         return pred, h_t, c_t
 
 
-class Extrapolation(MessagePassing):
-
-    def __init__(self, **kwargs):
-        super(Extrapolation, self).__init__(aggr='mean', node_dim=0)
-
-        #self.weighted = kwargs.get('weighted', 1)
-        self.edge_index = kwargs.get('edge_index', None)
-
-    def forward(self, var):
-        var = self.propagate(self.edge_index, var=var)
-        return var
-
-    def message(self, var_j):
-        # construct messages to node i for each edge (j,i)
-        # can take any argument initially passed to propagate()
-        # x_j are source features with shape [E, out_channels]
-
-        return var_j
 
 
 class BirdFluxGraphLSTM(MessagePassing):
@@ -1128,10 +1116,12 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
 
 
-        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
-                                               torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.LeakyReLU(),
-                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+        #self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+        #                                       torch.nn.Dropout(p=self.dropout_p),
+        #                                       torch.nn.LeakyReLU(),
+        #                                       torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
 
         if self.use_encoder:
             self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
@@ -1181,10 +1171,11 @@ class BirdFluxGraphLSTM(MessagePassing):
                         inits.glorot(param)
 
         self.fc_edge_hidden.apply(init_weights)
-        self.node2hidden.apply(init_weights)
+        #self.node2hidden.apply(init_weights)
         self.lstm_layers.apply(init_weights)
         self.hidden2delta.apply(init_weights)
         init_weights(self.lstm_in)
+        init_weights(self.node2hidden)
 
         init_weights(self.fc_edge_in)
         # init_weights(self.fc_edge_embedding)
@@ -1197,8 +1188,9 @@ class BirdFluxGraphLSTM(MessagePassing):
             # init_weights(self.attention_t)
             #inits.glorot(self.fc_encoder.weight)
             #inits.glorot(self.fc_hidden.weight)
-            inits.glorot(self.v_attention.weight)
+
             init_weights(self.fc_attention)
+            inits.glorot(self.v_attention.weight)
 
 
 
@@ -1239,8 +1231,10 @@ class BirdFluxGraphLSTM(MessagePassing):
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
             assert torch.all(torch.isfinite(enc_states))
+
             # enc_states = self.fc_encoder(enc_states)
             # assert torch.all(torch.isfinite(enc_states))
+
             # x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
 
         else:
@@ -1440,35 +1434,24 @@ class BirdFluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # temporal attention based on encoder states
             # enc_states_new = self.fc_encoder(enc_states) # shape (radars x timesteps x hidden)
-
-
-            hidden = self.fc_hidden(h_t[-1]) #.unsqueeze(1) # shape (radars x 1 x hidden)
-
-            if not torch.all(torch.isfinite(enc_states)):
-                # TODO run again to see if weights are exploding or vanishing
-                print('enc_states_new', enc_states)
-                print('weights', self.fc_encoder.weight)
-                print('gradients', self.fc_encoder.weight.grad)
-            if not torch.all(torch.isfinite(hidden)):
-                # TODO run again to see if weights are exploding or vanishing
-                print('enc_states_new', hidden)
-                print('weights', self.fc_hidden.weight)
-                print('gradients', self.fc_hidden.weight.grad)
-
-            scores = torch.tanh(enc_states + hidden)
+            hidden = h_t[-1].unsqueeze(1).repeat(1, enc_states.size(1), 1)
+            energy = torch.tanh(self.fc_attention(torch.cat([enc_states, hidden], dim=2)))
+            # scores = torch.tanh(enc_states + hidden.unsqueeze(1))
             # scores = torch.matmul(scores, self.attention_t).squeeze() # shape (radars x timesteps)
-            scores = self.fc_attention(scores)
+            # scores = self.fc_attention(scores).squeeze()
+            scores = self.v_attention(energy).squeeze()
             alpha = F.softmax(scores, dim=1)
             if not self.training:
                 self.alphas_t[..., t] = alpha
+
             context = torch.matmul(alpha.unsqueeze(1), enc_states).squeeze() # shape (radars x hidden)
 
             inputs = torch.cat([inputs, context], dim=1)
 
         h_t[0], c_t[0] = self.lstm_in(inputs, (h_t[0], c_t[0]))
         for l in range(self.n_lstm_layers - 1):
-            h_t[l] = F.dropout(h_t[l], p=self.dropout_p, training=self.training, inplace=True)
-            c_t[l] = F.dropout(c_t[l], p=self.dropout_p, training=self.training, inplace=True)
+            h_t[0] = F.dropout(h_t[0], p=self.dropout_p, training=self.training, inplace=False)
+            c_t[0] = F.dropout(c_t[0], p=self.dropout_p, training=self.training, inplace=False)
             h_t[l+1], c_t[l+1] = self.lstm_layers[l](h_t[l], (h_t[l+1], c_t[l+1]))
 
         delta = torch.tanh(self.hidden2delta(h_t[-1]))
@@ -1482,6 +1465,444 @@ class BirdFluxGraphLSTM(MessagePassing):
         #pred = pred.relu() # enforce positive bird densities
 
         return pred, h_t, c_t
+
+# class RecurrentGCN(torch.nn.Module):
+#     def __init__(self, timesteps, node_features, n_hidden=32, n_out=1, K=1):
+#         # doesn't take external features into account
+#         super(RecurrentGCN, self).__init__()
+#         self.recurrent = DCRNN(7, n_hidden, K, bias=True)
+#         self.linear = torch.nn.Linear(n_hidden, n_out)
+#         self.timesteps = timesteps
+#
+#     def forward(self, data, teacher_forcing=0):
+#         x = data.x[:, 0].view(-1, 1)
+#         predictions = [x]
+#         for t in range(self.timesteps):
+#             # TODO try concatenating input features and prection x to also use weather info etc
+#             r = torch.rand(1)
+#             if r < teacher_forcing:
+#                 x = data.x[:, t].view(-1, 1)
+#
+#             input = torch.cat([x, data.env[..., t], data.coords], dim=1)
+#             x = self.recurrent(input, data.edge_index, data.edge_weight.float())
+#             x = F.relu(x)
+#             x = self.linear(x)
+#
+#             # for locations where it is night: set birds in the air to zero
+#             x = x * data.local_night[:, t+1].view(-1, 1)
+#
+#             predictions.append(x)
+#
+#         predictions = torch.cat(predictions, dim=-1)
+#         return predictions
+#
+
+class BirdFlowGNN(MessagePassing):
+
+    def __init__(self, num_nodes, timesteps, hidden_dim=16, embedding=0, model='linear', norm=True,
+                 use_departure=False, seed=12345, fix_boundary=[], multinight=False, use_wind=True, dropout_p=0.5, **kwargs):
+        super(BirdFlowGNN, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
+
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
+        torch.manual_seed(seed)
+
+        in_channels = 10 + embedding
+        if not use_wind:
+            in_channels -= 2
+        hidden_channels = hidden_dim #16 #2*in_channels #int(in_channels / 2)
+        out_channels = 1
+
+        in_channels_dep = 7
+        if not use_wind:
+            in_channels_dep -= 2
+        hidden_channels_dep = in_channels_dep #int(in_channels_dep / 2)
+        out_channels_dep = 1
+
+        if model == 'linear':
+            self.edgeflow = torch.nn.Linear(in_channels, out_channels)
+        elif model == 'linear+sigmoid':
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, out_channels),
+                                                torch.nn.Sigmoid())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, out_channels_dep),
+                                                 torch.nn.Tanh())
+        else:
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(in_channels, hidden_channels),
+                                                torch.nn.Dropout(p=dropout_p),
+                                                torch.nn.LeakyReLU(),
+                                                torch.nn.Linear(hidden_channels, out_channels),
+                                                torch.nn.Sigmoid())
+            self.departure = torch.nn.Sequential(torch.nn.Linear(in_channels_dep, hidden_channels_dep),
+                                                 torch.nn.Dropout(p=dropout_p),
+                                                 torch.nn.LeakyReLU(),
+                                                 torch.nn.Linear(hidden_channels_dep, out_channels_dep),
+                                                 torch.nn.Tanh())
+
+
+        self.node_embedding = torch.nn.Embedding(num_nodes, embedding) if embedding > 0 else None
+        self.timesteps = timesteps
+        self.norm = norm
+        self.use_departure = use_departure
+        self.fix_boundary = fix_boundary
+        self.multinigh = multinight
+        self.use_wind = use_wind
+
+
+    def forward(self, data):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        # measurement at t=0
+        x = data.x[..., 0].view(-1, 1)
+
+        # birds on the ground at t=0
+        # TODO use additional aggregation network to estimate the number of birds aggregated on the ground
+        #  based on environmental conditions in the past
+        ground = torch.zeros_like(x)
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+        embedding = torch.cat([self.node_embedding.weight]*data.num_graphs) if self.node_embedding is not None else None
+
+        # normalize outflow from each source node using the inverse of its degree
+        src, dst = edge_index
+        deg = degree(src, x.size(0), dtype=x.dtype)
+        deg_inv = deg.pow(-1)
+
+        y_hat = []
+        y_hat.append(x)
+
+        self.flows = []
+        self.abs_flows = []
+        for t in range(self.timesteps):
+            r = torch.rand(1)
+            if r < self.teacher_forcing:
+                # if data is available use ground truth, otherwise use model prediction
+                x = data.missing[..., t].view(-1, 1) * x + \
+                    ~data.missing[..., t].view(-1, 1) * data.x[..., t].view(-1, 1)
+
+            env = data.env[..., t]
+            if not self.use_wind:
+                env = env[:, 2:]
+
+            x = self.propagate(edge_index, x=x, norm=deg_inv, coords=coords, env=env,
+                               edge_attr=edge_attr, embedding=embedding, ground=ground,
+                               local_dusk=data.local_dusk[:, t])
+
+            if len(self.fix_boundary) > 0:
+                # use ground truth for boundary nodes
+                x[self.fix_boundary, 0] = data.y[self.fix_boundary, t]
+
+            if self.multinight:
+                # for locations where it is dawn: save birds to ground and set birds in the air to zero
+                r = torch.rand(1)
+                if r < self.teacher_forcing:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+                else:
+                    ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+                x = x * ~data.local_dawn[:, t].view(-1, 1)
+
+                # TODO for radar data, birds can stay on the ground or depart later in the night, so
+                #  at dusk birds on ground shouldn't be set to zero but predicted departing birds should be subtracted
+                # for locations where it is dusk: set birds on ground to zero
+                ground = ground * ~data.local_dusk[:, t].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_j, coords_i, coords_j, env_j, edge_attr):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        features = torch.cat([coords_i, coords_j, env_j, edge_attr], dim=1)
+        flow = self.edgeflow(features)
+
+        # if self.norm:
+        #     flow = flow * norm_j.view(-1, 1)
+
+        self.flows.append(flow)
+
+        abs_flow = flow * x_j
+        self.abs_flows.append(abs_flow)
+
+        return abs_flow
+
+
+    def update(self, aggr_out, coords, env, ground, local_dusk):
+        # return aggregation (sum) of inflows computed by message()
+        # add departure prediction if local_dusk flag is True
+
+        if self.multinight:
+            features = torch.cat([coords, env, ground, local_dusk.view(-1, 1)], dim=1)
+            departure = self.departure(features)
+            #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
+            pred = aggr_out + departure
+        else:
+            pred = aggr_out
+
+        return pred
+
+
+
+class BirdFlowGraphLSTM(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(BirdFlowGraphLSTM, self).__init__(aggr='add', node_dim=0) # inflows from neighbouring radars are aggregated by adding
+
+        self.horizon = kwargs.get('horizon', 40)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+        self.n_hidden = kwargs.get('n_hidden', 16)
+        self.n_env = kwargs.get('n_env', 4)
+        self.n_node_in = 6 + self.n_env
+        self.n_edge_in = 9 + 2*self.n_env
+        self.n_self_in = 5 + kwargs.get('n_env', 4)
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
+        self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
+        self.fixed_boundary = kwargs.get('fixed_boundary', [])
+        self.force_zeros = kwargs.get('force_zeros', True)
+        self.recurrent = kwargs.get('recurrent', True)
+
+        self.use_encoder = kwargs.get('use_encoder', False)
+        self.t_context = kwargs.get('context', 0)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
+
+        self.edge_type = kwargs.get('edge_type', 'voronoi')
+        if self.edge_type == 'voronoi':
+            self.n_edge_in += 1 # use face_length as additional feature
+            self.n_node_in += 1 # use voronoi cell area as additional feature
+
+        seed = kwargs.get('seed', 1234)
+        torch.manual_seed(seed)
+
+        if self.n_fc_layers < 1:
+            self.edgeflow = torch.nn.Sequential(torch.nn.Linear(self.n_edge_in, 1),
+                                                torch.nn.Sigmoid())
+            self.selfflow = torch.nn.Sequential(torch.nn.Linear(self.n_self_in, 1),
+                                                torch.nn.Sigmoid())
+
+        else:
+            self.fc_edge_in = torch.nn.Linear(self.n_edge_in, self.n_hidden)
+            self.fc_edge_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                                 for _ in range(self.n_fc_layers - 1)])
+            self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
+
+            self.fc_self_in = torch.nn.Linear(self.n_self_in, self.n_hidden)
+            self.fc_self_hidden = nn.ModuleList([torch.nn.Linear(self.n_hidden, self.n_hidden)
+                                                 for _ in range(self.n_fc_layers - 1)])
+            self.fc_self_out = torch.nn.Linear(self.n_hidden, 1)
+
+        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+                                               torch.nn.Dropout(p=self.dropout_p),
+                                               torch.nn.LeakyReLU(),
+                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.lstm_layers = nn.ModuleList([nn.LSTMCell(self.n_hidden, self.n_hidden) for _ in range(self.n_lstm_layers)])
+
+        self.hidden2delta = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                                torch.nn.Dropout(p=self.dropout_p),
+                                                torch.nn.LeakyReLU(),
+                                                torch.nn.Linear(self.n_hidden, 1))
+
+        if self.use_encoder:
+            self.encoder = RecurrentEncoder(timesteps=self.t_context, n_env=self.n_env, n_hidden=self.n_hidden,
+                                            n_lstm_layers=self.n_lstm_layers, seed=seed, dropout_p=self.dropout_p)
+
+
+
+    def forward(self, data):
+        # with teacher_forcing = 0.0 the model always uses previous predictions to make new predictions
+        # with teacher_forcing = 1.0 the model always uses the ground truth to make new predictions
+
+        y_hat = []
+
+        # birds on the ground at t=0
+        #ground = torch.zeros_like(x).to(x.device)
+
+        # initialize lstm variables
+        if self.use_encoder and self.recurrent:
+            # push context timeseries through encoder to initialize decoder
+            h_t, c_t = self.encoder(data)
+            #x = torch.zeros(data.x.size(0)).to(data.x.device) # TODO eventually use this!?
+            x = data.x[..., self.t_context].view(-1, 1)
+            y_hat.append(x)
+
+        elif self.recurrent:
+            # start from scratch
+            # measurement at t=0
+            x = data.x[..., 0].view(-1, 1)
+            y_hat.append(x)
+            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+
+        else:
+            x = data.x[..., 0].view(-1, 1)
+            y_hat.append(x)
+            h_t = []
+            c_t = []
+
+        coords = data.coords
+        edge_index = data.edge_index
+        edge_attr = data.edge_attr
+
+
+        self.flows = torch.zeros((edge_index.size(1), 1, self.horizon+1), device=x.device)
+        self.abs_flows = torch.zeros((edge_index.size(1), 1, self.horizon+1), device=x.device)
+        self.selfflows = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.abs_selfflows = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.inflows = torch.zeros((data.x.size(0), 1, self.horizon + 1), device=x.device)
+
+        if self.use_encoder:
+            forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
+        else:
+            forecast_horizon = range(1, self.horizon + 1)
+
+        for t in forecast_horizon:
+
+            if True: #torch.any(data.local_night[:, t+1] | data.local_dusk[:, t+1]):
+                # at least for one radar station it is night or dusk
+
+                r = torch.rand(1)
+                if r < self.teacher_forcing:
+                    # if data is available use ground truth, otherwise use model prediction
+                    x = data.missing[..., t-1].view(-1, 1) * x + \
+                        ~data.missing[..., t-1].view(-1, 1) * data.x[..., t-1].view(-1, 1)
+
+                x, h_t, c_t = self.propagate(edge_index, x=x, coords=coords,
+                                                    h_t=h_t, c_t=c_t, areas=data.areas,
+                                                    edge_attr=edge_attr, #ground=ground,
+                                                    dusk=data.local_dusk[:, t-1],
+                                                    dawn=data.local_dawn[:, t],
+                                                    env=data.env[..., t],
+                                                    t=t-self.t_context,
+                                             night=data.local_night[:, t])
+
+                if self.fixed_boundary:
+                    # use ground truth for boundary nodes
+                    x[data.boundary, 0] = data.y[data.boundary, t]
+
+
+            # for locations where it is dawn: save birds to ground and set birds in the air to zero
+            # r = torch.rand(1)
+            # if r < teacher_forcing:
+            #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * data.x[..., t+1].view(-1, 1)
+            # else:
+            #     ground = ground + data.local_dawn[:, t+1].view(-1, 1) * x
+
+            if self.force_zeros:
+                x = x * data.local_night[:, t].view(-1, 1)
+
+            # for locations where it is dusk: set birds on ground to zero
+            # ground = ground * ~data.local_dusk[:, t].view(-1, 1)
+
+            y_hat.append(x)
+
+        prediction = torch.cat(y_hat, dim=-1)
+        return prediction
+
+
+    def message(self, x_j, coords_i, coords_j, env_i, env_j, edge_attr, t, night_j, dusk_j, dawn_j):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        features = torch.cat([coords_i, coords_j, env_i, env_j, edge_attr,
+                              night_j.float().view(-1, 1), dusk_j.float().view(-1, 1), dawn_j.float().view(-1, 1)], dim=1)
+        if self.n_fc_layers < 1:
+            flow = self.edgeflow(features)
+        else:
+            flow = F.leaky_relu(self.fc_edge_in(features))
+            flow = F.dropout(flow, p=self.dropout_p, training=self.training)
+
+            for l in self.fc_edge_hidden:
+                flow = F.leaky_relu(l(flow))
+                flow = F.dropout(flow, p=self.dropout_p, training=self.training)
+
+            flow = self.fc_edge_out(flow).sigmoid()
+
+        #self.flows.append(flow)
+        self.flows[..., t] = flow
+
+        abs_flow = flow * x_j
+        #self.abs_flows.append(abs_flow)
+        self.abs_flows[..., t] = abs_flow
+
+        return abs_flow
+
+
+    def update(self, aggr_out, x, coords, env, dusk, dawn, areas, h_t, c_t, t, night):
+        if self.recurrent:
+            if self.edge_type == 'voronoi':
+                inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1), #ground.view(-1, 1),
+                                    dusk.float().view(-1, 1), areas.view(-1, 1), night.float().view(-1, 1)], dim=1)
+            else:
+                inputs = torch.cat([x.view(-1, 1), coords, env, dawn.float().view(-1, 1),  # ground.view(-1, 1),
+                                    dusk.float().view(-1, 1), night.float().view()], dim=1)
+            inputs = self.node2hidden(inputs) #.relu()
+
+            h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
+            for l in range(1, self.n_lstm_layers):
+                h_t[l], c_t[l] = self.lstm_layers[l](h_t[l - 1], (h_t[l], c_t[l]))
+
+            delta = self.hidden2delta(h_t[-1]).tanh()
+            #self.deltas.append(delta)
+            self.deltas[..., t] = delta
+        else:
+            delta = 0
+
+        features = torch.cat([coords, env, dusk.float().view(-1, 1), dawn.float().view(-1, 1),
+                              night.float().view(-1, 1)], dim=1)
+        if self.n_fc_layers < 1:
+            selfflow = self.selfflow(features)
+        else:
+            selfflow = F.leaky_relu(self.fc_self_in(features))
+            selfflow = F.dropout(selfflow, p=self.dropout_p, training=self.training)
+
+            for l in self.fc_self_hidden:
+                selfflow = F.leaky_relu(l(selfflow))
+                selfflow = F.dropout(selfflow, p=self.dropout_p, training=self.training)
+
+            selfflow = self.fc_edge_out(selfflow).sigmoid()
+
+        #self.selfflows.append(selfflow)
+        self.selfflows[..., t] = selfflow
+        selfflow = x * selfflow
+        #self.abs_selfflows.append(selfflow)
+        self.abs_selfflows[..., t] = selfflow
+        self.inflows[..., t] = aggr_out
+
+        #departure = departure * local_dusk.view(-1, 1) # only use departure model if it is local dusk
+        pred = selfflow + aggr_out + delta
+
+        return pred, h_t, c_t
+
+
+class Extrapolation(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(Extrapolation, self).__init__(aggr='mean', node_dim=0)
+
+        #self.weighted = kwargs.get('weighted', 1)
+        self.edge_index = kwargs.get('edge_index', None)
+
+    def forward(self, var):
+        var = self.propagate(self.edge_index, var=var)
+        return var
+
+    def message(self, var_j):
+        # construct messages to node i for each edge (j,i)
+        # can take any argument initially passed to propagate()
+        # x_j are source features with shape [E, out_channels]
+
+        return var_j
+
+
+
+
 
 class testFluxMLP(MessagePassing):
 

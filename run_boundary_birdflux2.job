@@ -1,12 +1,12 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_short
-#SBATCH --gres=gpu:2
+#SBATCH --partition=gpu_shared
+#SBATCH --gres=gpu:1
 #SBATCH --job-name=TrainBGNN2
-#SBATCH --time=1:00:00
+#SBATCH --time=120:00:00
 # #SBATCH --mem=16G
-#SBATCH --array=1
-#SBATCH --output=slurm_output_%A.out
+#SBATCH --array=1-5
+#SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
 
@@ -38,10 +38,10 @@ module load NCCL/2.7.8-gcccuda-2020a
 
 module load parallel
 
-JOBFILE=$HOME/birdMigration/run_birdflux2.job
+JOBFILE=$HOME/birdMigration/run_boundary_birdflux2.job
 CHECKPOINTDIR=$HOME/birdMigration/checkpoints/boundary_extrapolation_birdflux/array_job_${SLURM_ARRAY_JOB_ID}
 mkdir -p $CHECKPOINTDIR
-rsync $JOB_FILE $CHECKPOINTDIR/
+rsync $JOBFILE $CHECKPOINTDIR/
 
 
 #Copy all necessary input files to scratch
@@ -50,11 +50,12 @@ cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
 cd $HOME/birdMigration/scripts
 # setup GNU parallel
-parallel="parallel -j 2 --delay .2 --joblog $CHECKPOINTDIR/parallel.log --resume"
+#parallel="parallel -N 1 -j $SLURM_NTASKS --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
 
 # run tasks in parallel
-$parallel "CUDA_VISIBLE_DEVICES={} srun python -u run_2.py root="$TMPDIR" sub_dir=job_{} job_id={} model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False experiment=extrapolated_boundary_nights_2 model.epochs=200 data_perc=0.1 model.use_encoder=False use_nights=True model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR n_dummy_radars=15 missing_data_threshold=0.75 model.lr_decay=100" ::: $(seq 0 1) 
-
+#$parallel "
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False experiment=extrapolated_boundary_nights_single_node2hidden_layer model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.00005 model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR n_dummy_radars=15 missing_data_threshold=0.75 model.lr_decay=200
+#" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home
 #mkdir "$HOME"/output_"$SLURM_JOBID"

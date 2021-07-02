@@ -1,13 +1,13 @@
 # main config file
-experiment: fixed_boundary_encoder_n_hidden128_no_nights
+experiment: grid_search
 defaults:
   - datasource: radar
   - action: training
-  - model: BirdFluxGraphLSTM
+  - model: LocalLSTM
 root: /home/fiona/birdMigration
 season: fall
 seed: 1234
-repeats: 5
+repeats: 1
 cuda: True
 root_transform: 0
 missing_data_threshold: 0.1
@@ -16,8 +16,6 @@ edge_type: voronoi
 birds_per_km2: false
 max_distance: 0
 n_dummy_radars: 0
-use_nights: false
+use_nights: true
 data_perc: 1.0
 exclude: []
-data_parallel: false
-n_gpus: 1
