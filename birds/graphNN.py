@@ -1114,10 +1114,12 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.fc_edge_out = torch.nn.Linear(self.n_hidden, 1)
 
 
-        self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
-                                               torch.nn.Dropout(p=self.dropout_p),
-                                               torch.nn.LeakyReLU(),
-                                               torch.nn.Linear(self.n_hidden, self.n_hidden))
+        #self.node2hidden = torch.nn.Sequential(torch.nn.Linear(self.n_node_in, self.n_hidden),
+        #                                       torch.nn.Dropout(p=self.dropout_p),
+        #                                       torch.nn.LeakyReLU(),
+        #                                       torch.nn.Linear(self.n_hidden, self.n_hidden))
+
+        self.node2hidden = torch.nn.Linear(self.n_node_in, self.n_hidden)
 
         if self.use_encoder:
             self.lstm_in = nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
@@ -1167,10 +1169,11 @@ class BirdFluxGraphLSTM(MessagePassing):
                         inits.glorot(param)
 
         self.fc_edge_hidden.apply(init_weights)
-        self.node2hidden.apply(init_weights)
+        #self.node2hidden.apply(init_weights)
         self.lstm_layers.apply(init_weights)
         self.hidden2delta.apply(init_weights)
         init_weights(self.lstm_in)
+        init_weights(self.node2hidden)
 
         init_weights(self.fc_edge_in)
         # init_weights(self.fc_edge_embedding)
