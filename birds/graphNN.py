@@ -479,11 +479,12 @@ class LocalLSTM(torch.nn.Module):
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
 
-        self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
-        # self.mlp_in = torch.nn.Sequential(torch.nn.Linear(self.n_in, self.n_hidden),
-        #                                   torch.nn.Dropout(p=self.dropout_p),
-        #                                   torch.nn.ReLU(),
-        #                                   torch.nn.Linear(self.n_hidden, self.n_hidden))
+        # self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
+
+        self.fc_in = torch.nn.Sequential(torch.nn.Linear(self.n_in, self.n_hidden),
+                                          torch.nn.Dropout(p=self.dropout_p),
+                                          torch.nn.LeakyReLU(),
+                                          torch.nn.Linear(self.n_hidden, self.n_hidden))
         if self.use_encoder:
             self.lstm_in = torch.nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
         else:
@@ -527,8 +528,8 @@ class LocalLSTM(torch.nn.Module):
         self.mlp_out.apply(init_weights)
         self.lstm_layers.apply(init_weights)
         init_weights(self.lstm_in)
-
-        init_weights(self.fc_in)
+        self.fc_in.apply(init_weights)
+        # init_weights(self.fc_in)
 
         if self.use_encoder:
             # init_weights(self.fc_encoder)
