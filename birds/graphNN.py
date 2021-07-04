@@ -1258,6 +1258,7 @@ class BirdFluxGraphLSTM(MessagePassing):
 
         if self.boundary_model == 'LocalLSTM':
             self.boundary_lstm.teacher_forcing = self.teacher_forcing
+            self.boundary_lstm.horizon = self.horizon
             boundary_pred, boundary_h = self.boundary_lstm(data)
             x[data.boundary, 0] = boundary_pred[data.boundary, 0]
         elif self.boundary_model == 'Extrapolation':
