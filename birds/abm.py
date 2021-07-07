@@ -435,6 +435,9 @@ def aggregate(trajectories, states, grid, t_range, state):
             merged[f'n_birds_{t}'] = 1
             dissolve = merged.dissolve(by="index_right", aggfunc="count")
             grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
+            print(grid_counts)
+            grid_counts[name_t].fillna(0, inplace=True)
+            print(grid_counts)
         else:
             # no birds found
             grid_counts[name_t] = 0
@@ -454,6 +457,7 @@ def aggregate_uv(trajectories, states, grid, t_range, state, u, v):
             cols_v.append(f'v_{t}')
             grid_df.loc[dissolve.index, cols_u[-1]] = dissolve[cols_u[-1]].values
             grid_df.loc[dissolve.index, cols_v[-1]] = dissolve[cols_v[-1]].values
+            grid_df[[cols_u[-1], cols_v[-1]]].fillna(0, inplace=True)
         else:
             # no birds found
             grid_df[[cols_u[-1], cols_v[-1]]] = 0
@@ -532,7 +536,7 @@ def load_season(root, season, year, cells, uv=True):
         time = pickle.load(f)
 
     counts, cols = aggregate(traj, states, cells, range(T), state=1)
-    counts = counts.fillna(0)
+    # counts = counts.fillna(0)
     data = counts[cols].to_numpy()
 
     if uv:
