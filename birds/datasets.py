@@ -184,7 +184,7 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 def prepare_features(target_dir, data_dir, year, data_source, season, radar_years=['2015', '2016', '2017'],
                      env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
                      max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi',
-                     exclude=[]):
+                     exclude=[], **kwargs):
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
