@@ -139,7 +139,7 @@ class FluxMLP(torch.nn.Module):
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden_fluxmlp', 16)
         self.n_env = kwargs.get('n_env', 4)
-        self.n_in = 10 + 2 * self.n_env
+        self.n_in = 11 + 2 * self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers_fluxmlp', 1)
 
         self.fc_in = torch.nn.Linear(self.n_in, self.n_hidden)
@@ -1084,7 +1084,7 @@ class BirdFluxGraphLSTM(MessagePassing):
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_env = kwargs.get('n_env', 4)
         self.n_node_in = 6 + self.n_env
-        self.n_edge_in = 10 + 2*self.n_env
+        self.n_edge_in = 11 + 2*self.n_env
         self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
@@ -2930,7 +2930,7 @@ class RecurrentEncoder(torch.nn.Module):
         super(RecurrentEncoder, self).__init__()
 
         self.timesteps = kwargs.get('timesteps', 12)
-        self.n_in = 10 + kwargs.get('n_env', 4)
+        self.n_in = 8 + kwargs.get('n_env', 4)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -2969,12 +2969,11 @@ class RecurrentEncoder(torch.nn.Module):
         states = []
 
         for t in range(self.timesteps):
-            # h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
-            #                        data.local_dawn[:, t], data.local_dusk[:, t], data.directions[:, t],
-            #                        data.speeds[:, t], h_t, c_t)
             h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
-                                   data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t],
-                                   data.directions[:, t], data.speeds[:, t], h_t, c_t)
+                                   data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[:, t], h_t, c_t)
+            # h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
+            #                        data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t],
+            #                        data.directions[:, t], data.speeds[:, t], h_t, c_t)
 
             states.append(h_t[-1])
         states = torch.stack(states, dim=1) # shape (radars x timesteps x hidden features)
@@ -2982,13 +2981,12 @@ class RecurrentEncoder(torch.nn.Module):
 
 
 
-    def update(self, env, coords, x, local_night, local_dawn, local_dusk, bird_uv, directions, speeds, h_t, c_t):
+    def update(self, env, coords, x, local_night, local_dawn, local_dusk, bird_uv, h_t, c_t):
 
         #print(env.shape, coords.shape, bird_uv.shape)
 
         inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),
-                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv,
-                            directions.view(-1, 1), speeds.view(-1, 1)], dim=1)
+                            local_dusk.float().view(-1, 1), local_night.float().view(-1, 1), bird_uv], dim=1)
         assert torch.all(torch.isfinite(inputs))
 
         # inputs = torch.cat([env, coords, x.view(-1, 1), local_dawn.float().view(-1, 1),

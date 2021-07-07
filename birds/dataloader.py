@@ -115,6 +115,9 @@ class Normalization:
     def max(self, key):
         return self.feature_df[key].dropna().max()
 
+    def absmax(self, key):
+        return self.feature_df[key].dropna().abs().max()
+
     def root_min(self, key, root):
         root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
         return root_transformed.dropna().min()
@@ -239,13 +242,6 @@ class RadarData(InMemoryDataset):
         print(self.preprocessed_dir)
         if not osp.isdir(self.preprocessed_dir):
             print('Preprocessed data not available. Please run preprocessing script first.')
-            # load all features and organize them into dataframes
-            # os.makedirs(self.preprocessed_dir)
-            # prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-            #                  radar_years=self.radar_years,
-            #                  env_points=self.env_points, random_seed=self.random_seed, pref_dirs=self.pref_dirs,
-            #                  wp_threshold=self.wp_threshold, max_distance=self.max_distance, t_unit=self.t_unit,
-            #                  edge_type=self.edge_type, n_dummy_radars=self.n_dummy_radars, exclude=self.exclude)
 
         # load features
         dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir, 'dynamic_features.csv'))
@@ -254,15 +250,8 @@ class RadarData(InMemoryDataset):
         if self.edge_type == 'voronoi':
             G = nx.read_gpickle(osp.join(self.preprocessed_dir, 'delaunay.gpickle'))
         else:
-            # print(f'create graph with max distance = {self.max_distance}')
             G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
             G = nx.read_gpickle(G_path)
-            # if not osp.isfile(G_path):
-            #     prepare_features(self.preprocessed_dir, self.raw_dir, self.data_source, self.season, self.year,
-            #                      radar_years=self.radar_years, max_distance=self.max_distance, process_dynamic=False,
-            #                      exclude=self.exclude)
-
-
 
         print('number of nans: ', dynamic_feature_df.birds.isna().sum())
         print('max bird measurement', dynamic_feature_df.birds.max())
@@ -291,40 +280,6 @@ class RadarData(InMemoryDataset):
                     reverse_edges[idx] = jdx
 
 
-        # get distances, angles and face lengths between radars
-        # print(G.edges(data=True))
-        # print('normalize distances')
-        distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
-        # print('normalize angles')
-        angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
-
-
-        if self.edge_type == 'voronoi':
-            print('Use Voronoi tessellation')
-            face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
-            edge_attr = torch.stack([
-                                  torch.tensor(distances, dtype=torch.float),
-                                  torch.tensor(angles, dtype=torch.float),
-                                  torch.tensor(face_lengths, dtype=torch.float)
-                              ], dim=1)
-        else:
-            print('Use other edge type')
-            edge_attr = torch.stack([
-                torch.tensor(distances, dtype=torch.float),
-                torch.tensor(angles, dtype=torch.float),
-            ], dim=1)
-
-
-        # # normalize dynamic features
-        # if self.normalize_dynamic:
-        #     cidx = ~dynamic_feature_df.columns.isin(['birds', 'birds_from_buffer', 'radar', 'night',
-        #                                              'dusk', 'dawn', 'datetime'])
-        #     dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
-        #         lambda col: (col - col.min()) / (col.max() - col.min()), axis=0)
-        #     dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
-        #     if self.use_buffers:
-        #         dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
-
         if self.edge_type == 'voronoi' and not self.birds_per_km2:
             if self.use_buffers:
                 input_col = 'birds_from_buffer'
@@ -333,68 +288,85 @@ class RadarData(InMemoryDataset):
         else:
             input_col = 'birds_km2'
 
-        print('input col', input_col)
 
         dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
-        print(len(dynamic_feature_df), dynamic_feature_df[input_col].isna().sum())
         dynamic_feature_df[input_col].fillna(0, inplace=True)
-
 
         # apply root transform
         if self.root_transform > 0:
             dynamic_feature_df[input_col] = dynamic_feature_df[input_col].apply(
                                             lambda x: np.power(x, 1/self.root_transform))
 
-        if self.normalization is not None:
-            cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2', 'bird_speed', 'bird_direction',
-                                                     'radar', 'night', 'boundary',
-                                                     'dusk', 'dawn', 'datetime', 'missing'])
-            dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
-                         lambda col: (col - self.normalization.min(col.name)) /
-                                     (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
+        # normalize dynamic features
+        cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2',
+                                                 'bird_speed', 'bird_direction',
+                                                 'bird_u', 'bird_v', 'u', 'v',
+                                                 'radar', 'night', 'boundary',
+                                                 'dusk', 'dawn', 'datetime', 'missing'])
+        dynamic_feature_df.loc[:, cidx] = dynamic_feature_df.loc[:, cidx].apply(
+                     lambda col: (col - self.normalization.min(col.name)) /
+                                 (self.normalization.max(col.name) - self.normalization.min(col.name)), axis=0)
 
-            if self.root_transform > 0:
-                self.bird_scale = self.normalization.root_max(input_col, self.root_transform)
-            else:
-                self.bird_scale = self.normalization.max(input_col)
-            print(input_col)
-            print(f'bird scale = {self.bird_scale}')
-            # dynamic_feature_df['birds'] = dynamic_feature_df.birds / self.bird_scale
-            # dynamic_feature_df['birds_from_buffer'] = dynamic_feature_df.birds_from_buffer / self.bird_scale
-            # dynamic_feature_df['birds_km2'] = dynamic_feature_df.birds_km2 / self.bird_scale
+        if self.root_transform > 0:
+            self.bird_scale = self.normalization.root_max(input_col, self.root_transform)
+        else:
+            self.bird_scale = self.normalization.max(input_col)
 
-            dynamic_feature_df[input_col] = dynamic_feature_df[input_col] / self.bird_scale
-            if input_col != 'birds_km2':
-                dynamic_feature_df['birds_km2'] = dynamic_feature_df['birds_km2'] / self.bird_scale
-            #print('number of nans: ', dynamic_feature_df.birds_from_buffer.isna().sum())
+        print(f'bird scale = {self.bird_scale}')
+        dynamic_feature_df[input_col] = dynamic_feature_df[input_col] / self.bird_scale
+        if input_col != 'birds_km2':
+            dynamic_feature_df['birds_km2'] = dynamic_feature_df['birds_km2'] / self.bird_scale
 
+        uv_scale = self.normalization.absmax(['bird_u', 'bird_v']).max()
+        dynamic_feature_df[['bird_u', 'bird_v']] = dynamic_feature_df[['bird_u', 'bird_v']] / uv_scale
 
-
-        target_col = input_col
-        # self.env_vars.remove('u')
-        # self.env_vars.remove('v')
-
-        # env_cols = ['wind_speed', 'wind_dir', 'solarpos', 'solarpos_dt'] + \
-        #            [var for var in self.env_vars if not var in ['u', 'v']]
-        env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
-        acc_cols = ['acc_rain', 'acc_wind']
-        coord_cols = ['x', 'y']
-        # coord_cols = ['lon', 'lat']
-
-        time = dynamic_feature_df.datetime.sort_values().unique()
-        dayofyear = pd.DatetimeIndex(time).dayofyear.values
-        tidx = np.arange(len(time))
+        if 'u' in self.env_vars and 'v' in self.env_vars:
+            dynamic_feature_df[['u', 'v']] = dynamic_feature_df[['u', 'v']] / uv_scale
+            print(f'max wind uv = {dynamic_feature_df[["u", "v"]]}')
 
         # normalize static features
-        #cidx = ['area_km2']#, *coord_cols]
-        areas = voronoi[['area_km2']].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0).to_numpy()
+        coord_cols = ['x', 'y']
+        areas = voronoi[['area_km2']].apply(lambda col: col / col.max(), axis=0).to_numpy()
 
         if self.edge_type != 'voronoi':
             areas = np.ones(areas.shape)
 
-        # coords = voronoi[coord_cols].apply(lambda col: np.radians(col)).to_numpy()
-        coords = voronoi[coord_cols].apply(lambda col: (col - col.min()) / (col.max() - col.min()), axis=0).to_numpy()
+        voronoi[coord_cols] = voronoi[coord_cols].apply(lambda col: (col - col.min()))
+        coords = voronoi[coord_cols].to_numpy() / uv_scale
+        print(f'max coord = {coords.max()}')
 
+        # get distances, angles and face lengths between radars
+        distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
+        angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
+        delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
+        delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
+
+        if self.edge_type == 'voronoi':
+            print('Use Voronoi tessellation')
+            face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
+            edge_attr = torch.stack([
+                torch.tensor(distances, dtype=torch.float),
+                #torch.tensor(angles, dtype=torch.float),
+                torch.tensor(delta_x, dtype=torch.float),
+                torch.tensor(delta_y, dtype=torch.float),
+                torch.tensor(face_lengths, dtype=torch.float)
+            ], dim=1)
+        else:
+            print('Use other edge type')
+            edge_attr = torch.stack([
+                torch.tensor(distances, dtype=torch.float),
+                torch.tensor(angles, dtype=torch.float),
+            ], dim=1)
+
+
+        # reorganize data
+        target_col = input_col
+        env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
+        acc_cols = ['acc_rain', 'acc_wind']
+
+        time = dynamic_feature_df.datetime.sort_values().unique()
+        dayofyear = pd.DatetimeIndex(time).dayofyear.values
+        tidx = np.arange(len(time))
         dayofyear = dayofyear / max(dayofyear)
 
         data = dict(inputs=[],
@@ -423,12 +395,12 @@ class RadarData(InMemoryDataset):
             data['dusk'].append(df.dusk.to_numpy())
             data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
+            data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
 
             if self.data_source == 'radar' and self.compute_fluxes:
                 data['speed'].append(df.bird_speed.to_numpy())
                 data['direction'].append(df.bird_direction.to_numpy())
                 data['birds_km2'].append(df.birds_km2.to_numpy())
-                data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0)
@@ -505,7 +477,7 @@ class RadarData(InMemoryDataset):
 
             data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
             data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-            data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            # data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
         dir_mask = np.isfinite(data['direction'])
         data['direction'][dir_mask] = (data['direction'][dir_mask] + 360) % 360
