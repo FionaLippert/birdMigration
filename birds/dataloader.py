@@ -344,7 +344,7 @@ class RadarData(InMemoryDataset):
         delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
         delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
 
-        for i, j in G.edges():
+        for idx, (i, j) in enumerate(G.edges()):
             print(voronoi.iloc[i].radar, voronoi.iloc[j].radar, delta_x, delta_y)
 
         if self.edge_type == 'voronoi':
