@@ -418,7 +418,7 @@ def get_points(trajectories, states, state=1, vars={}):
         xx = trajectories[mask, 0].flatten()
         yy = trajectories[mask, 1].flatten()
         df['geometry'] = gpd.points_from_xy(xx, yy)
-        for k, v in vars:
+        for k, v in vars.items():
             # add additional variables to dataframe
             df[k] = v
     return df
