@@ -447,7 +447,7 @@ def aggregate_uv(trajectories, states, grid, t_range, state, u, v):
     cols_v = []
     grid_df = grid.to_crs('epsg:4326')    # to lonlat crs
     for t in t_range:
-        df_t = get_points(trajectories[t], states[t], state, {'u': u[t], 'v': v[t]})
+        df_t = get_points(trajectories[t], states[t], state, {f'u_{t}': u[t], f'v_{t}': v[t]})
         cols_u.append(f'u_{t}')
         cols_v.append(f'v_{t}')
         if len(df_t) > 0:
