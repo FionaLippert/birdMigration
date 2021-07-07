@@ -351,6 +351,14 @@ def uv2deg(u, v):
     deg = ((180 * np.arctan2(u, v) / np.pi) + 360) % 360
     return deg
 
+def deg2uv(deg, speed):
+    # v and u wind components to direction into which wind is blowing (opposite of meteorological direction!)
+    # degree is relative to 0 deg north
+    u = speed * np.sin(np.deg2rad(deg))
+    v = speed * np.cos(np.deg2rad(deg))
+    return u, v
+
+
 def rad2deg(rad):
     rad = (rad + np.pi) % np.pi
     deg = np.rad2deg(rad)
@@ -403,13 +411,16 @@ def make_grid(extent=[0.36, 46.36, 16.07, 55.40], res=0.5, crs='4326'):
     grid = gpd.GeoDataFrame({'geometry': polygons}, crs=f'epsg:{crs}')
     return grid
 
-def get_points(trajectories, states, state=1):
+def get_points(trajectories, states, state=1, vars={}):
     df = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
     mask = np.where(states == state)
     if len(mask[0]) > 0:
         xx = trajectories[mask, 0].flatten()
         yy = trajectories[mask, 1].flatten()
         df['geometry'] = gpd.points_from_xy(xx, yy)
+        for k, v in vars:
+            # add additional variables to dataframe
+            df[k] = v
     return df
 
 
@@ -425,17 +436,19 @@ def aggregate(trajectories, states, grid, t_range, state):
         names.append(name_t)
     return grid_counts, names
 
-def aggregate_directions(trajectories, states, grid, t_range, state):
-    names = []
-    grid_counts = grid.to_crs('epsg:4326')    # to lonlat crs
+def aggregate_uv(trajectories, states, grid, t_range, state, u, v):
+    cols_u = []
+    cols_v = []
+    grid_df = grid.to_crs('epsg:4326')    # to lonlat crs
     for t in t_range:
-        merged = gpd.sjoin(get_points(trajectories[t], states[t], state), grid_counts, how='left', op='within')
-        merged[f'n_birds_{t}'] = 1
-        dissolve = merged.dissolve(by="index_right", aggfunc="count")
-        name_t = f'n_birds_{t}'
-        grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
-        names.append(name_t)
-    return grid_counts, names
+        df_t = get_points(trajectories[t], states[t], state, {'u': u, 'v': v})
+        merged = gpd.sjoin(df_t, grid_df, how='left', op='within')
+        dissolve = merged.dissolve(by="index_right", aggfunc="mean")
+        cols_u.append(f'u_{t}')
+        cols_v.append(f'v_{t}')
+        grid_df.loc[dissolve.index, cols_u[-1]] = dissolve[cols_u[-1]].values
+        grid_df.loc[dissolve.index, cols_v[-1]] = dissolve[cols_v[-1]].values
+    return grid_df, cols_u, cols_v
 
 
 def bird_flows(trajectories, states, tidx, grid):
@@ -495,28 +508,33 @@ def landing_birds(trajectories, states, tidx, grid):
 
 
 
-def load_season(root, season, year, cells):
+
+def load_season(root, season, year, cells, uv=True):
 
     abm_dir = osp.join(root, season, year)
-    files = glob.glob(os.path.join(abm_dir, '*.pkl'))
-    traj = []
-    states = []
-    for file in files:
-        with open(file, 'rb') as f:
-            result = pickle.load(f)
-            traj.append(result['trajectories'])
-            states.append(result['states'])
-            t_range = result['time']
 
-    traj = np.concatenate(traj, axis=1)
-    states = np.concatenate(states, axis=1)
+    traj = np.load(osp.join(abm_dir, 'traj.npy'))
+    states = np.load(osp.join(abm_dir, 'states.npy'))
+    directions = np.load(osp.join(abm_dir, 'directions.npy'))
+    speeds = np.load(osp.join(abm_dir, 'ground_speeds.npy'))
     T = states.shape[0]
+
+    with open(osp.join(abm_dir, 'time.pkl'), 'rb') as f:
+        time = pickle.load(f)
 
     counts, cols = aggregate(traj, states, cells, range(T), state=1)
     counts = counts.fillna(0)
     data = counts[cols].to_numpy()
 
-    return data, t_range
+    if uv:
+        u, v = deg2uv(directions, speeds)  # in meters
+        grid_df, cols_u, cols_v = aggregate_uv(traj, states, cells, range(T), 1, u, v)
+        grid_df = grid_df.fillna(0)
+        u = grid_df[cols_u].to_numpy()
+        v = grid_df[cols_v].to_numpy()
+        return data, time, u, v
+    else:
+        return data, time
 
 
 

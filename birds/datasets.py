@@ -1,5 +1,6 @@
 #import torch
 #from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
+from omegaconf import DictConfig, OmegaConf
 import numpy as np
 import networkx as nx
 import os.path as osp
@@ -72,8 +73,8 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         abm_dir = osp.join(data_dir, 'abm')
         voronoi_radars = voronoi.query('observed == True')
         radar_buffers_radars = radar_buffers.query('observed == True')
-        data, t_range = abm.load_season(abm_dir, season, year, voronoi_radars)
-        buffer_data, _ = abm.load_season(abm_dir, season, year, radar_buffers_radars)
+        data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, voronoi_radars)
+        buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
 
         birds_km2 = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None] # rescale to birds per km^2
         buffer_data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale to birds per voronoi cell
@@ -104,14 +105,16 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         # bird measurements for radar ridx
         df['birds'] = data[ridx] if row.observed else [np.nan] * len(t_range)
         df['birds_km2'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
+        df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
+        df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
         if data_source == 'abm':
             df['birds_from_buffer'] = buffer_data[ridx] if row.observed else [np.nan] * len(t_range)
         else:
             df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
-            df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
-            df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
+            # df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
+            # df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
 
         df['radar'] = [row.radar] * len(t_range)
 
@@ -178,13 +181,13 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 
 
-def prepare_features(target_dir, data_dir, data_source, season, year, radar_years=['2015', '2016', '2017'],
-                     env_points=100, random_seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
+def prepare_features(target_dir, data_dir, year, datasource, season, radar_years=['2015', '2016', '2017'],
+                     env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
                      max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi',
                      exclude=[]):
 
     # load static features
-    if data_source == 'abm' and not year in radar_years:
+    if datasource == 'abm' and not year in radar_years:
         radar_year = radar_years[-1]
     else:
         radar_year = year
@@ -202,8 +205,8 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
 
     if process_dynamic:
         # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                                              env_points=env_points, random_seed=random_seed,
+        dynamic_feature_df = dynamic_features(data_dir, datasource, season, year, voronoi, radar_buffers,
+                                              env_points=env_points, random_seed=seed,
                                               pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit,
                                               edge_type=edge_type)
 
@@ -264,68 +267,88 @@ def prepare_features(target_dir, data_dir, data_source, season, year, radar_year
 #         data_night = np.empty(0)
 #     return data_night
 
-class Normalization:
-    def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,
-                 env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
-                 edge_type='voronoi', n_dummy_radars=0, exclude=[]):
-        self.root = root
-        self.data_source = data_source
-        self.season = season
-        self.t_unit = t_unit
-        self.edge_type = edge_type
-        self.n_dummy_radars = n_dummy_radars
-        self.exclude = exclude
 
-        all_dfs = []
-        for year in years:
-            dir = self.preprocessed_dir(year)
-            if not osp.isdir(dir):
-                # load all features and organize them into dataframes
-                os.makedirs(dir)
-                prepare_features(dir, self.raw_dir, data_source, season, str(year),
-                                 radar_years=radar_years,
-                                 env_points=env_points, random_seed=seed, max_distance=max_distance,
-                                 pref_dirs=pref_dirs, wp_threshold=wp_threshold, t_unit=t_unit, edge_type=edge_type,
-                                 n_dummy_radars=n_dummy_radars, exclude=exclude)
-
-            # load features
-            dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
-            all_dfs.append(dynamic_feature_df)
-        self.feature_df = pd.concat(all_dfs)
-
-    def normalize(self, data, key):
-        min = self.min(key)
-        max = self.max(key)
-        data = (data - min) / (max - min)
-        return data
-
-    def denormalize(self, data, key):
-        min = self.min(key)
-        max = self.max(key)
-        data = data * (max - min) + min
-        return data
-
-    def min(self, key):
-        return self.feature_df[key].dropna().min()
-
-    def max(self, key):
-        return self.feature_df[key].dropna().max()
-
-    def root_min(self, key, root):
-        root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
-        return root_transformed.dropna().min()
-
-    def root_max(self, key, root):
-        root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
-        return root_transformed.dropna().max()
-
-    def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}_exclude={self.exclude}',
-                        self.data_source, self.season, str(year))
-
-    @property
-    def raw_dir(self):
-        return osp.join(self.root, 'raw')
+def preprocess(cfg: DictConfig):
+    data_root = osp.join(cfg.root, 'data')
+    raw_dir = osp.join(data_root, 'raw')
+    years = cfg.datasource.training_years + [cfg.datasource.test_year]
+    for year in years:
+        dir = osp.join(data_root, 'preprocessed', cfg.t_unit,
+                       f'{cfg.edge_type}_dummy_radars={cfg.n_dummy_radars}_exclude={cfg.exclude}',
+                        cfg.datasource, cfg.season, str(year))
+        if not osp.isdir(dir):
+            # load all features and organize them into dataframes
+            os.makedirs(dir)
+            prepare_features(dir, raw_dir, str(year), **cfg,
+                             radar_years=cfg.get('radar_years', ['2015', '2016', '2017']),
+                             env_points=cfg.get('enf_points', 100),
+                             pref_dirs=cfg.get('pref_dirs', {'spring': 58, 'fall': 223}),
+                             wp_threshold=cfg.get('wp_threshold', -0.5))
+        else:
+            print(f'Data has already been processed. To rerun preprocessing, remove the following directory: \n {dir}')
+#
+# class Normalization:
+#     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,
+#                  env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
+#                  edge_type='voronoi', n_dummy_radars=0, exclude=[]):
+#         self.root = root
+#         self.data_source = data_source
+#         self.season = season
+#         self.t_unit = t_unit
+#         self.edge_type = edge_type
+#         self.n_dummy_radars = n_dummy_radars
+#         self.exclude = exclude
+#
+#         all_dfs = []
+#         for year in years:
+#             dir = self.preprocessed_dir(year)
+#             if not osp.isdir(dir):
+#                 # load all features and organize them into dataframes
+#                 os.makedirs(dir)
+#                 prepare_features(dir, self.raw_dir, data_source, season, str(year),
+#                                  radar_years=radar_years,
+#                                  env_points=env_points, random_seed=seed, max_distance=max_distance,
+#                                  pref_dirs=pref_dirs, wp_threshold=wp_threshold, t_unit=t_unit, edge_type=edge_type,
+#                                  n_dummy_radars=n_dummy_radars, exclude=exclude)
+#
+#             # load features
+#             dynamic_feature_df = pd.read_csv(osp.join(self.preprocessed_dir(year), 'dynamic_features.csv'))
+#             all_dfs.append(dynamic_feature_df)
+#         self.feature_df = pd.concat(all_dfs)
+#
+#     def normalize(self, data, key):
+#         min = self.min(key)
+#         max = self.max(key)
+#         data = (data - min) / (max - min)
+#         return data
+#
+#     def denormalize(self, data, key):
+#         min = self.min(key)
+#         max = self.max(key)
+#         data = data * (max - min) + min
+#         return data
+#
+#     def min(self, key):
+#         return self.feature_df[key].dropna().min()
+#
+#     def max(self, key):
+#         return self.feature_df[key].dropna().max()
+#
+#     def root_min(self, key, root):
+#         root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
+#         return root_transformed.dropna().min()
+#
+#     def root_max(self, key, root):
+#         root_transformed = self.feature_df[key].apply(lambda x: np.power(x, 1/root))
+#         return root_transformed.dropna().max()
+#
+#     def preprocessed_dir(self, year):
+#         return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}_exclude={self.exclude}',
+#                         self.data_source, self.season, str(year))
+#
+#     @property
+#     def raw_dir(self):
+#         return osp.join(self.root, 'raw')
 
 # def angle(coord1, coord2):
 #     # coords should be in lonlat crs
