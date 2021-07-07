@@ -181,13 +181,13 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 
 
-def prepare_features(target_dir, data_dir, year, datasource, season, radar_years=['2015', '2016', '2017'],
+def prepare_features(target_dir, data_dir, year, data_source, season, radar_years=['2015', '2016', '2017'],
                      env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
                      max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi',
                      exclude=[]):
 
     # load static features
-    if datasource == 'abm' and not year in radar_years:
+    if data_source == 'abm' and not year in radar_years:
         radar_year = radar_years[-1]
     else:
         radar_year = year
@@ -205,7 +205,7 @@ def prepare_features(target_dir, data_dir, year, datasource, season, radar_years
 
     if process_dynamic:
         # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, datasource, season, year, voronoi, radar_buffers,
+        dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                                               env_points=env_points, random_seed=seed,
                                               pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit,
                                               edge_type=edge_type)
@@ -275,11 +275,11 @@ def preprocess(cfg: DictConfig):
     for year in years:
         dir = osp.join(data_root, 'preprocessed', cfg.t_unit,
                        f'{cfg.edge_type}_dummy_radars={cfg.n_dummy_radars}_exclude={cfg.exclude}',
-                        cfg.datasource, cfg.season, str(year))
+                        cfg.datasource.name, cfg.season, str(year))
         if not osp.isdir(dir):
             # load all features and organize them into dataframes
             os.makedirs(dir)
-            prepare_features(dir, raw_dir, str(year), **cfg,
+            prepare_features(dir, raw_dir, str(year), cfg.datasource.name, **cfg,
                              radar_years=cfg.get('radar_years', ['2015', '2016', '2017']),
                              env_points=cfg.get('enf_points', 100),
                              pref_dirs=cfg.get('pref_dirs', {'spring': 58, 'fall': 223}),
