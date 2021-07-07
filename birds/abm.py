@@ -435,7 +435,7 @@ def aggregate(trajectories, states, grid, t_range, state):
             merged[f'n_birds_{t}'] = 1
             dissolve = merged.dissolve(by="index_right", aggfunc="count")
             grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
-            grid_counts[name_t].fillna(0, inplace=True)
+            # grid_counts[name_t].fillna(0, inplace=True)
         else:
             # no birds found
             grid_counts[name_t] = 0
@@ -455,7 +455,7 @@ def aggregate_uv(trajectories, states, grid, t_range, state, u, v):
             dissolve = merged.dissolve(by="index_right", aggfunc="mean")
             grid_df.loc[dissolve.index, cols_u[-1]] = dissolve[cols_u[-1]].values
             grid_df.loc[dissolve.index, cols_v[-1]] = dissolve[cols_v[-1]].values
-            grid_df[[cols_u[-1], cols_v[-1]]].fillna(0, inplace=True)
+            # grid_df[[cols_u[-1], cols_v[-1]]].fillna(0, inplace=True)
         else:
             # no birds found
             grid_df[[cols_u[-1], cols_v[-1]]] = 0
@@ -535,14 +535,14 @@ def load_season(root, season, year, cells, uv=True):
 
     counts, cols = aggregate(traj, states, cells, range(T), state=1)
     # counts = counts.fillna(0)
-    data = counts[cols].to_numpy()
+    data = np.nan_to_num(counts[cols].to_numpy())
 
     if uv:
         u, v = deg2uv(directions, speeds)  # in meters
         grid_df, cols_u, cols_v = aggregate_uv(traj, states, cells, range(T), 1, u, v)
-        grid_df = grid_df.fillna(0)
-        u = grid_df[cols_u].to_numpy()
-        v = grid_df[cols_v].to_numpy()
+        # grid_df = grid_df.fillna(0)
+        u = np.nan_to_num(grid_df[cols_u].to_numpy())
+        v = np.nan_to_num(grid_df[cols_v].to_numpy())
         return data, time, u, v
     else:
         return data, time
