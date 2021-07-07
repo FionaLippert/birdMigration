@@ -428,13 +428,16 @@ def aggregate(trajectories, states, grid, t_range, state):
     names = []
     grid_counts = grid.to_crs('epsg:4326')    # to lonlat crs
     for t in t_range:
-        df_t = get_points(trajectories[t], states[t], state)
-        print(len(df_t))
-        merged = gpd.sjoin(df_t, grid_counts, how='left', op='within')
-        merged[f'n_birds_{t}'] = 1
-        dissolve = merged.dissolve(by="index_right", aggfunc="count")
         name_t = f'n_birds_{t}'
-        grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
+        df_t = get_points(trajectories[t], states[t], state)
+        if len(df_t) > 0:
+            merged = gpd.sjoin(df_t, grid_counts, how='left', op='within')
+            merged[f'n_birds_{t}'] = 1
+            dissolve = merged.dissolve(by="index_right", aggfunc="count")
+            grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
+        else:
+            # no birds found
+            grid_counts[name_t] = 0
         names.append(name_t)
     return grid_counts, names
 
@@ -444,12 +447,16 @@ def aggregate_uv(trajectories, states, grid, t_range, state, u, v):
     grid_df = grid.to_crs('epsg:4326')    # to lonlat crs
     for t in t_range:
         df_t = get_points(trajectories[t], states[t], state, {'u': u, 'v': v})
-        merged = gpd.sjoin(df_t, grid_df, how='left', op='within')
-        dissolve = merged.dissolve(by="index_right", aggfunc="mean")
-        cols_u.append(f'u_{t}')
-        cols_v.append(f'v_{t}')
-        grid_df.loc[dissolve.index, cols_u[-1]] = dissolve[cols_u[-1]].values
-        grid_df.loc[dissolve.index, cols_v[-1]] = dissolve[cols_v[-1]].values
+        if len(df_t) > 0:
+            merged = gpd.sjoin(df_t, grid_df, how='left', op='within')
+            dissolve = merged.dissolve(by="index_right", aggfunc="mean")
+            cols_u.append(f'u_{t}')
+            cols_v.append(f'v_{t}')
+            grid_df.loc[dissolve.index, cols_u[-1]] = dissolve[cols_u[-1]].values
+            grid_df.loc[dissolve.index, cols_v[-1]] = dissolve[cols_v[-1]].values
+        else:
+            # no birds found
+            grid_df[[cols_u[-1], cols_v[-1]]] = 0
     return grid_df, cols_u, cols_v
 
 
