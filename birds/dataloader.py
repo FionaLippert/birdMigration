@@ -345,7 +345,7 @@ class RadarData(InMemoryDataset):
         delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
 
         for idx, (i, j) in enumerate(G.edges()):
-            print(voronoi.iloc[i].radar, voronoi.iloc[j].radar, delta_x, delta_y)
+            print(voronoi.iloc[i].radar, voronoi.iloc[j].radar, delta_x[idx], delta_y[idx])
 
         if self.edge_type == 'voronoi':
             print('Use Voronoi tessellation')
