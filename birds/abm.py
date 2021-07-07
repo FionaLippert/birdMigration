@@ -435,9 +435,7 @@ def aggregate(trajectories, states, grid, t_range, state):
             merged[f'n_birds_{t}'] = 1
             dissolve = merged.dissolve(by="index_right", aggfunc="count")
             grid_counts.loc[dissolve.index, name_t] = dissolve[name_t].values
-            print(grid_counts)
             grid_counts[name_t].fillna(0, inplace=True)
-            print(grid_counts)
         else:
             # no birds found
             grid_counts[name_t] = 0
