@@ -254,7 +254,6 @@ class RadarData(InMemoryDataset):
             G = nx.read_gpickle(G_path)
 
         print('number of nans: ', dynamic_feature_df.birds.isna().sum())
-        print('max bird measurement', dynamic_feature_df.birds.max())
 
 
         # extract edges from graph
@@ -318,6 +317,7 @@ class RadarData(InMemoryDataset):
             dynamic_feature_df['birds_km2'] = dynamic_feature_df['birds_km2'] / self.bird_scale
 
         uv_scale = self.normalization.absmax(['bird_u', 'bird_v']).max()
+        print(f'uv scale = {uv_scale}')
         dynamic_feature_df[['bird_u', 'bird_v']] = dynamic_feature_df[['bird_u', 'bird_v']] / uv_scale
 
         if 'u' in self.env_vars and 'v' in self.env_vars:
@@ -331,9 +331,15 @@ class RadarData(InMemoryDataset):
         if self.edge_type != 'voronoi':
             areas = np.ones(areas.shape)
 
+        print(f'max coord before = {voronoi[coord_cols].max()}')
+        print(f'min coord before = {voronoi[coord_cols].min()}')
         voronoi[coord_cols] = voronoi[coord_cols].apply(lambda col: (col - col.min()))
-        coords = voronoi[coord_cols].to_numpy() / uv_scale
-        print(f'max coord = {coords.max()}')
+        print(f'max coord after shift = {voronoi[coord_cols].max()}')
+        print(f'min coord after shift = {voronoi[coord_cols].min()}')
+        voronoi[coord_cols] = voronoi[coord_cols] / uv_scale
+        print(f'max coord after scaling = {voronoi[coord_cols].max()}')
+        print(f'min coord after scaling = {voronoi[coord_cols].min()}')
+        coords = voronoi[coord_cols].to_numpy()
 
         # get distances, angles and face lengths between radars
         distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
