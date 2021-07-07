@@ -2970,7 +2970,7 @@ class RecurrentEncoder(torch.nn.Module):
 
         for t in range(self.timesteps):
             h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
-                                   data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[:, t], h_t, c_t)
+                                   data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t], h_t, c_t)
             # h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
             #                        data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t],
             #                        data.directions[:, t], data.speeds[:, t], h_t, c_t)

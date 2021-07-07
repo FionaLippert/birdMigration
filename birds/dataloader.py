@@ -322,7 +322,7 @@ class RadarData(InMemoryDataset):
 
         if 'u' in self.env_vars and 'v' in self.env_vars:
             dynamic_feature_df[['u', 'v']] = dynamic_feature_df[['u', 'v']] / uv_scale
-            print(f'max wind uv = {dynamic_feature_df[["u", "v"]]}')
+            print(f'max wind uv = {dynamic_feature_df[["u", "v"]].max()}')
 
         # normalize static features
         coord_cols = ['x', 'y']
@@ -331,12 +331,9 @@ class RadarData(InMemoryDataset):
         if self.edge_type != 'voronoi':
             areas = np.ones(areas.shape)
 
-        print(f'max coord before = {voronoi[coord_cols].max()}')
-        print(f'min coord before = {voronoi[coord_cols].min()}')
-        voronoi[coord_cols] = voronoi[coord_cols].apply(lambda col: (col - col.min()))
-        print(f'max coord after shift = {voronoi[coord_cols].max()}')
-        print(f'min coord after shift = {voronoi[coord_cols].min()}')
-        voronoi[coord_cols] = voronoi[coord_cols] / uv_scale
+        # voronoi[coord_cols] = voronoi[coord_cols].apply(lambda col: (col - col.min()))
+        xy_scale = voronoi[coord_cols].abs().max().max()
+        voronoi[coord_cols] = voronoi[coord_cols] / xy_scale
         print(f'max coord after scaling = {voronoi[coord_cols].max()}')
         print(f'min coord after scaling = {voronoi[coord_cols].min()}')
         coords = voronoi[coord_cols].to_numpy()
@@ -346,6 +343,9 @@ class RadarData(InMemoryDataset):
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
         delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
         delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
+
+        for i, j in G.edges():
+            print(voronoi.iloc[i].radar, voronoi.iloc[j].radar, delta_x, delta_y)
 
         if self.edge_type == 'voronoi':
             print('Use Voronoi tessellation')
