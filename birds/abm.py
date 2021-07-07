@@ -428,7 +428,9 @@ def aggregate(trajectories, states, grid, t_range, state):
     names = []
     grid_counts = grid.to_crs('epsg:4326')    # to lonlat crs
     for t in t_range:
-        merged = gpd.sjoin(get_points(trajectories[t], states[t], state), grid_counts, how='left', op='within')
+        df_t = get_points(trajectories[t], states[t], state)
+        print(len(df_t))
+        merged = gpd.sjoin(df_t, grid_counts, how='left', op='within')
         merged[f'n_birds_{t}'] = 1
         dissolve = merged.dissolve(by="index_right", aggfunc="count")
         name_t = f'n_birds_{t}'
