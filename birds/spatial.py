@@ -100,15 +100,15 @@ class Spatial:
         for i, j in it.combinations(cells.index, 2):
             intersec = cells.geometry.iloc[i].intersection(cells.geometry.iloc[j])
             if type(intersec) is geometry.LineString:
-                adj[i, j] = self.distance(lonlat[i], lonlat[j], crs=self.epsg_lonlat)
+                adj[i, j] = self.distance(xy[i], xy[j])
                 adj[j, i] = adj[i, j]
-                face = gpd.GeoSeries(intersec, crs=self.crs_local).to_crs(epsg=self.epsg_lonlat)
+                face = gpd.GeoSeries(intersec, crs=self.crs_local) #.to_crs(epsg=self.epsg_lonlat)
                 p1 = face.iloc[0].coords[0]
                 p2 = face.iloc[0].coords[1]
-                face_len.append(self.distance(p1, p2, crs=self.epsg_lonlat))
 
-                distance = self.distance(lonlat[i], lonlat[j], crs=self.epsg_lonlat)
-                face_length = self.distance(p1, p2, crs=self.epsg_lonlat)
+                distance = self.distance(xy[i], xy[j])
+                face_length = self.distance(p1, p2)
+                face_len.append(face_length)
                 G.add_edge(i, j, distance=distance, face_length=face_length,
                                  angle=self.angle(lonlat[i], lonlat[j]))
                 G.add_edge(j, i, distance=distance, face_length=face_length,
@@ -181,7 +181,7 @@ class Spatial:
         G = nx.DiGraph()
         for i in range(self.N):
             for j in range(self.N):
-                dist = self.distance(xy[i], xy[j], crs=self.crs_local)
+                dist = self.distance(xy[i], xy[j])
                 if dist <= max_distance:
                     G.add_edge(i, j, distance=dist,
                                angle=self.angle(lonlat[i], lonlat[j]))
@@ -213,19 +213,16 @@ class Spatial:
             #coords = np.flip(coords, axis=1)
         return coords
 
-    def distance(self, coord1, coord2, crs):
+    def distance(self, coord1, coord2):
         """
-        Compute distance between two geographical locations
+        Compute distance between two geographical locations in local crs
         Args:
-            coord1 (tuple): coordinates of first location (lon, lat) or (x, y)
-            coord2 (tuple): coordinates of second location (lon, lat) or (x, y)
+            coord1 (tuple): coordinates of first location (x, y)
+            coord2 (tuple): coordinates of second location (x, y)
         Returns:
             dist (float): distance in meters
         """
-        if crs == self.epsg_lonlat:
-            dist = geodesic(self.flip(coord1), self.flip(coord2)).meters
-        else:
-            dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
+        dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
         return dist
 
     def angle(self, coord1, coord2):
