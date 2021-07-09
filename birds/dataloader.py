@@ -321,7 +321,7 @@ class RadarData(InMemoryDataset):
 
         if 'u' in self.env_vars and 'v' in self.env_vars:
             dynamic_feature_df[['u', 'v']] = dynamic_feature_df[['u', 'v']] / uv_scale
-            print(f'max wind uv = {dynamic_feature_df[["u", "v"]].max()}')
+            #print(f'max wind uv = {dynamic_feature_df[["u", "v"]].max()}')
 
         # normalize static features
         coord_cols = ['x', 'y']
@@ -333,8 +333,8 @@ class RadarData(InMemoryDataset):
         # voronoi[coord_cols] = voronoi[coord_cols].apply(lambda col: (col - col.min()))
         xy_scale = voronoi[coord_cols].abs().max().max()
         voronoi[coord_cols] = voronoi[coord_cols] / xy_scale
-        print(f'max coord after scaling = {voronoi[coord_cols].max()}')
-        print(f'min coord after scaling = {voronoi[coord_cols].min()}')
+        #print(f'max coord after scaling = {voronoi[coord_cols].max()}')
+        #print(f'min coord after scaling = {voronoi[coord_cols].min()}')
         coords = voronoi[coord_cols].to_numpy()
 
         # get distances, angles and face lengths between radars
@@ -411,8 +411,8 @@ class RadarData(InMemoryDataset):
                 data['birds_km2'].append(df.birds_km2.to_numpy())
 
         for k, v in data.items():
-            data[k] = np.stack(v, axis=0)
-
+            data[k] = np.stack(v, axis=0).astype(float)
+        
 
         # find timesteps where it's night for all radars
         check_all = data['nighttime'].all(axis=0) # day/night mask
