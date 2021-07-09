@@ -2,6 +2,7 @@ import cdsapi
 import os
 import os.path as osp
 import xarray as xr
+import rioxarray
 import numpy as np
 from shapely import geometry
 
@@ -121,7 +122,6 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
-    #t_range = t_range.tz_convert('UTC') # convert datetimeindex to UTC if it was given at a different timezone
     weather = {}
     for var, ds in data.items():
         if var in vars:

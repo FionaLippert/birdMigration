@@ -19,15 +19,15 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
     radars = {k: v for k, v in radars.items() if not v in exclude}
-    print(radars)
 
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars)
-    voronoi, G = space.voronoi()
-    G = space.subgraph('type', 'measured')  # graph without sink nodes
+    voronoi, G_voronoi = space.voronoi()
+    # G = space.subgraph(G, 'type', 'measured')  # graph without sink nodes
 
     G_max_dist = space.G_max_dist(max_distance)
 
+    print('create radar buffer dataframe')
     # 25 km buffers around radars
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
                                      'observed' : voronoi.observed},
@@ -35,10 +35,10 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
                                      crs=space.crs_local)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
-    radar_buffers['area_km2'] = radar_buffers.to_crs(epsg=space.epsg_equal_area).area / 10**6
-    voronoi['area_km2'] = voronoi.to_crs(epsg=space.epsg_equal_area).area / 10**6
+    radar_buffers['area_km2'] = radar_buffers.area / 10**6
+    voronoi['area_km2'] = voronoi.area / 10**6
 
-    return voronoi, radar_buffers, G, G_max_dist
+    return voronoi, radar_buffers, G_voronoi, G_max_dist
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                      env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5,
@@ -181,13 +181,13 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 
 
-def prepare_features(target_dir, data_dir, year, datasource, season, radar_years=['2015', '2016', '2017'],
+def prepare_features(target_dir, data_dir, year, data_source, season, radar_years=['2015', '2016', '2017'],
                      env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
                      max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi',
-                     exclude=[]):
+                     exclude=[], **kwargs):
 
     # load static features
-    if datasource == 'abm' and not year in radar_years:
+    if data_source == 'abm' and not year in radar_years:
         radar_year = radar_years[-1]
     else:
         radar_year = year
@@ -205,7 +205,7 @@ def prepare_features(target_dir, data_dir, year, datasource, season, radar_years
 
     if process_dynamic:
         # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, datasource, season, year, voronoi, radar_buffers,
+        dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                                               env_points=env_points, random_seed=seed,
                                               pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit,
                                               edge_type=edge_type)
@@ -275,11 +275,11 @@ def preprocess(cfg: DictConfig):
     for year in years:
         dir = osp.join(data_root, 'preprocessed', cfg.t_unit,
                        f'{cfg.edge_type}_dummy_radars={cfg.n_dummy_radars}_exclude={cfg.exclude}',
-                        cfg.datasource, cfg.season, str(year))
+                        cfg.datasource.name, cfg.season, str(year))
         if not osp.isdir(dir):
             # load all features and organize them into dataframes
             os.makedirs(dir)
-            prepare_features(dir, raw_dir, str(year), **cfg,
+            prepare_features(dir, raw_dir, str(year), cfg.datasource.name, **cfg,
                              radar_years=cfg.get('radar_years', ['2015', '2016', '2017']),
                              env_points=cfg.get('enf_points', 100),
                              pref_dirs=cfg.get('pref_dirs', {'spring': 58, 'fall': 223}),
