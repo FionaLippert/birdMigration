@@ -119,11 +119,9 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
     # t_range must be given as UTC, but not localized
     cell_geometries = cell_geometries.to_crs('EPSG:4326')
     data = xr.open_dataset(data_path)
-    print('write data to lonlat crs')
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
-    #t_range = t_range.tz_convert('UTC') # convert datetimeindex to UTC if it was given at a different timezone
     weather = {}
     for var, ds in data.items():
         if var in vars:

@@ -19,14 +19,12 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
     radars = {k: v for k, v in radars.items() if not v in exclude}
-    print(radars)
 
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars)
-    voronoi, G = space.voronoi()
-    G = space.subgraph('type', 'measured')  # graph without sink nodes
+    voronoi, G_voronoi = space.voronoi()
+    # G = space.subgraph(G, 'type', 'measured')  # graph without sink nodes
 
-    print('create max dist graph')
     G_max_dist = space.G_max_dist(max_distance)
 
     print('create radar buffer dataframe')
@@ -40,7 +38,7 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
     radar_buffers['area_km2'] = radar_buffers.area / 10**6
     voronoi['area_km2'] = voronoi.area / 10**6
 
-    return voronoi, radar_buffers, G, G_max_dist
+    return voronoi, radar_buffers, G_voronoi, G_max_dist
 
 def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
                      env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5,
