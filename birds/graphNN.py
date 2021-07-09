@@ -1613,14 +1613,15 @@ class NodeLSTM(torch.nn.Module):
 
 class LocalLSTM2(torch.nn.Module):
 
-    def __init__(self, n_nodes, n_in, **kwargs):
+    def __init__(self, n_env, coord_dim=2, **kwargs):
         super(LocalLSTM2, self).__init__()
 
         self.horizon = kwargs.get('horizon', 40)
 
         # model components
+        n_in = n_env + coord_dim + 1
         self.encoder = RecurrentEncoder3(n_in, **kwargs)
-        self.node_lstm = NodeLSTM(n_nodes, n_in, **kwargs)
+        self.node_lstm = NodeLSTM(n_in, **kwargs)
 
         self.horizon = kwargs.get('horizon', 40)
         self.t_context = kwargs.get('context', 0)
@@ -1654,7 +1655,7 @@ class LocalLSTM2(torch.nn.Module):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t], data.areas.view(-1, 1)], dim=1)
+            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
             delta, hidden = self.node_lstm(inputs)
             x = x + delta
             y_hat.append(x)
