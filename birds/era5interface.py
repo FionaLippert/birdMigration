@@ -2,6 +2,7 @@ import cdsapi
 import os
 import os.path as osp
 import xarray as xr
+import rioxarray
 import numpy as np
 from shapely import geometry
 
