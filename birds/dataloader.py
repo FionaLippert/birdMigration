@@ -414,6 +414,7 @@ class RadarData(InMemoryDataset):
             data[k] = np.stack(v, axis=0)
 
 
+
         # find timesteps where it's night for all radars
         check_all = data['nighttime'].all(axis=0) # day/night mask
         # find timesteps where it's night for at least one radar

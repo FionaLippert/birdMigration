@@ -1725,9 +1725,9 @@ class FluxGraphLSTM(MessagePassing):
 
             # boundary model
             x_boundary = self.boundary_model(x)
-            h_boundary = self.boundary_model(h_t[-1])
+            h_boundary = self.boundary_model(hidden)
             x = x * inner_nodes + x_boundary * boundary_nodes
-            h_t[-1] = h_t[-1] * inner_nodes + h_boundary * boundary_nodes
+            hidden = hidden * inner_nodes + h_boundary * boundary_nodes
 
             # message passing through graph
             x, hidden = self.propagate(data.edge_index,
