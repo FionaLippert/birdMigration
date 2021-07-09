@@ -73,8 +73,7 @@ def timeslice(data, start_night, mask, timesteps):
 
 
 class Normalization:
-    def __init__(self, years, data_source, data_root, season='fall', radar_years=['2015', '2016', '2017'], max_distance=216,
-                 env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5, t_unit='1H',
+    def __init__(self, years, data_source, data_root, season='fall', t_unit='1H',
                  edge_type='voronoi', n_dummy_radars=0, exclude=[], **kwargs):
         self.root = data_root
         self.data_source = data_source
@@ -361,13 +360,16 @@ class RadarData(InMemoryDataset):
             print('Use other edge type')
             edge_attr = torch.stack([
                 torch.tensor(distances, dtype=torch.float),
-                torch.tensor(angles, dtype=torch.float),
+                torch.tensor(delta_x, dtype=torch.float),
+                torch.tensor(delta_y, dtype=torch.float),
+                # torch.tensor(angles, dtype=torch.float),
             ], dim=1)
 
 
         # reorganize data
         target_col = input_col
-        env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt']
+        #env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt', 'night', 'dusk', 'dawn']
+        env_cols = self.env_vars
         acc_cols = ['acc_rain', 'acc_wind']
 
         time = dynamic_feature_df.datetime.sort_values().unique()
@@ -380,8 +382,8 @@ class RadarData(InMemoryDataset):
                     env=[],
                     acc=[],
                     nighttime=[],
-                    dusk=[],
-                    dawn=[],
+                    #dusk=[],
+                    #dawn=[],
                     missing=[])
 
         if self.data_source == 'radar' and self.compute_fluxes:
@@ -398,8 +400,8 @@ class RadarData(InMemoryDataset):
             data['env'].append(df[env_cols].to_numpy().T)
             data['acc'].append(df[acc_cols].to_numpy().T)
             data['nighttime'].append(df.night.to_numpy())
-            data['dusk'].append(df.dusk.to_numpy())
-            data['dawn'].append(df.dawn.to_numpy())
+            #data['dusk'].append(df.dusk.to_numpy())
+            #data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
             data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
 
@@ -526,8 +528,8 @@ class RadarData(InMemoryDataset):
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
                           day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
-                          local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
-                          local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
+                          #local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
+                          #local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=torch.tensor(fluxes[:, :, nidx], dtype=torch.float),
                           mtr=torch.tensor(mtr[:, :, nidx], dtype=torch.float),
@@ -544,6 +546,7 @@ class RadarData(InMemoryDataset):
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
                 'areas' : voronoi.area_km2.values,
+                'env_vars': env_cols,
                  'timepoints': time,
                  'tidx': tidx,
                  'nights': nights,

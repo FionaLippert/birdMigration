@@ -22,7 +22,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
                  'GraphLSTM': BirdDynamicsGraphLSTM,
                  'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
-                 'BirdFluxGraphLSTM': FluxGraphLSTM,
+                 'BirdFluxGraphLSTM': BirdFluxGraphLSTM,
                  'BirdFluxGraphLSTM2': BirdFluxGraphLSTM2,
                  'testFluxMLP': testFluxMLP,
                  'AttentionGraphLSTM': AttentionGraphLSTM}
@@ -31,11 +31,8 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
 
 def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
-    #assert cfg.action.name == 'training'
 
     torch.autograd.set_detect_anomaly(True)
-
-    Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
     device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
@@ -57,6 +54,9 @@ def train(cfg: DictConfig, output_dir: str, log):
                   for year in cfg.datasource.training_years]
 
     n_nodes = len(data[0].info['radars'])
+    #n_env = len(data[0].info['env_vars'])
+    n_env = len(cfg.datasource.env_vars)
+    n_in = 3 + n_env # x + 2 coords + env vars
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
 
@@ -75,15 +75,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
-    if cfg.edge_type == 'voronoi':
-        n_edge_attr = 4
-        if cfg.datasource.use_buffers:
-            input_col = 'birds_from_buffer'
-        else:
-            input_col = 'birds'
+    if cfg.datasource.use_buffers:
+        input_col = 'birds_from_buffer'
     else:
-        n_edge_attr = 3
-        input_col = 'birds_km2'
+        input_col = 'birds'
 
     cfg.datasource.bird_scale = float(normalization.max(input_col))
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
@@ -96,20 +91,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     else:
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
-    # print('load val data')
-    # # load validation data
-    # val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
-    #                               data_root=data_root,
-    #                               data_source=cfg.datasource.name,
-    #                               use_buffers=cfg.datasource.use_buffers,
-    #                               normalization=normalization,
-    #                               env_vars=cfg.datasource.env_vars,
-    #                               compute_fluxes=cfg.model.get('compute_fluxes', False)
-    #                               )
-    # val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
-    # if cfg.datasource.validation_year == cfg.datasource.test_year:
-    #     val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
-    # print('loaded val data')
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
@@ -128,9 +109,13 @@ def train(cfg: DictConfig, output_dir: str, log):
     val_curve = np.ones((1, epochs)) * np.nan
 
     print(f'train model')
-    print(f'environmental variables: {cfg.datasource.env_vars}')
-    model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
-                  seed=(cfg.seed + cfg.get('job_id', 0)), **cfg.model)
+    print(cfg.datasource.env_vars)
+
+    seed = (cfg.seed + cfg.get('job_id', 0))
+    encoder = RecurrentEncoder3(n_in, seed=seed, **cfg.model)
+    node_lstm = NodeLSTM(n_nodes, n_in, seed=seed, **cfg.model)
+    edge_mlp = EdgeFluxMLP(n_in, seed=seed, **cfg.model)
+    model = FluxGraphLSTM(encoder, node_lstm, edge_mlp, boundary_model, seed=seed, **cfg.model)
 
     states_path = cfg.model.get('load_states_from', '')
     if osp.isfile(states_path):
@@ -163,7 +148,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         #    if param.requires_grad:
         #        print(name, param.data, param.grad)
 
-        if 'FluxGraphLSTM' in cfg.model.name:
+        if 'BirdFluxGraphLSTM' in cfg.model.name:
             loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
                                 conservation_constraint=cfg.model.get('conservation_constraint', 0),
                                 teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
@@ -212,6 +197,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 def test(cfg: DictConfig, output_dir: str, log, ext=''):
     assert cfg.model.name in MODEL_MAPPING
+    #assert cfg.action.name == 'testing'
 
     Model = MODEL_MAPPING[cfg.model.name]
 
@@ -283,8 +269,10 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
         results['outfluxes'] = []
 
 
-    model = Model(n_nodes=n_nodes, n_in=len(cfg.datasource.env_vars) + 3,
-                  seed=(cfg.seed + cfg.get('job_id', 0)), **model_cfg['model'])
+    model = Model(**model_cfg['model'], seed=(cfg.seed + cfg.get('job_id', 0)),
+          n_env=2 + len(cfg.datasource.env_vars),
+          n_nodes=n_nodes,
+          edge_type=cfg.edge_type)
     model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
 
     # adjust model settings for testing
@@ -325,7 +313,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
         if cfg.model.name == 'GraphLSTM':
             fluxes = model.fluxes.detach().cpu()
             local_deltas = model.local_deltas.detach().cpu()
-        elif 'Flux' in cfg.model.name:
+        elif cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
             local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
@@ -357,15 +345,15 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
             results['horizon'].append(np.arange(y_hat.shape[1]))
             results['missing'].append(missing[ridx, context:])
 
-            if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'FluxGraphLSTM']:
+            if cfg.model.name in ['GraphLSTM', 'BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
                 results['fluxes'].append(fluxes[ridx].view(-1))
                 results['local_deltas'].append(local_deltas[ridx].view(-1))
-            if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'FluxGraphLSTM']:
+            if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2']:
                 results['influxes'].append(influxes[ridx].view(-1))
                 results['outfluxes'].append(outfluxes[ridx].view(-1))
 
 
-    if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP', 'FluxGraphLSTM']:
+    if cfg.model.name in ['BirdFluxGraphLSTM', 'BirdFluxGraphLSTM2', 'testFluxMLP']:
         with open(osp.join(output_dir, f'local_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'radar_fluxes{ext}.pickle'), 'wb') as f:

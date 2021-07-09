@@ -9,6 +9,11 @@ test_year: 2015
 env_vars:
   - u
   - v
+  - solarpos
+  - solarpos_dt
+  - night
+  - dusk
+  - dawn
 
 use_buffers: False
 # will be filled at runtime
