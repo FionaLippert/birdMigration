@@ -26,8 +26,10 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
     voronoi, G = space.voronoi()
     G = space.subgraph('type', 'measured')  # graph without sink nodes
 
+    print('create max dist graph')
     G_max_dist = space.G_max_dist(max_distance)
 
+    print('create radar buffer dataframe')
     # 25 km buffers around radars
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
                                      'observed' : voronoi.observed},
@@ -35,8 +37,8 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
                                      crs=space.crs_local)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
-    radar_buffers['area_km2'] = radar_buffers.to_crs(epsg=space.epsg_equal_area).area / 10**6
-    voronoi['area_km2'] = voronoi.to_crs(epsg=space.epsg_equal_area).area / 10**6
+    radar_buffers['area_km2'] = radar_buffers.area / 10**6
+    voronoi['area_km2'] = voronoi.area / 10**6
 
     return voronoi, radar_buffers, G, G_max_dist
 

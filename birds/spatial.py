@@ -78,7 +78,7 @@ class Spatial:
 
         #polygons = np.array(list(polygons.values()))[idx]
         polygons = [polygons[pid] for pid, pt in sorted(pts.items(), key=lambda kv: kv[1])]
-
+        print('create voronoi cell dataframe')
         cells = gpd.GeoDataFrame({'radar': list(self.radars.values()) + [f'boundary_{i}' for i in range(self.N_dummy)],
                                   'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy,
                                   'x': [c[0] for c in xy],
@@ -92,6 +92,7 @@ class Spatial:
                                  crs=self.crs_local)
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
 
+        print('create graph')
         adj = np.zeros((self.N, self.N))
         G = nx.DiGraph()
         edges = []
