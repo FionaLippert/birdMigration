@@ -1226,7 +1226,8 @@ class BirdFluxGraphLSTM(MessagePassing):
         y_hat = []
         enc_states = None
 
-        x = data.x[..., self.t_context].view(-1, 1)
+        # rescale to birds/cell
+        x = data.x[..., self.t_context].view(-1, 1) # * data.areas.view(-1, 1)
         y_hat.append(x)
 
         # initialize lstm variables
@@ -1275,7 +1276,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                 # if data is available use ground truth, otherwise use model prediction
                 # x = data.missing[..., t-1].bool().view(-1, 1) * x + \
                 #     torch.logical_not(data.missing[..., t-1].bool().view(-1, 1)) * data.x[..., t-1].view(-1, 1)
-                x = data.x[..., t-1].view(-1, 1)
+                x = data.x[..., t-1].view(-1, 1) #* data.areas.view(-1, 1)
 
 
             if self.boundary_model == 'LocalLSTM':
@@ -1318,7 +1319,7 @@ class BirdFluxGraphLSTM(MessagePassing):
                 if self.boundary_model == 'LocalLSTM':
                     x[data.boundary, 0] = boundary_pred[data.boundary, t-self.t_context] + perturbation
                 else:
-                    x[data.boundary, 0] = data.y[data.boundary, t] + perturbation
+                    x[data.boundary, 0] = data.y[data.boundary, t] * data.areas[data.boundary] + perturbation
 
             if self.force_zeros:
                 x = x * data.local_night[:, t].view(-1, 1)
@@ -1326,6 +1327,8 @@ class BirdFluxGraphLSTM(MessagePassing):
             y_hat.append(x)
 
         prediction = torch.cat(y_hat, dim=-1)
+        # rescale to birds/km2
+        #prediction = prediction / data.areas.view(-1, 1)
         return prediction
 
 
@@ -2969,7 +2972,8 @@ class RecurrentEncoder(torch.nn.Module):
         states = []
 
         for t in range(self.timesteps):
-            h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
+            x = data.x[:, t] #* data.areas
+            h_t, c_t = self.update(data.env[..., t], data.coords, x, data.local_night[:, t],
                                    data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t], h_t, c_t)
             # h_t, c_t = self.update(data.env[..., t], data.coords, data.x[:, t], data.local_night[:, t],
             #                        data.local_dawn[:, t], data.local_dusk[:, t], data.bird_uv[..., t],
@@ -3477,14 +3481,14 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
-        output = model(data) #.view(-1)
+        output = model(data) / data.areas.view(-1, 1) # birds/km2
 
         # if n_devices > 1:
         #     gt = torch.cat([d.y for d in data])
         # else:
         #     gt = data.y
 
-        gt = data.y
+        gt = data.y / data.areas.view(-1, 1) # birds/km2
 
         if conservation_constraint > 0:
 
@@ -3679,8 +3683,8 @@ def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_sca
 
     for tidx, data in enumerate(test_loader):
         data = data.to(device)
-        output = model(data) * bird_scale #.view(-1)
-        gt = data.y * bird_scale
+        output = model(data) * bird_scale / data.areas.view(-1, 1)
+        gt = data.y * bird_scale / data.areas.view(-1, 1)
 
         if fixed_boundary:
             # boundary_mask = np.ones(output.size(0))
