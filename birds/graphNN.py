@@ -21,8 +21,6 @@ def init_weights(m):
                 inits.zeros(param)
             elif 'weight' in name:
                 inits.glorot(param)
-    elif type(m) == nn.ModuleList:
-        m.apply(init_weights)
 
 class LSTM(torch.nn.Module):
     """
@@ -1491,6 +1489,7 @@ class EdgeFluxMLP(torch.nn.Module):
     def __init__(self, n_in, **kwargs):
         super(EdgeFluxMLP, self).__init__()
 
+        #print(f'edge flux n_in = {n_in}')
         self.n_hidden = kwargs.get('n_hidden', 64)
         self.n_fc_layers = kwargs.get('n_fc_layers', 64)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -1507,11 +1506,12 @@ class EdgeFluxMLP(torch.nn.Module):
 
         init_weights(self.input2hidden)
         init_weights(self.fc_edge_in)
-        init_weights(self.fc_edge_hidden)
+        self.fc_edge_hidden.apply(init_weights)
         init_weights(self.hidden2output)
 
 
     def forward(self, x_j, inputs, hidden_j):
+        #print(f'edge flux input shape: {inputs.shape}')
         inputs = self.input2hidden(inputs)
         inputs = torch.cat([inputs, hidden_j], dim=1)
 
@@ -1534,6 +1534,7 @@ class NodeLSTM(torch.nn.Module):
         super(NodeLSTM, self).__init__()
 
         self.n_in = n_in
+        #print(f'node n_in = {n_in}')
         self.n_hidden = kwargs.get('n_hidden', 64)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 2)
         self.use_encoder = kwargs.get('use_encoder', True)
@@ -1565,8 +1566,8 @@ class NodeLSTM(torch.nn.Module):
             init_weights(self.fc_attention)
             init_weights(self.v_attention)
         init_weights(self.lstm_in)
-        init_weights(self.lstm_layers)
-        init_weights(self.hidden2output)
+        self.lstm_layers.apply(init_weights)
+        self.hidden2output.apply(init_weights)
 
     def setup_states(self, h, c, enc_states=None):
         self.h = h
@@ -1583,6 +1584,7 @@ class NodeLSTM(torch.nn.Module):
 
     def forward(self, inputs):
 
+        #print(f'node input shape: {inputs.shape}')
         inputs = self.input2hidden(inputs)
 
         if self.enc_states is not None:
@@ -1672,7 +1674,7 @@ class FluxGraphLSTM(MessagePassing):
         n_node_in = n_env + coord_dim + 1
         n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
         self.encoder = RecurrentEncoder3(n_node_in, **kwargs)
-        self.node_lstm = NodeLSTM(n_node_in, **kwargs)
+        self.node_lstm = NodeLSTM(n_node_in + 1, **kwargs)
         self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
         self.boundary_model = Extrapolation()
 
@@ -1690,8 +1692,8 @@ class FluxGraphLSTM(MessagePassing):
 
     def forward(self, data):
 
-        boundary_nodes = data.boundary.unsqueeze(-1)
-        inner_nodes = torch.logical_not(self.boundary)
+        boundary_nodes = data.boundary.view(-1, 1)
+        inner_nodes = torch.logical_not(data.boundary).view(-1, 1)
 
         x = data.x[..., self.t_context].view(-1, 1)
         y_hat = [x]
@@ -1731,6 +1733,7 @@ class FluxGraphLSTM(MessagePassing):
 
             # message passing through graph
             x, hidden = self.propagate(data.edge_index,
+                                         reverse_edges=data.reverse_edges,
                                          x=x,
                                          coords=data.coords,
                                          hidden=hidden,
@@ -1752,7 +1755,7 @@ class FluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, hidden_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t):
+    def message(self, x_j, hidden_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
         # construct messages to node i for each edge (j,i)
         # x_j are source features with shape [E, out_channels]
 
@@ -1762,7 +1765,7 @@ class FluxGraphLSTM(MessagePassing):
         flux = self.edge_mlp(x_j, inputs, hidden_j)
 
         self.local_fluxes[..., t] = flux
-        flux = flux - flux[self.reverse_edges]
+        flux = flux - flux[reverse_edges]
         flux = flux.view(-1, 1)
 
         return flux
@@ -3327,7 +3330,7 @@ class RecurrentEncoder3(torch.nn.Module):
 
     def reset_parameters(self):
 
-        init_weights(self.lstm_layers)
+        self.lstm_layers.apply(init_weights)
         init_weights(self.input2hidden)
 
 
@@ -3338,7 +3341,7 @@ class RecurrentEncoder3(torch.nn.Module):
 
         states = []
 
-        for t in range(self.timesteps):
+        for t in range(self.t_context):
             x = data.x[:, t]
             h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t)
             states.append(h_t[-1])
@@ -3349,7 +3352,7 @@ class RecurrentEncoder3(torch.nn.Module):
 
     def update(self, x, coords, env, h_t, c_t):
 
-        inputs = torch.cat([x, coords, env], dim=1)
+        inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
 
         inputs = self.input2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
