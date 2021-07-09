@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from geovoronoi import voronoi_regions_from_coords, plotting
 from shapely import geometry
+import pyproj
 from geopy.distance import geodesic, lonlat
 import itertools as it
 import networkx as nx
@@ -30,8 +31,10 @@ class Spatial:
                                         crs=f'EPSG:{self.epsg_lonlat}')
         self.pts_equal_area = self.pts_lonlat.to_crs(epsg=self.epsg_equal_area)
         # equidistant projection centered around mean location of radar stations
-        self.crs_local = f'+proj=aeqd +lat_0={self.pts_lonlat.y.mean():.7f} ' \
-                         f'+lon_0={self.pts_lonlat.x.mean():.7f} +units=m +ellps=WGS84'
+        # self.crs_local = f'+proj=aeqd +lat_0={self.pts_lonlat.y.mean():.7f} ' \
+        #                  f'+lon_0={self.pts_lonlat.x.mean():.7f} +units=m +ellps=WGS84'
+        self.crs_local = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84',
+                                     lat_0=self.pts_lonlat.y.mean(), lon_0=self.pts_lonlat.x.mean()).srs
         self.pts_local = self.pts_lonlat.to_crs(self.crs_local)
 
         self.rng = np.random.default_rng(seed)
