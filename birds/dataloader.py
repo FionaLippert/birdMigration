@@ -403,7 +403,9 @@ class RadarData(InMemoryDataset):
             #data['dusk'].append(df.dusk.to_numpy())
             #data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
-            data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
+
+            if self.compute_fluxes:
+                data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
 
             if self.data_source == 'radar' and self.compute_fluxes:
                 data['speed'].append(df.bird_speed.to_numpy())
@@ -486,7 +488,9 @@ class RadarData(InMemoryDataset):
 
             data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
             data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-            # data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            
+        if not self.compute_fluxes:
+            data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
         dir_mask = np.isfinite(data['direction'])
         data['direction'][dir_mask] = (data['direction'][dir_mask] + 360) % 360

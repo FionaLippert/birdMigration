@@ -3946,14 +3946,14 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
-        output = model(data)
+        output = model(data) / data.areas.view(-1, 1)
 
         # if n_devices > 1:
         #     gt = torch.cat([d.y for d in data])
         #     local_night = torch.cat([d.local_night for d in data])
         #     missing = torch.cat([d.missing for d in data])
 
-        gt = data.y
+        gt = data.y / data.areas.view(-1, 1)
 
         if daymask:
             mask = torch.logical_and(data.local_night, torch.logical_not(data.missing))
@@ -4088,8 +4088,8 @@ def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymas
         data = data.to(device)
 
         with torch.no_grad():
-            output = model(data) * bird_scale #.view(-1)
-            gt = data.y * bird_scale
+            output = model(data) * bird_scale / data.areas.view(-1, 1)
+            gt = data.y * bird_scale / data.areas.view(-1, 1)
 
             if daymask:
                 mask = data.local_night & ~data.missing
