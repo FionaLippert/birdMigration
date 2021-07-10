@@ -1587,7 +1587,7 @@ class NodeLSTM(torch.nn.Module):
         #print(f'node input shape: {inputs.shape}')
         inputs = self.input2hidden(inputs)
 
-        if self.enc_states is not None:
+        if self.use_encoder:
             # use attention mechanism to extract information from encoder states
             hidden = self.h[-1].unsqueeze(1).repeat(1, self.enc_states.size(1), 1)
             energy = torch.tanh(self.fc_attention(torch.cat([self.enc_states, hidden], dim=2)))
@@ -1617,10 +1617,12 @@ class LocalLSTM2(torch.nn.Module):
         super(LocalLSTM2, self).__init__()
 
         self.horizon = kwargs.get('horizon', 40)
+        self.use_encoder = kwargs.get('use_encoder', True)
 
         # model components
         n_in = n_env + coord_dim + 1
-        self.encoder = RecurrentEncoder3(n_in, **kwargs)
+        if self.use_encoder:
+            self.encoder = RecurrentEncoder3(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
 
         self.horizon = kwargs.get('horizon', 40)
@@ -1636,16 +1638,15 @@ class LocalLSTM2(torch.nn.Module):
         x = data.x[..., self.t_context].view(-1, 1)
         y_hat = [x]
 
-        if self.encoder is None:
+        if self.use_encoder:
+            # push context timeseries through encoder to initialize decoder
+            enc_states, h_t, c_t = self.encoder(data)
+            self.node_lstm.reset(h_t, c_t, enc_states)
+        else:
             # start from scratch
             h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
-            enc_states = None
-        else:
-            # push context timeseries through encoder to initialize decoder
-            enc_states, h_t, c_t = self.encoder(data)
-
-        self.node_lstm.reset(h_t, c_t, enc_states)
+            self.node_lstm.reset(h_t, c_t)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
@@ -1671,21 +1672,26 @@ class FluxGraphLSTM(MessagePassing):
     def __init__(self, n_env, n_edge_attr, coord_dim=2, **kwargs):
         super(FluxGraphLSTM, self).__init__(aggr='add', node_dim=0)
 
-        # model components
-        n_node_in = n_env + coord_dim + 1
-        n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
-        self.encoder = RecurrentEncoder3(n_node_in, **kwargs)
-        self.node_lstm = NodeLSTM(n_node_in + 1, **kwargs)
-        self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
-        self.boundary_model = Extrapolation()
-
+        # settings
         self.horizon = kwargs.get('horizon', 40)
         self.t_context = kwargs.get('context', 0)
         self.teacher_forcing = kwargs.get('teacher_forcing', True)
-
+        self.use_encoder = kwargs.get('use_encoder', True)
+        self.use_boundary_model = kwargs.get('use_boundary_model', True)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
         self.perturbation_std = kwargs.get('perturbation_std', 0)
         self.perturbation_mean = kwargs.get('perturbation_mean', 0)
+
+        # model components
+        n_node_in = n_env + coord_dim + 1
+        n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
+
+        self.node_lstm = NodeLSTM(n_node_in + 1, **kwargs)
+        self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
+        if self.use_encoder:
+            self.encoder = RecurrentEncoder3(n_node_in, **kwargs)
+        if self.use_boundary_model:
+            self.boundary_model = Extrapolation()
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -1699,19 +1705,20 @@ class FluxGraphLSTM(MessagePassing):
         x = data.x[..., self.t_context].view(-1, 1)
         y_hat = [x]
 
-        if self.encoder is None:
+        if self.use_encoder:
+            # push context timeseries through encoder to initialize decoder
+            enc_states, h_t, c_t = self.encoder(data)
+            self.node_lstm.setup_states(h_t, c_t, enc_states)
+        else:
             # start from scratch
             h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for _ in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for _ in range(self.n_lstm_layers)]
-            enc_states = None
-        else:
-            # push context timeseries through encoder to initialize decoder
-            enc_states, h_t, c_t = self.encoder(data)
+            self.node_lstm.setup_states(h_t, c_t)
 
         # setup model components
-        self.node_lstm.setup_states(h_t, c_t, enc_states)
+        if self.use_boundary_model:
+            self.boundary_model.edge_index = data.edge_index[:, torch.logical_not(data.boundary2boundary_edges)]
         hidden = h_t[-1]
-        self.boundary_model.edge_index = data.edge_index[:, torch.logical_not(data.boundary2boundary_edges)]
 
         # relevant info for later
         self.local_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon + 1), device=x.device)
@@ -1726,11 +1733,12 @@ class FluxGraphLSTM(MessagePassing):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            # boundary model
-            x_boundary = self.boundary_model(x)
-            h_boundary = self.boundary_model(hidden)
-            x = x * inner_nodes + x_boundary * boundary_nodes
-            hidden = hidden * inner_nodes + h_boundary * boundary_nodes
+            if self.use_boundary_model:
+                # boundary model
+                x_boundary = self.boundary_model(x)
+                h_boundary = self.boundary_model(hidden)
+                x = x * inner_nodes + x_boundary * boundary_nodes
+                hidden = hidden * inner_nodes + h_boundary * boundary_nodes
 
             # message passing through graph
             x, hidden = self.propagate(data.edge_index,
