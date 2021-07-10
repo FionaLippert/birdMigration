@@ -230,11 +230,13 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     p_mean = cfg.model.get('perturbation_mean', 0)
 
     if cfg.edge_type == 'voronoi':
+        n_edge_attr = 4
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
         else:
             input_col = 'birds'
     else:
+        n_edge_attr = 3
         input_col = 'birds_km2'
 
     # load training config
@@ -283,7 +285,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
         results['outfluxes'] = []
 
 
-    model = Model(n_nodes=n_nodes, n_in=len(cfg.datasource.env_vars) + 3,
+    model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=(cfg.seed + cfg.get('job_id', 0)), **model_cfg['model'])
     model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
 
