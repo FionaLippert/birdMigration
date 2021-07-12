@@ -1,7 +1,7 @@
 from birds import dataloader, utils
 from birds.graphNN import *
 import torch
-from torch.utils.data import random_split
+from torch.utils.data import random_split, Subset
 from torch.optim import lr_scheduler
 from torch_geometric.data import DataLoader, DataListLoader
 from torch_geometric.utils import to_dense_adj
@@ -210,6 +210,173 @@ def train(cfg: DictConfig, output_dir: str, log):
         OmegaConf.save(config=cfg, f=f)
 
     log.flush()
+
+def cross_validation(cfg: DictConfig, output_dir: str, log):
+    assert cfg.model.name in MODEL_MAPPING
+
+    torch.autograd.set_detect_anomaly(True)
+
+    Model = MODEL_MAPPING[cfg.model.name]
+
+    data_root = osp.join(cfg.root, 'data')
+    device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
+    batch_size = cfg.model.batch_size
+    epochs = cfg.model.epochs
+    seq_len = cfg.model.get('context', 0) + cfg.model.horizon
+
+    print('normalize features')
+    normalization = dataloader.Normalization(cfg.datasource.training_years,
+                                  cfg.datasource.name, data_root=data_root, **cfg)
+    print('load data')
+    data = [dataloader.RadarData(year, seq_len, **cfg,
+                                     data_root=data_root,
+                                     data_source=cfg.datasource.name,
+                                     use_buffers=cfg.datasource.use_buffers,
+                                     normalization=normalization,
+                                     env_vars=cfg.datasource.env_vars,
+                                     compute_fluxes=cfg.model.get('compute_fluxes', False))
+                  for year in cfg.datasource.training_years]
+
+    data = torch.utils.data.ConcatDataset(data)
+    n_data = len(data)
+
+    if cfg.edge_type == 'voronoi':
+        n_edge_attr = 4
+        if cfg.datasource.use_buffers:
+            input_col = 'birds_from_buffer'
+        else:
+            input_col = 'birds'
+    else:
+        n_edge_attr = 3
+        input_col = 'birds_km2'
+
+    cfg.datasource.bird_scale = float(normalization.max(input_col))
+    with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
+        OmegaConf.save(config=cfg, f=f)
+    with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
+        pickle.dump(normalization, f)
+
+    if cfg.root_transform == 0:
+        cfg.datasource.bird_scale = float(normalization.max(input_col))
+    else:
+        cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
+
+    if cfg.model.get('root_transformed_loss', False):
+        loss_func = utils.MSE_root_transformed
+    elif cfg.model.get('weighted_loss', False):
+        loss_func = utils.MSE_weighted
+    else:
+        loss_func = utils.MSE
+
+    print('------------------ model settings --------------------')
+    print(cfg.model)
+    print(f'environmental variables: {cfg.datasource.env_vars}')
+
+    cv_folds = np.array_split(np.arange(n_data), cfg.n_folds)
+
+    print(f'--- run cross-validation with {cfg.n_folds} folds ---')
+
+    subdir = os.makedirs(osp.join(output_dir, f'cv_fold_{f}'))
+    training_curves = np.ones((cfg.n_folds, epochs)) * np.nan
+    val_curves = np.ones((cfg.n_folds, epochs)) * np.nan
+    best_val_losses = np.ones(cfg.n_folds) * np.nan
+
+    for f in range(cfg.n_folds):
+        print(f'------------------- fold = {f} ----------------------')
+        # split into training and validation set
+        val_data = Subset(data, cv_folds[f])
+        train_idx = np.concatenate([cv_folds[i] for i in range(cfg.n_folds) if i!=f])
+        n_train = train_idx.size
+        train_data = Subset(data, train_idx) # everything else
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
+
+        best_val_loss = np.inf
+
+        print(f'train model')
+
+        model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
+                      seed=(cfg.seed + cfg.get('job_id', 0)), **cfg.model)
+
+        states_path = cfg.model.get('load_states_from', '')
+        if osp.isfile(states_path):
+            model.load_state_dict(torch.load(states_path))
+
+        model = model.to(device)
+        params = model.parameters()
+        optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay, gamma=cfg.model.get('lr_gamma', 0.1))
+
+        for p in model.parameters():
+            p.register_hook(lambda grad: torch.clamp(grad, -1.0, 1.0))
+
+        print('model on GPU?', next(model.parameters()).is_cuda)
+        cd = torch.cuda.current_device()
+        print('on which GPU?', torch.cuda.current_device())
+        print('how many GPUs do I see?', torch.cuda.device_count())
+        print('GPU name', torch.cuda.get_device_name(cd))
+
+        tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
+        all_tf = np.zeros(epochs)
+        all_lr = np.zeros(epochs)
+        for epoch in range(epochs):
+            all_tf[epoch] = tf
+            all_lr[epoch] = optimizer.param_groups[0]["lr"]
+
+            #for name, param in model.named_parameters():
+            #    if param.requires_grad:
+            #        print(name, param.data, param.grad)
+
+            if 'FluxGraphLSTM' in cfg.model.name:
+                loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
+                                    conservation_constraint=cfg.model.get('conservation_constraint', 0),
+                                    teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0),
+                                    boundary_constraint_only=cfg.model.get('boundary_constraint_only', 0))
+            elif cfg.model.name == 'testFluxMLP':
+                loss = train_testFluxMLP(model, train_loader, optimizer, loss_func, device)
+            else:
+                loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
+                                  daymask=cfg.model.get('force_zeros', 0))
+            training_curves[f, epoch] = loss / n_train
+            print(f'epoch {epoch + 1}: loss = {training_curves[f, epoch]}')
+
+            val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
+                                     daymask=cfg.model.get('force_zeros', 0)).cpu()
+            val_loss = val_loss[torch.isfinite(val_loss)].mean()
+            val_curves[f, epoch] = val_loss
+            print(f'epoch {epoch + 1}: val loss = {val_loss}')
+
+            if val_loss <= best_val_loss:
+                print('best model so far; save to disk ...')
+                torch.save(model.state_dict(), osp.join(subdir, f'model.pkl'))
+                best_val_loss = val_loss
+
+            tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
+            scheduler.step()
+
+        print(f'fold {f}: validation loss = {best_val_loss}', file=log)
+        best_val_losses[f] = best_val_loss
+
+        log.flush()
+
+        # update training and validation curves
+        np.save(osp.join(output_dir, 'training_curves.npy'), training_curves)
+        np.save(osp.join(output_dir, 'validation_curves.npy'), val_curves)
+        np.save(osp.join(output_dir, 'learning_rates.npy'), all_lr)
+        np.save(osp.join(output_dir, 'teacher_forcing.npy'), all_tf)
+
+        # plotting
+        utils.plot_training_curves(training_curves, val_curves, output_dir, log=True)
+        utils.plot_training_curves(training_curves, val_curves, output_dir, log=False)
+
+    print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
+
+    with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
+        OmegaConf.save(config=cfg, f=f)
+
+    log.flush()
+
+
 
 
 def test(cfg: DictConfig, output_dir: str, log, ext=''):
