@@ -190,6 +190,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
         scheduler.step()
 
+    torch.save(model.state_dict(), osp.join(output_dir, 'final_model.pkl'))
+
     print(f'validation loss = {best_val_loss}', file=log)
 
     log.flush()
