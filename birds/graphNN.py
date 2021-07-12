@@ -1627,7 +1627,7 @@ class LocalLSTM2(torch.nn.Module):
 
         self.horizon = kwargs.get('horizon', 40)
         self.t_context = kwargs.get('context', 0)
-        self.teacher_forcing = kwargs.get('teacher_forcing', True)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -1675,7 +1675,7 @@ class FluxGraphLSTM(MessagePassing):
         # settings
         self.horizon = kwargs.get('horizon', 40)
         self.t_context = kwargs.get('context', 0)
-        self.teacher_forcing = kwargs.get('teacher_forcing', True)
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
         self.use_encoder = kwargs.get('use_encoder', True)
         self.use_boundary_model = kwargs.get('use_boundary_model', True)
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
