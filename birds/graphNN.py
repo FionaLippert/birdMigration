@@ -1726,6 +1726,7 @@ class FluxGraphLSTM(MessagePassing):
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
+        print(f'env shape = {data.env.shape}')
         # make predictions
         for t in forecast_horizon:
 
