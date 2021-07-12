@@ -28,6 +28,7 @@ def run(cfg: DictConfig):
             if 'training' in action: run_HA_2.train(cfg, out, log)
             if 'testing' in action: run_HA_2.test(cfg, out, log)
         else:
+            if 'cv' in action: run_NNs_2.cross_validation(cfg, out, log)
             if 'training' in action: run_NNs_2.train(cfg, out, log)
             if 'testing' in action:
                 run_NNs_2.test(cfg, out, log)
