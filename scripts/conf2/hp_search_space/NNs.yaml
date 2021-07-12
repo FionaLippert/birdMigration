@@ -1,0 +1,16 @@
+# @package _group_
+n_hidden:
+  - 64
+  - 128
+  - 256
+n_fc_layers:
+  - 2
+  - 3
+n_lstm_layers:
+  - 1
+  - 2
+lr:
+  - 1e-3
+  - 1e-4
+  - 1e-5
+

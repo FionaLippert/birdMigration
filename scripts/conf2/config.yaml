@@ -4,6 +4,7 @@ job_id: 0
 defaults:
   - datasource: radar
   - model: LocalLSTM
+  - hp_search_space: NNs
 root: /home/fiona/birdMigration
 output_dir: results
 season: fall

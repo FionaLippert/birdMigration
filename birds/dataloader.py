@@ -488,7 +488,7 @@ class RadarData(InMemoryDataset):
 
             data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
             data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-            
+
         if not self.compute_fluxes:
             data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
