@@ -1641,12 +1641,12 @@ class LocalLSTM2(torch.nn.Module):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
-            self.node_lstm.reset(h_t, c_t, enc_states)
+            self.node_lstm.setup_states(h_t, c_t, enc_states)
         else:
             # start from scratch
             h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
             c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
-            self.node_lstm.reset(h_t, c_t)
+            self.node_lstm.setup_states(h_t, c_t)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
@@ -1711,8 +1711,8 @@ class FluxGraphLSTM(MessagePassing):
             self.node_lstm.setup_states(h_t, c_t, enc_states)
         else:
             # start from scratch
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for _ in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for _ in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for _ in range(self.node_lstm.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for _ in range(self.node_lstm.n_lstm_layers)]
             self.node_lstm.setup_states(h_t, c_t)
 
         # setup model components

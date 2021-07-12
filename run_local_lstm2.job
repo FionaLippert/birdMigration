@@ -54,7 +54,7 @@ cd $HOME/birdMigration/scripts
 
 # run tasks in parallel
 #$parallel "CUDA_VISIBLE_DEVICES={} 
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=LocalLSTM edge_type=none birds_per_km2=True experiment=encoder_nights_2layer_fc_in model.epochs=200 data_perc=0.1 model.use_encoder=True model.context=24 model.teacher_forcing_gamma=0.95 use_nights=True output_dir=$CHECKPOINTDIR model.lr_decay=200 model.lr=0.00005
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=LocalLSTM edge_type=none birds_per_km2=True experiment=encoder_nights_2layer_fc_in_new_structure model.epochs=200 data_perc=0.1 model.use_encoder=True model.context=24 model.teacher_forcing_gamma=0.95 use_nights=True output_dir=$CHECKPOINTDIR model.lr_decay=100 model.lr=0.00005
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home
