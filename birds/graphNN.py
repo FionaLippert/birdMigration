@@ -1726,10 +1726,11 @@ class FluxGraphLSTM(MessagePassing):
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
-        print(f'env shape = {data.env.shape}')
+        #print(f'env shape = {data.env.shape}')
+        #print(f'forecast_horizon = {forecast_horizon}')
         # make predictions
         for t in forecast_horizon:
-
+            
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
