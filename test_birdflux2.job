@@ -2,7 +2,7 @@
 
 #SBATCH --partition=gpu_shared
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=TestBGNN2
+#SBATCH --job-name=TestGNN2
 #SBATCH --time=120:00:00
 # #SBATCH --mem=16G
 #SBATCH --array=1-5
@@ -36,8 +36,8 @@ module load NCCL/2.7.8-gcccuda-2020a
 #module load GDAL/3.0.4-foss-2020a-Python-3.8.2
 ##module load GDAL/2.2.3-intel-2019b-Python-3.6.6
 
-MODEL_JOB_ID=7864931
-MODELDIR=$HOME/birdMigration/checkpoints/boundary_extrapolation_birdflux/array_job_$MODEL_JOB_ID
+MODEL_JOB_ID=7864938
+MODELDIR=$HOME/birdMigration/checkpoints/birdflux/array_job_$MODEL_JOB_ID
 
 
 #Copy all necessary input files to scratch
@@ -45,14 +45,6 @@ mkdir "$TMPDIR"/data
 cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
 cd $HOME/birdMigration/scripts
-# setup GNU parallel
-#parallel="parallel -N 1 -j $SLURM_NTASKS --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
 
-# run tasks in parallel
-#$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID +model_dir=$MODELDIR/job_$SLURM_ARRAY_TASK_ID +action=testing job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False model.context=0 data_perc=0.1 use_nights=True output_dir=$MODELDIR n_dummy_radars=15 missing_data_threshold=0.75
-#" ::: $(seq 0 3) 
-
-#Copy output directory from scratch to home
-#mkdir "$HOME"/output_"$SLURM_JOBID"
-#cp -r "$TMPDIR"/results $HOME/birdMigration/output_"$SLURM_JOBID"
+# run task
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID +model_dir=$MODELDIR/job_$SLURM_ARRAY_TASK_ID +action=testing job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False model.context=0 data_perc=0.1 use_nights=True output_dir=$MODELDIR n_dummy_radars=0
