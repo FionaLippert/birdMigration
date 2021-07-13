@@ -3,9 +3,9 @@ experiment: test
 job_id: 0
 defaults:
   - datasource: radar
-  - model: LocalLSTM
+  - model: BirdFluxGraphLSTM
   - hp_search_space: NNs
-root: /home/fiona/birdMigration
+root: /home/flippert/birdMigration
 output_dir: results
 season: fall
 seed: 1234
