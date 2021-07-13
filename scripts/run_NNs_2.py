@@ -280,6 +280,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     training_curves = np.ones((cfg.n_folds, epochs)) * np.nan
     val_curves = np.ones((cfg.n_folds, epochs)) * np.nan
     best_val_losses = np.ones(cfg.n_folds) * np.nan
+    best_epochs = np.zeros(cfg.n_folds)
 
     for f in range(cfg.n_folds):
         print(f'------------------- fold = {f} ----------------------')
@@ -350,6 +351,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
                 print('best model so far; save to disk ...')
                 torch.save(model.state_dict(), osp.join(subdir, f'model.pkl'))
                 best_val_loss = val_loss
+                best_epochs[f] = epoch
 
             tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
             scheduler.step()
@@ -370,6 +372,13 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         utils.plot_training_curves(training_curves, val_curves, output_dir, log=False)
 
     print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
+
+    summary = pd.DataFrame({'fold': range(cfg.n_folds),
+                            'val_loss': best_val_losses,
+                            'best_epoch': best_epochs})
+                            #'hp_settings': [json.dumps(cfg.model)] * cfg.n_folds})
+    summary.to_csv(osp.join(output_dir, 'summary.csv'))
+
 
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
