@@ -276,7 +276,9 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     print(f'--- run cross-validation with {cfg.n_folds} folds ---')
 
-    subdir = os.makedirs(osp.join(output_dir, f'cv_fold_{f}'))
+    subdir = osp.join(output_dir, f'cv_fold_{f}')
+    os.makedirs(subdir, exist_ok=True)
+
     training_curves = np.ones((cfg.n_folds, epochs)) * np.nan
     val_curves = np.ones((cfg.n_folds, epochs)) * np.nan
     best_val_losses = np.ones(cfg.n_folds) * np.nan
@@ -284,9 +286,10 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     for f in range(cfg.n_folds):
         print(f'------------------- fold = {f} ----------------------')
         # split into training and validation set
-        val_data = Subset(data, cv_folds[f])
-        train_idx = np.concatenate([cv_folds[i] for i in range(cfg.n_folds) if i!=f])
-        n_train = train_idx.size
+        val_data = Subset(data, cv_folds[f].tolist())
+        #val_idx = cv_folds[f]
+        train_idx = np.concatenate([cv_folds[i] for i in range(cfg.n_folds) if i!=f]).tolist()
+        n_train = len(train_idx)
         train_data = Subset(data, train_idx) # everything else
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
@@ -503,7 +506,8 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
-            fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
+            #fluxes = (local_fluxes[nidx]  - local_fluxes[nidx].permute(1, 0, 2)).sum(1)
+            fluxes = model.total_fluxes.detach().cpu()
 
             influxes = local_fluxes[nidx].sum(1)
             outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)

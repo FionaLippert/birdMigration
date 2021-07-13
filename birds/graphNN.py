@@ -1644,8 +1644,8 @@ class LocalLSTM2(torch.nn.Module):
             self.node_lstm.setup_states(h_t, c_t, enc_states)
         else:
             # start from scratch
-            h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=x.device) for l in range(self.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for l in range(self.node_lstm.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for l in range(self.node_lstm.n_lstm_layers)]
             self.node_lstm.setup_states(h_t, c_t)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
@@ -1723,6 +1723,7 @@ class FluxGraphLSTM(MessagePassing):
         # relevant info for later
         self.local_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon + 1), device=x.device)
         self.local_deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.total_fluxes = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
 
@@ -1788,6 +1789,7 @@ class FluxGraphLSTM(MessagePassing):
 
         delta, hidden = self.node_lstm(inputs)
         self.local_deltas[..., t] = delta
+        self.total_fluxes[..., t] = aggr_out
 
         pred = x + delta + aggr_out
 

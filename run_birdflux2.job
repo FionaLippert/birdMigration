@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_shared
+#SBATCH --partition=gpu_short
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=TrainBGNN2
-#SBATCH --time=120:00:00
+#SBATCH --time=1:00:00
 # #SBATCH --mem=16G
-#SBATCH --array=1-5
+#SBATCH --array=1
 #SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
@@ -39,7 +39,7 @@ module load NCCL/2.7.8-gcccuda-2020a
 module load parallel
 
 JOBFILE=$HOME/birdMigration/run_birdflux2.job
-CHECKPOINTDIR=$HOME/birdMigration/checkpoints/birdflux/array_job_${SLURM_ARRAY_JOB_ID}
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/birdflux_cv/array_job_${SLURM_ARRAY_JOB_ID}
 mkdir -p $CHECKPOINTDIR
 rsync $JOBFILE $CHECKPOINTDIR/
 
@@ -54,7 +54,7 @@ cd $HOME/birdMigration/scripts
 
 # run tasks in parallel
 #$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False experiment=no_boundary_nights_no_encoder model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=False model.teacher_forcing_gamma=0.95 model.context=0 use_nights=True model.lr=0.00005 model.use_boundary_model=False output_dir=$CHECKPOINTDIR n_dummy_radars=0 missing_data_threshold=0.1 model.lr_decay=100
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM +action=cv +n_folds=3 edge_type=voronoi birds_per_km2=False experiment=no_boundary_nights_no_encoder model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=2 data_perc=0.1 model.use_encoder=False model.teacher_forcing_gamma=0.95 model.context=0 use_nights=True model.lr=0.00005 model.use_boundary_model=False output_dir=$CHECKPOINTDIR n_dummy_radars=0 missing_data_threshold=0.1 model.lr_decay=100
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home
