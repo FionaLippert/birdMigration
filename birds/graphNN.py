@@ -3331,6 +3331,9 @@ class RecurrentEncoder3(torch.nn.Module):
         self.n_hidden = kwargs.get('n_hidden', 64)
         self.n_lstm_layers = kwargs.get('n_lstm_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
+        self.use_uv = kwargs.get('use_uv', False)
+        if self.use_uv:
+            n_in = n_in + 2
 
         torch.manual_seed(kwargs.get('seed', 1234))
 
@@ -3356,16 +3359,22 @@ class RecurrentEncoder3(torch.nn.Module):
 
         for t in range(self.t_context):
             x = data.x[:, t]
-            h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t)
+            if self.use_uv:
+                h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t, data.bird_uv[..., t])
+            else:
+                h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t)
             states.append(h_t[-1])
 
         states = torch.stack(states, dim=1)
         return states, h_t, c_t
 
 
-    def update(self, x, coords, env, h_t, c_t):
+    def update(self, x, coords, env, h_t, c_t, bird_uv=None):
 
-        inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
+        if self.use_uv:
+            inputs = torch.cat([x.view(-1, 1), coords, env, bird_uv], dim=1)
+        else:
+            inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
 
         inputs = self.input2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))

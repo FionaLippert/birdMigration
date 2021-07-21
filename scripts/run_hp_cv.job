@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#SBATCH --partition=gpu_shared
+#SBATCH --gres=gpu:1
+#SBATCH --job-name=TrainBGNN2
+#SBATCH --time=120:00:00
+#SBATCH --output=slurm_output_%A_%a.out
+#SBATCH --mail-type=BEGIN,END
+#SBATCH --mail-user=f.lippert@uva.nl
+
+# Note: use --partition=gpu_shared if not all GPUs on a node are needed, --gpus=2 would give 2 of them
+# Note: use --partition=gpu_short for debugging
+
+
+source activate birds
+
+module load 2020
+module load CUDA/11.0.2-GCC-9.3.0
+module load cuDNN/8.0.3.33-gcccuda-2020a
+module load NCCL/2.7.8-gcccuda-2020a
+
+JOB_FILE=$HOME/birdMigration/run_hp_cv.job
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/boundary_extrapolation_birdflux/array_job_${SLURM_ARRAY_JOB_ID}
+HPARAM_FILE=$1
+
+mkdir -p $CHECKPOINTDIR
+rsync $JOB_FILE $CHECKPOINTDIR/
+rsync $HPARAM_FILE $CHECKPOINTDIR/
+
+
+#Copy all necessary input files to scratch
+mkdir "$TMPDIR"/data
+cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
+
+cd $HOME/birdMigration/scripts
+
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID +action=cv +n_folds=5 \
+	job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False \
+	experiment=hp_grid_search model.epochs=2 model.lr_decay=200 data_perc=0.1 \
+	model.use_encoder=True model.context=24 \
+	use_nights=True model.use_boundary_model=True \
+	output_dir=$CHECKPOINTDIR \
+	n_dummy_radars=15 missing_data_threshold=0.75 \
+	$(head -$SLURM_ARRAY_TASK_ID $HPARAM_FILE | tail -1)
+
+python determine_best_hp.py $CHECKPOINTDIR best_hp_settings.txt
+

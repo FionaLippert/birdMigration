@@ -4,7 +4,7 @@ job_id: 0
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
-  - hp_search_space: NNs
+  - hp_search_space: LR
 root: /home/flippert/birdMigration
 output_dir: results
 season: fall

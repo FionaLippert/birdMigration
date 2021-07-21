@@ -2,20 +2,22 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import itertools as it
 import os.path as osp
+import os
 import subprocess
 import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--job_file', type=str, help='slurm array job file')
-
 
 @hydra.main(config_path="conf2", config_name="config")
-def hp_grid_search(cfg: DictConfig, job_file: str):
+def hp_grid_search(cfg: DictConfig):
 
     hp_file, n_comb = generate_hp_file(cfg)
 
     print("Start cross-validation for all hyperparameter settings")
-    subprocess.Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file])
+    job = osp.join(cfg.root, 'scripts', 'run_hp_cv.job')
+    print(job)
+    print(osp.isfile(job))
+    subprocess.Popen(['sbatch', f'--array=1-{n_comb}', job, hp_file])
+    
 
 
 def generate_hp_file(cfg: DictConfig):
@@ -38,5 +40,4 @@ def generate_hp_file(cfg: DictConfig):
 
 if __name__ == '__main__':
 
-    args = parser.parse_args()
-    hp_grid_search(job_file=args.job_file)
+    hp_grid_search()

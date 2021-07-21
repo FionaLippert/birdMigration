@@ -30,9 +30,9 @@ def determine_best_hp():
     # determine config with best average validation loss
     best_idx = np.argmax(losses)
     best_cfg = cfgs[best_idx]
-    hp_str = " ".join([f'{name}={val}' for name, val in best_cfg.model.items()])
+    hp_str = " ".join([f'model.{name}={val}' for name, val in dict(best_cfg['model']).items()])
 
-    with open(args.output_file, 'w') as f:
+    with open(osp.join(args.hp_tuning_dir, args.output_file), 'w') as f:
         f.write(hp_str)
 
 
