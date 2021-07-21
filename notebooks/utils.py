@@ -45,11 +45,12 @@ def plot_results_scatter(results, max=1e7, min=0, root_transform=1, legend=False
         axis.set(xlabel='radar observation', ylabel='prediction')
     return fig
 
-def compute_mse(row, bird_scale, prediction_col='prediction_km2', boundary=[], bird_thr=0, night_only=False, root_transform=1):
-    if row['missing'] or (row['radar'] in boundary) or row['gt_km2'] < bird_thr or (night_only and not row['night']):
+def compute_mse(row, bird_scale, prediction_col='prediction_km2', target_col='gt_km2',
+                boundary=[], bird_thr=0, night_only=False, root_transform=1):
+    if row['missing'] or (row['radar'] in boundary) or row[target_col] < bird_thr or (night_only and not row['night']):
         return np.nan
     else:
-        return ((np.power(row['gt_km2'], 1/root_transform) - np.power(row[prediction_col], 1/root_transform)) /
+        return ((np.power(row[target_col], 1/root_transform) - np.power(row[prediction_col], 1/root_transform)) /
                 np.power(bird_scale, 1/root_transform)) ** 2
 
 def compute_error(row, bird_scale, prediction_col='prediction_km2', boundary=[]):
@@ -190,7 +191,8 @@ def residuals_corr_vs_distance(results, models, radar_df, bird_scales={}):
         ax[i].set(title=m, xlabel='distance between radars [km]', ylabel='correlation coefficient', ylim=(-0.2, 1))
     return fig
 
-def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False, root_transform=1, horizon=40):
+def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_only=False,
+                        root_transform=1, horizon=40, prediction_col='prediction_km2', target_col='gt_km2'):
     sb.set(style="ticks")
     fig, ax = plt.subplots(figsize=(3*len(results), 4))
     rmse_list = []
@@ -209,7 +211,9 @@ def plot_average_errors(results, bird_scales={}, boundary=[], bird_thr=0, night_
         results[m]['error'] = results[m].apply(lambda row: compute_mse(row, bird_scales.get(m, 1),
                                                                        boundary=boundary, bird_thr=bird_thr,
                                                                        night_only=night_only,
-                                                                       root_transform=root_transform), axis=1)
+                                                                       root_transform=root_transform,
+                                                                       prediction_col=prediction_col,
+                                                                       target_col=target_col), axis=1)
         rmse = results[m].query(f'horizon <= {horizon}').groupby(['trial']).error.aggregate(np.nanmean).apply(np.sqrt)
         rmse_list.append(rmse.values)
         labels.append([m] * len(rmse))

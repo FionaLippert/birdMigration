@@ -1644,8 +1644,10 @@ class LocalLSTM2(torch.nn.Module):
             self.node_lstm.setup_states(h_t, c_t, enc_states)
         else:
             # start from scratch
-            h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for l in range(self.node_lstm.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for l in range(self.node_lstm.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
+                   _ in range(self.node_lstm.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
+                   _ in range(self.node_lstm.n_lstm_layers)]
             self.node_lstm.setup_states(h_t, c_t)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
@@ -1711,8 +1713,10 @@ class FluxGraphLSTM(MessagePassing):
             self.node_lstm.setup_states(h_t, c_t, enc_states)
         else:
             # start from scratch
-            h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for _ in range(self.node_lstm.n_lstm_layers)]
-            c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for _ in range(self.node_lstm.n_lstm_layers)]
+            h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
+                   _ in range(self.node_lstm.n_lstm_layers)]
+            c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
+                   _ in range(self.node_lstm.n_lstm_layers)]
             self.node_lstm.setup_states(h_t, c_t)
 
         # setup model components
@@ -3852,14 +3856,14 @@ def train_fluxes(model, train_loader, optimizer, loss_func, device, conservation
         data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
-        output = model(data) / data.areas.view(-1, 1) # birds/km2
+        output = model(data) #/ data.areas.view(-1, 1) # birds/km2
 
         # if n_devices > 1:
         #     gt = torch.cat([d.y for d in data])
         # else:
         #     gt = data.y
 
-        gt = data.y / data.areas.view(-1, 1) # birds/km2
+        gt = data.y #/ data.areas.view(-1, 1) # birds/km2
 
         if conservation_constraint > 0:
 
@@ -3950,14 +3954,14 @@ def train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_fo
         data = data.to(device)
         optimizer.zero_grad()
         model.teacher_forcing = teacher_forcing
-        output = model(data) / data.areas.view(-1, 1)
+        output = model(data) #/ data.areas.view(-1, 1)
 
         # if n_devices > 1:
         #     gt = torch.cat([d.y for d in data])
         #     local_night = torch.cat([d.local_night for d in data])
         #     missing = torch.cat([d.missing for d in data])
 
-        gt = data.y / data.areas.view(-1, 1)
+        gt = data.y #/ data.areas.view(-1, 1)
 
         if daymask:
             mask = torch.logical_and(data.local_night, torch.logical_not(data.missing))
@@ -4054,8 +4058,8 @@ def test_fluxes(model, test_loader, loss_func, device, get_fluxes=True, bird_sca
 
     for tidx, data in enumerate(test_loader):
         data = data.to(device)
-        output = model(data) * bird_scale / data.areas.view(-1, 1)
-        gt = data.y * bird_scale / data.areas.view(-1, 1)
+        output = model(data) * bird_scale #/ data.areas.view(-1, 1)
+        gt = data.y * bird_scale #/ data.areas.view(-1, 1)
 
         if fixed_boundary:
             # boundary_mask = np.ones(output.size(0))
@@ -4092,8 +4096,8 @@ def test_dynamics(model, test_loader, loss_func, device, bird_scale=2000, daymas
         data = data.to(device)
 
         with torch.no_grad():
-            output = model(data) * bird_scale / data.areas.view(-1, 1)
-            gt = data.y * bird_scale / data.areas.view(-1, 1)
+            output = model(data) * bird_scale #/ data.areas.view(-1, 1)
+            gt = data.y * bird_scale #/ data.areas.view(-1, 1)
 
             if daymask:
                 mask = data.local_night & ~data.missing
