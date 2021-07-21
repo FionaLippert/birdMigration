@@ -40,4 +40,9 @@ def generate_hp_file(cfg: DictConfig):
 
 if __name__ == '__main__':
 
-    hp_grid_search()
+    # to run nested cross-validation run the following in the terminal:
+    # python run_hp_grid_search.py --job_file cv_job_file +datasource.test_year=range(2015, 2018)
+
+    args = parser.parse_args()
+    hp_grid_search(job_file=args.job_file)
+
