@@ -73,15 +73,12 @@ def timeslice(data, start_night, mask, timesteps):
 
 
 class Normalization:
-    def __init__(self, years, data_source, data_root, season='fall', t_unit='1H',
-                 edge_type='voronoi', n_dummy_radars=0, exclude=[], **kwargs):
+    def __init__(self, years, data_source, data_root, preprocessed_dirname, season='fall', t_unit='1H', **kwargs):
         self.root = data_root
+        self.preprocessed_dirname = preprocessed_dirname
         self.data_source = data_source
         self.season = season
         self.t_unit = t_unit
-        self.edge_type = edge_type
-        self.n_dummy_radars = n_dummy_radars
-        self.exclude = exclude
 
         all_dfs = []
         for year in years:
@@ -126,7 +123,7 @@ class Normalization:
         return root_transformed.dropna().max()
 
     def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}_exclude={self.exclude}',
+        return osp.join(self.root, 'preprocessed', self.t_unit, self.preprocessed_dirname,
                         self.data_source, self.season, str(year))
 
     @property
@@ -153,9 +150,12 @@ def compute_flux(dens, ff, dd, alpha, l=1):
 
 class RadarData(InMemoryDataset):
 
-    def __init__(self, year, timesteps, transform=None, pre_transform=None, **kwargs):
+    def __init__(self, year, timesteps, preprocessed_dirname, processed_dirname,
+                 transform=None, pre_transform=None, **kwargs):
 
         self.root = kwargs.get('data_root')
+        self.preprocessed_dirname = preprocessed_dirname
+        self.processed_dirname = processed_dirname
         self.sub_dir = osp.join(self.root, kwargs.get('sub_dir', ''))
         self.season = kwargs.get('season')
         self.year = str(year)
@@ -197,9 +197,6 @@ class RadarData(InMemoryDataset):
         self.rng = np.random.default_rng(self.seed)
         self.data_perc = kwargs.get('data_perc', 1.0)
 
-        measurements = 'from_buffers' if self.use_buffers else 'voronoi_cells'
-        self.processed_dirname = f'measurements={measurements}_root_transform={self.root_transform}_use_nights={self.use_nights}_' \
-                                 f'edges={self.edge_type}_birds_km2={self.birds_per_km2}_dummy_radars={self.n_dummy_radars}_t_unit={self.t_unit}_exclude={self.exclude}'
 
         super(RadarData, self).__init__(self.root, transform, pre_transform)
 
@@ -218,12 +215,13 @@ class RadarData(InMemoryDataset):
 
     @property
     def preprocessed_dir(self):
-        return osp.join(self.root, 'preprocessed', self.t_unit, f'{self.edge_type}_dummy_radars={self.n_dummy_radars}_exclude={self.exclude}',
+        return osp.join(self.root, 'preprocessed', self.t_unit, self.preprocessed_dirname,
                         self.data_source, self.season, self.year)
 
     @property
     def processed_dir(self):
-        return osp.join(self.sub_dir, 'processed', self.processed_dirname, self.data_source, self.season, self.year)
+        return osp.join(self.sub_dir, 'processed', self.processed_dirname,
+                        self.data_source, self.season, self.year)
 
     @property
     def processed_file_names(self):
@@ -342,6 +340,9 @@ class RadarData(InMemoryDataset):
         angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
         delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
         delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
+
+        # check which radars are observed and which ones are dummy radars
+        observed_idx = voronoi.observed.to_numpy()
 
         # for idx, (i, j) in enumerate(G.edges()):
         #     print(voronoi.iloc[i].radar, voronoi.iloc[j].radar, delta_x[idx], delta_y[idx])
@@ -544,7 +545,7 @@ class RadarData(InMemoryDataset):
                           directions=torch.tensor(data['direction'][:, :, nidx], dtype=torch.float),
                           speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float),
                           bird_uv=torch.tensor(data['bird_uv'][..., nidx], dtype=torch.float))
-                     for nidx in range(N) if data['missing'][:, :, nidx].mean() <= self.missing_data_threshold]
+                for nidx in range(N) if data['missing'][observed_idx, :, nidx].mean() <= self.missing_data_threshold]
 
         print(f'number of sequences = {len(data_list)}')
 

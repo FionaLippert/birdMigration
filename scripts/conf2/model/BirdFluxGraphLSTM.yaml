@@ -28,3 +28,6 @@ perturbation_mean: 0
 batch_size: 1
 boundary_model: Extrapolation
 load_states_from: none
+edge_type: voronoi
+birds_per_km2: false
+n_dummy_radars: 15
