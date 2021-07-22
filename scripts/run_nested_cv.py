@@ -2,6 +2,7 @@ from omegaconf import DictConfig, OmegaConf
 import hydra
 import itertools as it
 import os.path as osp
+import os
 import subprocess
 import argparse
 
@@ -40,6 +41,7 @@ def hp_grid_search(cfg: DictConfig, job_file: str, test_year: int):
     subprocess.Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file, cfg.model, test_year])
 
 
+
 def generate_hp_file(cfg: DictConfig):
     search_space = {k: v for k, v in cfg.hp_search_space.items() if k in cfg.model.keys()}
     hp_file = osp.join(cfg.root, 'hyperparameters.txt')
@@ -71,3 +73,4 @@ if __name__ == '__main__':
         inner_cv(job_file=args.job_file)
     elif args.task == 'outer':
         outer_cv(job_file=args.job_file)
+

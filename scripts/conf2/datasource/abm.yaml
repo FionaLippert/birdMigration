@@ -7,6 +7,7 @@ training_years:
   #- 2019
 #validation_year: 2019
 test_year: 2015
+val_train_split: 0.1
 env_vars:
   - u
   - v

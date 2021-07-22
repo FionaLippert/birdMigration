@@ -5,7 +5,7 @@ action: cv
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
-  - hp_search_space: NNs
+  - hp_search_space: LR
 cv_settings:
   - n_folds=5
   - repeats=1
