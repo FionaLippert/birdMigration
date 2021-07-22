@@ -70,7 +70,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.task == 'inner':
-        inner_cv(job_file=args.job_file)
+        inner_cv(args.job_file)
     elif args.task == 'outer':
-        outer_cv(job_file=args.job_file)
+        outer_cv(args.job_file)
 
