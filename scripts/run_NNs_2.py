@@ -37,31 +37,38 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     Model = MODEL_MAPPING[cfg.model.name]
 
+    seed = cfg.seed + cfg.get('job_id', 0)
+
     data_root = osp.join(cfg.root, 'data')
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
+                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+
+
     device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     batch_size = cfg.model.batch_size
     epochs = cfg.model.epochs
     seq_len = cfg.model.get('context', 0) + cfg.model.horizon
 
     print('normalize features')
-    normalization = dataloader.Normalization(cfg.datasource.training_years,
-                                  cfg.datasource.name, data_root=data_root, **cfg)
+    training_years = set(cfg.datasource.years) - set(cfg.datasource.test_year)
+    normalization = dataloader.Normalization(training_years, cfg.datasource.name,
+                                             data_root, preprocessed_dirname, **cfg)
     print('load data')
-    data = [dataloader.RadarData(year, seq_len, **cfg,
-                                     data_root=data_root,
-                                     data_source=cfg.datasource.name,
-                                     use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars,
-                                     compute_fluxes=cfg.model.get('compute_fluxes', False))
-                  for year in cfg.datasource.training_years]
+    data = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
+                                 **cfg, **cfg.model,
+                                 data_root=data_root,
+                                 data_source=cfg.datasource.name,
+                                 normalization=normalization,
+                                 env_vars=cfg.datasource.env_vars,
+                                 compute_fluxes=cfg.model.get('compute_fluxes', False))
+                  for year in training_years]
 
-    n_nodes = len(data[0].info['radars'])
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
 
     # split data into training and validation set
-    # rng = np.random.default_rng(seed=1234) # use fixed seed for data splits to ensure comparability across models/runs
     n_val = max(1, int(cfg.datasource.val_train_split * n_data))
     n_train = n_data - n_val
 
@@ -71,11 +78,11 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of training sequences = {n_train}')
     print(f'number of validation sequences = {n_val}')
 
-    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
+    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(seed))
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
-    if cfg.edge_type == 'voronoi':
+    if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
@@ -86,6 +93,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         input_col = 'birds_km2'
 
     cfg.datasource.bird_scale = float(normalization.max(input_col))
+    cfg.seed = seed
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -96,20 +104,6 @@ def train(cfg: DictConfig, output_dir: str, log):
     else:
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
-    # print('load val data')
-    # # load validation data
-    # val_data = dataloader.RadarData(str(cfg.datasource.validation_year), seq_len, **cfg,
-    #                               data_root=data_root,
-    #                               data_source=cfg.datasource.name,
-    #                               use_buffers=cfg.datasource.use_buffers,
-    #                               normalization=normalization,
-    #                               env_vars=cfg.datasource.env_vars,
-    #                               compute_fluxes=cfg.model.get('compute_fluxes', False)
-    #                               )
-    # val_loader = DataLoader(val_data, batch_size=1, shuffle=False)
-    # if cfg.datasource.validation_year == cfg.datasource.test_year:
-    #     val_loader, _ = utils.val_test_split(val_loader, cfg.datasource.val_test_split, cfg.seed)
-    # print('loaded val data')
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
@@ -130,7 +124,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'train model')
     print(f'environmental variables: {cfg.datasource.env_vars}')
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
-                  seed=(cfg.seed + cfg.get('job_id', 0)), **cfg.model)
+                  seed=seed, **cfg.model)
 
     states_path = cfg.model.get('load_states_from', '')
     if osp.isfile(states_path):
@@ -218,29 +212,38 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     Model = MODEL_MAPPING[cfg.model.name]
 
+    n_folds = cfg.cv_settings.n_folds
+    seed = cfg.seed + cfg.get('job_id', 0)
+
     data_root = osp.join(cfg.root, 'data')
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
+                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+
     device = 'cuda' if (cfg.cuda and torch.cuda.is_available()) else 'cpu'
     batch_size = cfg.model.batch_size
     epochs = cfg.model.epochs
     seq_len = cfg.model.get('context', 0) + cfg.model.horizon
 
     print('normalize features')
-    normalization = dataloader.Normalization(cfg.datasource.training_years,
-                                  cfg.datasource.name, data_root=data_root, **cfg)
+    training_years = set(cfg.datasource.years) - set(cfg.datasource.test_year)
+    normalization = dataloader.Normalization(training_years, cfg.datasource.name,
+                                             data_root, preprocessed_dirname, **cfg)
     print('load data')
-    data = [dataloader.RadarData(year, seq_len, **cfg,
-                                     data_root=data_root,
-                                     data_source=cfg.datasource.name,
-                                     use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars,
-                                     compute_fluxes=cfg.model.get('compute_fluxes', False))
-                  for year in cfg.datasource.training_years]
+    data = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
+                                 **cfg, **cfg.model,
+                                 data_root=data_root,
+                                 data_source=cfg.datasource.name,
+                                 normalization=normalization,
+                                 env_vars=cfg.datasource.env_vars,
+                                 compute_fluxes=cfg.model.get('compute_fluxes', False))
+            for year in training_years]
 
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
 
-    if cfg.edge_type == 'voronoi':
+    if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
@@ -251,6 +254,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         input_col = 'birds_km2'
 
     cfg.datasource.bird_scale = float(normalization.max(input_col))
+    cfg.seed = seed
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -272,24 +276,23 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     print(cfg.model)
     print(f'environmental variables: {cfg.datasource.env_vars}')
 
-    cv_folds = np.array_split(np.arange(n_data), cfg.n_folds)
+    cv_folds = np.array_split(np.arange(n_data), n_folds)
 
-    print(f'--- run cross-validation with {cfg.n_folds} folds ---')
+    print(f'--- run cross-validation with {n_folds} folds ---')
 
     subdir = osp.join(output_dir, f'cv_fold_{f}')
     os.makedirs(subdir, exist_ok=True)
 
-    training_curves = np.ones((cfg.n_folds, epochs)) * np.nan
-    val_curves = np.ones((cfg.n_folds, epochs)) * np.nan
-    best_val_losses = np.ones(cfg.n_folds) * np.nan
-    best_epochs = np.zeros(cfg.n_folds)
+    training_curves = np.ones((n_folds, epochs)) * np.nan
+    val_curves = np.ones((n_folds, epochs)) * np.nan
+    best_val_losses = np.ones(n_folds) * np.nan
+    best_epochs = np.zeros(n_folds)
 
-    for f in range(cfg.n_folds):
+    for f in range(n_folds):
         print(f'------------------- fold = {f} ----------------------')
         # split into training and validation set
         val_data = Subset(data, cv_folds[f].tolist())
-        #val_idx = cv_folds[f]
-        train_idx = np.concatenate([cv_folds[i] for i in range(cfg.n_folds) if i!=f]).tolist()
+        train_idx = np.concatenate([cv_folds[i] for i in range(n_folds) if i!=f]).tolist()
         n_train = len(train_idx)
         train_data = Subset(data, train_idx) # everything else
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
@@ -300,7 +303,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         print(f'train model')
 
         model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
-                      seed=(cfg.seed + cfg.get('job_id', 0)), **cfg.model)
+                      seed=seed, **cfg.model)
 
         states_path = cfg.model.get('load_states_from', '')
         if osp.isfile(states_path):
@@ -376,10 +379,10 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
 
-    summary = pd.DataFrame({'fold': range(cfg.n_folds),
+    summary = pd.DataFrame({'fold': range(n_folds),
                             'val_loss': best_val_losses,
                             'best_epoch': best_epochs})
-                            #'hp_settings': [json.dumps(cfg.model)] * cfg.n_folds})
+                            #'hp_settings': [json.dumps(cfg.model)] * n_folds})
     summary.to_csv(osp.join(output_dir, 'summary.csv'))
 
 
@@ -397,6 +400,11 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     Model = MODEL_MAPPING[cfg.model.name]
 
     data_root = osp.join(cfg.root, 'data')
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
+                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+
     # if model_dir is None: model_dir = output_dir
     model_dir = cfg.get('model_dir', output_dir)
     
@@ -410,7 +418,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     p_std = cfg.model.get('perturbation_std', 0)
     p_mean = cfg.model.get('perturbation_mean', 0)
 
-    if cfg.edge_type == 'voronoi':
+    if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
@@ -435,15 +443,15 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load test data
-    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len, **cfg,
-                                   data_root=data_root,
-                                   data_source=cfg.datasource.name,
-                                   use_buffers=cfg.datasource.use_buffers,
-                                   normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars,
-                                   compute_fluxes=compute_fluxes
-                                   )
-    n_nodes = len(test_data.info['radars'])
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len,
+                                    preprocessed_dirname, processed_dirname,
+                                    **cfg, **cfg.model,
+                                    data_root=data_root,
+                                    data_source=cfg.datasource.name,
+                                    normalization=normalization,
+                                    env_vars=cfg.datasource.env_vars,
+                                    compute_fluxes=compute_fluxes)
+
 
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
     # if cfg.datasource.validation_year == cfg.datasource.test_year:
@@ -467,7 +475,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
 
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
-                  seed=(cfg.seed + cfg.get('job_id', 0)), **model_cfg['model'])
+                  seed=model_cfg['seed'], **model_cfg['model'])
     model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
 
     # adjust model settings for testing
