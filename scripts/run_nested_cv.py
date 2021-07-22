@@ -9,8 +9,17 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument('task', type=str, help='inner or outer')
 parser.add_argument('--job_file', type=str, help='slurm array job file')
+args = parser.parse_args()
 
 @hydra.main(config_path="conf2", config_name="config")
+def run(cfg: DictConfig):
+
+    if args.task == 'inner':
+        inner_cv(cfg, args.job_file)
+    elif args.task == 'outer':
+        outer_cv(cfg, args.job_file)
+
+
 def outer_cv(cfg: DictConfig, job_file: str):
 
     # outer cv loop
@@ -18,7 +27,7 @@ def outer_cv(cfg: DictConfig, job_file: str):
         # train on all data except for one year
         final_train_eval(cfg, job_file, year)
 
-@hydra.main(config_path="conf2", config_name="config")
+
 def inner_cv(cfg: DictConfig, job_file: str):
 
     for year in cfg.datasource.years:
@@ -67,10 +76,5 @@ if __name__ == '__main__':
     # and once all jobs are done and 'best_hp_settings.txt' exists:
     # # python run_nested_cv.py outer --job_file run_outer_cv.job
 
-    args = parser.parse_args()
-
-    if args.task == 'inner':
-        inner_cv(job_file=args.job_file)
-    elif args.task == 'outer':
-        outer_cv(job_file=args.job_file)
+    run()
 
