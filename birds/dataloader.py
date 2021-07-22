@@ -390,6 +390,8 @@ class RadarData(InMemoryDataset):
             data['speed'] = []
             data['direction'] = []
             data['birds_km2'] = []
+
+        if self.compute_fluxes:
             data['bird_uv'] = []
 
         groups = dynamic_feature_df.groupby('radar')
@@ -497,8 +499,9 @@ class RadarData(InMemoryDataset):
         data['direction'][dir_mask] = rescale(data['direction'][dir_mask], min=0, max=360)
         data['direction'][~dir_mask] = -1
 
-        data['speed'] = (data['speed'] - self.normalization.min('bird_speed')) / (self.normalization.max('bird_speed')
-                                                                                  - self.normalization.min('bird_speed'))
+        min_speed = self.normalization.min('bird_speed') if self.data_source == 'radar' else 0
+        max_speed = self.normalization.max('bird_speed') if self.data_source == 'radar' else 1
+        data['speed'] = (data['speed'] - min_speed) / (max_speed - min_speed)
         data['speed'][~np.isfinite(data['speed'])] = -1
         data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
 
