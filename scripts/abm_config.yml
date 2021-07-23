@@ -6,7 +6,6 @@ end_date: 11-15 12:00
 #end_date: 11-15 12:00
 #num_birds: 100000
 num_birds: 1000
-
 settings:
   energy_tol_mean: 0.25
   energy_tol_std: 0.1

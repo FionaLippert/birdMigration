@@ -1,0 +1,170 @@
+/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/pyproj/crs/crs.py:68: FutureWarning: '+init=<authority>:<code>' syntax is deprecated. '<authority>:<code>' is the preferred initialization method. When making the change, be mindful of axis order changes: https://pyproj4.github.io/pyproj/stable/gotchas.html#axis-order-changes-in-proj-6
+  return _prepare_from_string(" ".join(pjargs))
+/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/pyproj/crs/crs.py:68: FutureWarning: '+init=<authority>:<code>' syntax is deprecated. '<authority>:<code>' is the preferred initialization method. When making the change, be mindful of axis order changes: https://pyproj4.github.io/pyproj/stable/gotchas.html#axis-order-changes-in-proj-6
+  return _prepare_from_string(" ".join(pjargs))
+[2021-07-13 22:58:27,040][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-13 22:58:27,041][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-13 22:58:27,041][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-13 22:58:27,042][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-13 22:58:27,351][geovoronoi][INFO] - collecting Voronoi region results
+create radar buffer dataframe
+[2021-07-13 22:58:27,507][numexpr.utils][INFO] - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+[2021-07-13 22:58:27,507][numexpr.utils][INFO] - NumExpr defaulting to 8 threads.
+##### load data for fall 2016 #####
+load abm data
+Traceback (most recent call last):
+  File "prepare_data.py", line 12, in run
+    datasets.preprocess(cfg)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/datasets.py", line 282, in preprocess
+    prepare_features(dir, raw_dir, str(year), cfg.datasource.name, **cfg,
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/datasets.py", line 208, in prepare_features
+    dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/datasets.py", line 77, in dynamic_features
+    buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/abm.py", line 536, in load_season
+    counts, cols = aggregate(traj, states, cells, range(T), state=1)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/abm.py", line 429, in aggregate
+    grid_counts = grid.to_crs('epsg:4326')    # to lonlat crs
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/geopandas/geodataframe.py", line 534, in to_crs
+    geom = df.geometry.to_crs(crs=crs, epsg=epsg)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/geopandas/geoseries.py", line 397, in to_crs
+    raise ValueError(
+ValueError: Cannot transform naive geometries.  Please set a crs on the object first.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "prepare_data.py", line 15, in run
+    print(traceback.format_exc(), file=log)
+NameError: name 'traceback' is not defined
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/pyproj/crs/crs.py:68: FutureWarning: '+init=<authority>:<code>' syntax is deprecated. '<authority>:<code>' is the preferred initialization method. When making the change, be mindful of axis order changes: https://pyproj4.github.io/pyproj/stable/gotchas.html#axis-order-changes-in-proj-6
+  return _prepare_from_string(" ".join(pjargs))
+/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/pyproj/crs/crs.py:68: FutureWarning: '+init=<authority>:<code>' syntax is deprecated. '<authority>:<code>' is the preferred initialization method. When making the change, be mindful of axis order changes: https://pyproj4.github.io/pyproj/stable/gotchas.html#axis-order-changes-in-proj-6
+  return _prepare_from_string(" ".join(pjargs))
+[2021-07-14 08:30:07,444][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-14 08:30:07,444][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-14 08:30:07,444][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-14 08:30:07,445][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-14 08:30:07,748][geovoronoi][INFO] - collecting Voronoi region results
+create radar buffer dataframe
+[2021-07-14 08:30:07,861][numexpr.utils][INFO] - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+[2021-07-14 08:30:07,861][numexpr.utils][INFO] - NumExpr defaulting to 8 threads.
+##### load data for fall 2016 #####
+load abm data
+/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/pyproj/crs/crs.py:68: FutureWarning: '+init=<authority>:<code>' syntax is deprecated. '<authority>:<code>' is the preferred initialization method. When making the change, be mindful of axis order changes: https://pyproj4.github.io/pyproj/stable/gotchas.html#axis-order-changes-in-proj-6
+  return _prepare_from_string(" ".join(pjargs))
+/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/pyproj/crs/crs.py:68: FutureWarning: '+init=<authority>:<code>' syntax is deprecated. '<authority>:<code>' is the preferred initialization method. When making the change, be mindful of axis order changes: https://pyproj4.github.io/pyproj/stable/gotchas.html#axis-order-changes-in-proj-6
+  return _prepare_from_string(" ".join(pjargs))
+[2021-07-14 16:13:32,084][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-14 16:13:32,085][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-14 16:13:32,085][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-14 16:13:32,085][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-14 16:13:32,394][geovoronoi][INFO] - collecting Voronoi region results
+create radar buffer dataframe
+[2021-07-14 16:13:32,506][numexpr.utils][INFO] - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+[2021-07-14 16:13:32,506][numexpr.utils][INFO] - NumExpr defaulting to 8 threads.
+##### load data for fall 2016 #####
+load abm data
+['nldbl' 'dehnr' 'deneu' 'depro' 'bezav' 'defld' 'bejab' 'deros' 'deeis'
+ 'denhb' 'deess' 'dedrs' 'deoft' 'deboo' 'deemd' 'bewid' 'deisn' 'deumd'
+ 'defbg' 'demem' 'detur' 'nldhl']
+loaded voronoi cell data
+add 15 dummy radars
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+[2021-07-14 21:20:58,020][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-14 21:20:58,020][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-14 21:20:58,020][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-14 21:20:58,021][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-14 21:20:58,337][geovoronoi][INFO] - collecting Voronoi region results
+create radar buffer dataframe
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+[2021-07-14 21:20:58,460][numexpr.utils][INFO] - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+[2021-07-14 21:20:58,461][numexpr.utils][INFO] - NumExpr defaulting to 8 threads.
+Exception ignored in: <function Collection.__del__ at 0x7fe13810f700>
+Traceback (most recent call last):
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/fiona/collection.py", line 471, in __del__
+    self.close()
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/fiona/collection.py", line 444, in close
+    if self.session is not None and self.session.isactive():
+AttributeError: 'Collection' object has no attribute 'session'
+add 15 dummy radars
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+[2021-07-14 21:52:53,282][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-14 21:52:53,283][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-14 21:52:53,283][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-14 21:52:53,283][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-14 21:52:53,575][geovoronoi][INFO] - collecting Voronoi region results
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+create radar buffer dataframe
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+[2021-07-14 21:52:53,699][numexpr.utils][INFO] - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+[2021-07-14 21:52:53,699][numexpr.utils][INFO] - NumExpr defaulting to 8 threads.
+done with static preprocessing
+save voronoi
+save static features
+save radar buffers
+##### load data for fall 2016 #####
+load abm data
+['nldbl' 'dehnr' 'deneu' 'depro' 'bezav' 'defld' 'bejab' 'deros' 'deeis'
+ 'denhb' 'deess' 'dedrs' 'deoft' 'deboo' 'deemd' 'bewid' 'deisn' 'deumd'
+ 'defbg' 'demem' 'detur' 'nldhl']
+epsg:4326
+loaded voronoi cell data
+loaded buffer data
+load env data
+add 15 dummy radars
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
+[2021-07-14 23:30:13,140][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-14 23:30:13,140][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-14 23:30:13,140][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-14 23:30:13,141][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-14 23:30:13,433][geovoronoi][INFO] - collecting Voronoi region results
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
+create radar buffer dataframe
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
+done with static preprocessing
+save voronoi
+save static features
+save radar buffers
+##### load data for fall 2017 #####
+load abm data
+['dehnr' 'deneu' 'depro' 'bezav' 'defld' 'bejab' 'deros' 'deeis' 'nlhrw'
+ 'denhb' 'deess' 'dedrs' 'deoft' 'deboo' 'deemd' 'bewid' 'deisn' 'deumd'
+ 'defbg' 'demem' 'detur' 'nldhl']
+epsg:4326
+loaded voronoi cell data
+loaded buffer data
+load env data
+add 15 dummy radars
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+[2021-07-15 01:20:13,896][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-15 01:20:13,896][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-15 01:20:13,896][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-15 01:20:13,897][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-15 01:20:14,187][geovoronoi][INFO] - collecting Voronoi region results
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+create radar buffer dataframe
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.023144721968215 +lon_0=8.877647001449585 +type=crs
+done with static preprocessing
+save voronoi
+save static features
+save radar buffers
+##### load data for fall 2015 #####
+load abm data
+['nldbl' 'dehnr' 'deneu' 'depro' 'bezav' 'defld' 'bejab' 'deros' 'deeis'
+ 'denhb' 'deess' 'dedrs' 'deoft' 'deboo' 'deemd' 'bewid' 'deisn' 'deumd'
+ 'defbg' 'demem' 'detur' 'nldhl']
+epsg:4326
+loaded voronoi cell data
+loaded buffer data
+load env data
