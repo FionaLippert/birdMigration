@@ -1700,7 +1700,9 @@ class FluxGraphLSTM(MessagePassing):
 
 
     def forward(self, data):
-
+        # TODO: allow for stacked layers of GNNs,
+        #  e.g. a graph convolution layer to aggregate information from neighbors,
+        #  combined with a second layer that translates the latent features into mass fluxes
         boundary_nodes = data.boundary.view(-1, 1)
         inner_nodes = torch.logical_not(data.boundary).view(-1, 1)
 
