@@ -1,5 +1,7 @@
 from omegaconf import DictConfig, OmegaConf
 import hydra
+import os
+import os.path as osp
 from birds import datasets
 import os.path as osp
 import traceback
@@ -20,3 +22,4 @@ def run(cfg: DictConfig):
 
 if __name__ == "__main__":
     run()
+

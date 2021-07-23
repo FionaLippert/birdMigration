@@ -14,18 +14,18 @@ import itertools as it
 from birds import spatial, datahandling, era5interface, abm
 
 
-def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, exclude=[]):
-    # load radar info
+def static_features(data_dir, season, year, **kwargs):
+
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
-    radars = {k: v for k, v in radars.items() if not v in exclude}
+    radars = {k: v for k, v in radars.items() if not v in kwargs.get('exclude', [])}
 
     # voronoi tesselation and associated graph
-    space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars)
-    voronoi, G_voronoi = space.voronoi()
+    space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0))
+    voronoi, G = space.voronoi()
     # G = space.subgraph(G, 'type', 'measured')  # graph without sink nodes
 
-    G_max_dist = space.G_max_dist(max_distance)
+    #G_max_dist = space.G_max_dist(kwargs.get('max_distance', 250))
 
     print('create radar buffer dataframe')
     # 25 km buffers around radars
@@ -48,11 +48,18 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
 
     print('done with static preprocessing')
 
-    return voronoi, radar_buffers, G_voronoi, G_max_dist
+    return voronoi, radar_buffers, G #, G_max_dist
 
-def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                     env_points=100, random_seed=1234, pref_dir=223, wp_threshold=-0.5,
-                     t_unit='1H', edge_type='voronoi'):
+def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs):
+
+    env_points = kwargs.get('env_points', 100)
+    season = kwargs.get('season', 'fall')
+    random_seed = kwargs.get('seed', 1234)
+    pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
+    pref_dir = pref_dirs[season]
+    wp_threshold = kwargs.get('wp_threshold', -0.5)
+    edge_type = kwargs.get('edge_type', 'voronoi')
+    t_unit = kwargs.get('t_unit', '1H')
 
     print(f'##### load data for {season} {year} #####')
 
@@ -195,18 +202,17 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
 
 
 
-def prepare_features(target_dir, data_dir, year, data_source, season, radar_years=['2015', '2016', '2017'],
-                     env_points=100, seed=1234, pref_dirs={'spring': 58, 'fall': 223}, wp_threshold=-0.5,
-                     max_distance=216, t_unit='1H', process_dynamic=True, n_dummy_radars=0, edge_type='voronoi',
-                     exclude=[], **kwargs):
+def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
+
+    radar_years = kwargs.get('radar_years', ['2015', '2016', '2017'])
+    process_dynamic = kwargs.get('process_dynamic', True)
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
         radar_year = radar_years[-1]
     else:
         radar_year = year
-    voronoi, radar_buffers, G, G_max_dist = static_features(data_dir, season, radar_year, max_distance,
-                                                            n_dummy_radars=n_dummy_radars, exclude=exclude)
+    voronoi, radar_buffers, G = static_features(data_dir, radar_year, **kwargs)
 
     # save to disk
     print('save voronoi')
@@ -220,15 +226,11 @@ def prepare_features(target_dir, data_dir, year, data_source, season, radar_year
     print('save radar buffers')
     radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
     nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
-    nx.write_gpickle(G_max_dist, osp.join(target_dir, f'G_max_dist={max_distance}.gpickle'), protocol=4)
+    #nx.write_gpickle(G_max_dist, osp.join(target_dir, f'G_max_dist={max_distance}.gpickle'), protocol=4)
 
     if process_dynamic:
         # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers,
-                                              env_points=env_points, random_seed=seed,
-                                              pref_dir=pref_dirs[season], wp_threshold=wp_threshold, t_unit=t_unit,
-                                              edge_type=edge_type)
-
+        dynamic_feature_df = dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs)
         # save to disk
         dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
 
@@ -287,24 +289,6 @@ def prepare_features(target_dir, data_dir, year, data_source, season, radar_year
 #     return data_night
 
 
-def preprocess(cfg: DictConfig):
-    data_root = osp.join(cfg.root, 'data')
-    raw_dir = osp.join(data_root, 'raw')
-    years = cfg.datasource.training_years + [cfg.datasource.test_year]
-    for year in years:
-        dir = osp.join(data_root, 'preprocessed', cfg.t_unit,
-                       f'{cfg.edge_type}_dummy_radars={cfg.n_dummy_radars}_exclude={cfg.exclude}',
-                        cfg.datasource.name, cfg.season, str(year))
-        if not osp.isdir(dir):
-            # load all features and organize them into dataframes
-            os.makedirs(dir)
-            prepare_features(dir, raw_dir, str(year), cfg.datasource.name, **cfg,
-                             radar_years=cfg.get('radar_years', ['2015', '2016', '2017']),
-                             env_points=cfg.get('enf_points', 100),
-                             pref_dirs=cfg.get('pref_dirs', {'spring': 58, 'fall': 223}),
-                             wp_threshold=cfg.get('wp_threshold', -0.5))
-        else:
-            print(f'Data has already been processed. To rerun preprocessing, remove the following directory: \n {dir}')
 #
 # class Normalization:
 #     def __init__(self, root, years, season, data_source, radar_years=['2015', '2016', '2017'], max_distance=216,

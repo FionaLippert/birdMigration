@@ -1,22 +1,22 @@
 # main config file
 experiment: test
 job_id: 0
+action: cv
 defaults:
   - datasource: radar
-  - model: LocalLSTM
-root: /home/fiona/birdMigration
+  - model: BirdFluxGraphLSTM
+  - hp_search_space: LR
+cv_folds: 5
+cv_repeats: 1
+cv_task: inner
+root: /home/flippert/birdMigration
 output_dir: results
 season: fall
 seed: 1234
-repeats: 1
 cuda: True
 root_transform: 0
 missing_data_threshold: 0.1
 t_unit: 1H
-edge_type: voronoi
-birds_per_km2: false
-max_distance: 0
-n_dummy_radars: 0
 use_nights: true
 data_perc: 1.0
 exclude: []
