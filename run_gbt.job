@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #SBATCH --partition=gpu_shared
-#SBATCH --gres=gpu:1
-#SBATCH --job-name=TrainBGNN2
+#SBATCH --gres=gpu:0
+#SBATCH --job-name=GBT
 #SBATCH --time=120:00:00
 # #SBATCH --mem=16G
-#SBATCH --array=1-5
+#SBATCH --array=1-1
 #SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
@@ -27,21 +27,21 @@ module load 2020
 ##module load Python/3.7.5-foss-2019b
 ##module load Anaconda3/2020.02
 ##module load Anaconda3/2018.12
-module load CUDA/11.0.2-GCC-9.3.0
+#module load CUDA/11.0.2-GCC-9.3.0
 ##module load CUDA/10.1.243-GCC-8.3.0
-module load cuDNN/8.0.3.33-gcccuda-2020a
+#module load cuDNN/8.0.3.33-gcccuda-2020a
 ##module load cuDNN/7.6.5.32-gcccuda-2019b
-module load NCCL/2.7.8-gcccuda-2020a
+#module load NCCL/2.7.8-gcccuda-2020a
 ##module load NCCL/2.5.6-CUDA-10.1.243
 #module load GDAL/3.0.4-foss-2020a-Python-3.8.2
 ##module load GDAL/2.2.3-intel-2019b-Python-3.6.6
 
-module load parallel
+#module load parallel
 
-JOBFILE=$HOME/birdMigration/run_boundary_birdflux2.job
-CHECKPOINTDIR=$HOME/birdMigration/checkpoints/boundary_extrapolation_birdflux/array_job_${SLURM_ARRAY_JOB_ID}
+JOBFILE=$HOME/birdMigration/run_local_lstm2.job
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/local_lstm/array_job_${SLURM_ARRAY_JOB_ID}
 mkdir -p $CHECKPOINTDIR
-rsync $JOBFILE $CHECKPOINTDIR/
+cp $JOBFILE $CHECKPOINTDIR
 
 
 #Copy all necessary input files to scratch
@@ -50,11 +50,11 @@ cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
 cd $HOME/birdMigration/scripts
 # setup GNU parallel
-#parallel="parallel -N 1 -j $SLURM_NTASKS --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
+#parallel="parallel -j 4 --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
 
 # run tasks in parallel
-#$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM experiment=extrapolated_boundary_nights_single_node2hidden_layer_uv_normalization_new_structure model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.0001 model.use_boundary_model=True  model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR missing_data_threshold=0.1 model.lr_decay=10 model.lr_gamma=0.8 +model.use_uv=True
+#$parallel "CUDA_VISIBLE_DEVICES={} 
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=LocalLSTM edge_type=none birds_per_km2=True experiment=nights_2layer_fc_in_new_structure model.epochs=200 data_perc=0.1 model.use_encoder=False model.context=0 model.teacher_forcing_gamma=0.95 use_nights=True output_dir=$CHECKPOINTDIR model.lr_decay=200 model.lr=0.00005
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home

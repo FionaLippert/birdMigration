@@ -3,7 +3,8 @@ import hydra
 import itertools as it
 import os.path as osp
 import os
-import subprocess
+from subprocess import Popen, PIPE
+import datetime
 
 
 @hydra.main(config_path="conf2", config_name="config")
@@ -41,14 +42,20 @@ def final_train_eval(cfg: DictConfig, job_file: str, test_year: int):
 
     print(f"Run train/eval for year {test_year}")
     repeats = cfg.cv_repeats
-    subprocess.Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model.name, str(test_year)])
+    Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model.name, str(test_year)])
 
 
 def hp_grid_search(cfg: DictConfig, job_file: str, test_year: int, n_comb: int, hp_file: str):
 
     print(f"Run grid search for year {test_year}")
-    subprocess.Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file, cfg.model.name, str(test_year)])
 
+    process = Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate()
+    start_time = datetime.datetime.now()
+    while True:
+        if stdout: print(stdout.decode("utf-8"))
+        if 'Submitted batch job' in stdout.decode("utf-8") or (datetime.datetime.now() - start_time).seconds > 10:
+            return
 
 
 def generate_hp_file(cfg: DictConfig):

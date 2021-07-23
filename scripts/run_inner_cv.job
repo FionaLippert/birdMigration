@@ -24,8 +24,8 @@ HPARAM_FILE=$1
 MODEL=$2
 TEST_YEAR=$3
 
-JOB_FILE=$HOME/birdMigration/run_inner_cv.job
-CHECKPOINTDIR=$HOME/birdMigration/checkpoints/nested_cv_$MODEL/test_${TEST_YEAR} # ${SLURM_ARRAY_JOB_ID}
+JOB_FILE=$HOME/birdMigration/scripts/run_inner_cv.job
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/nested_cv_$MODEL/test_${TEST_YEAR}/hp_grid_search # ${SLURM_ARRAY_JOB_ID}
 
 mkdir -p $CHECKPOINTDIR
 rsync $JOB_FILE $CHECKPOINTDIR/
@@ -39,13 +39,12 @@ cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 cd $HOME/birdMigration/scripts
 
 # run array jobs for all hyperparameter settings
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID \
+srun python run_2.py root=$TMPDIR +sub_dir=setting_$SLURM_ARRAY_TASK_ID \
 	action=cv \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	model=$MODEL \
 	experiment=hp_grid_search \
-	model.epochs=2  \
 	output_dir=$CHECKPOINTDIR \
 	$(head -$SLURM_ARRAY_TASK_ID $HPARAM_FILE | tail -1)
 

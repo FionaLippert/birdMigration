@@ -246,17 +246,23 @@ class RadarData(InMemoryDataset):
 
         if self.edge_type == 'voronoi':
             G = nx.read_gpickle(osp.join(self.preprocessed_dir, 'delaunay.gpickle'))
+            edges = torch.tensor(list(G.edges()), dtype=torch.long)
+            edge_index = edges.t().contiguous()
+            n_edges = edge_index.size(1)
         else:
-            G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
-            G = nx.read_gpickle(G_path)
+            #G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
+            #G = nx.read_gpickle(G_path)
+            G = nx.Graph()
+            n_edges = 0
+            edge_index = torch.zeros(0, dtype=torch.long)
 
         print('number of nans: ', dynamic_feature_df.birds.isna().sum())
 
 
         # extract edges from graph
-        edges = torch.tensor(list(G.edges()), dtype=torch.long)
-        edge_index = edges.t().contiguous()
-        n_edges = edge_index.size(1)
+        #edges = torch.tensor(list(G.edges()), dtype=torch.long)
+        #edge_index = edges.t().contiguous()
+        #n_edges = edge_index.size(1)
 
         # boundary radars and boundary edges
         boundary = voronoi['boundary'].to_numpy()
@@ -336,10 +342,11 @@ class RadarData(InMemoryDataset):
         coords = voronoi[coord_cols].to_numpy()
 
         # get distances, angles and face lengths between radars
-        distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
-        angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
-        delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
-        delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
+        if self.edge_type == 'voronoi':
+            distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
+            angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
+            delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
+            delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
 
         # check which radars are observed and which ones are dummy radars
         observed_idx = voronoi.observed.to_numpy()
@@ -358,13 +365,8 @@ class RadarData(InMemoryDataset):
                 torch.tensor(face_lengths, dtype=torch.float)
             ], dim=1)
         else:
-            print('Use other edge type')
-            edge_attr = torch.stack([
-                torch.tensor(distances, dtype=torch.float),
-                torch.tensor(delta_x, dtype=torch.float),
-                torch.tensor(delta_y, dtype=torch.float),
-                # torch.tensor(angles, dtype=torch.float),
-            ], dim=1)
+            print('No graph structure used')
+            edge_attr = torch.zeros(0)
 
 
         # reorganize data

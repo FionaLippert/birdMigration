@@ -23,12 +23,13 @@ module load NCCL/2.7.8-gcccuda-2020a
 MODEL=$1
 TEST_YEAR=$2
 
-JOB_FILE=$HOME/birdMigration/run_outer_cv.job
-CHECKPOINTDIR=$HOME/birdMigration/checkpoints/nested_cv_$MODEL/test_${TEST_YEAR} # ${SLURM_ARRAY_JOB_ID}
-HPARAM_FILE=$CHECKPOINTDIR/best_hp_settings.txt
+JOB_FILE=$HOME/birdMigration/scripts/run_outer_cv.job
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/nested_cv_$MODEL/test_${TEST_YEAR}
+HPARAM_FILE=$CHECKPOINTDIR/hp_grid_search/best_hp_settings.txt
+OUTDIR=$CHECKPOINTDIR/final_evaluation
 
-mkdir -p $CHECKPOINTDIR
-rsync $JOB_FILE $CHECKPOINTDIR/
+mkdir -p $OUTDIR
+rsync $JOB_FILE $OUTDIR/
 
 
 #Copy all necessary input files to scratch
@@ -45,5 +46,5 @@ srun python run_2.py root=$TMPDIR +sub_dir=final_$SLURM_ARRAY_TASK_ID \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	model=$MODEL \
 	experiment=final_evaluation \
-	output_dir=$CHECKPOINTDIR \
+	output_dir=$OUTDIR \
 	$(cat $HPARAM_FILE)
