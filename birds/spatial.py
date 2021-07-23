@@ -30,9 +30,9 @@ class Spatial:
         # setup local "aximuthal equidistant" coordinate system
         lat_0 = self.pts_lonlat.y.mean()
         lon_0 = self.pts_lonlat.x.mean()
-        self.crs_local = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=lat_0, lon_0=lon_0).srs
+        self.crs_local = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=lat_0, lon_0=lon_0).crs
         self.pts_local = self.pts_lonlat.to_crs(self.crs_local)
-
+    
         # add dummy radars if applicable
         self.add_dummy_radars(n_dummy_radars, buffer=buffer)
         self.N_dummy = n_dummy_radars
@@ -68,6 +68,7 @@ class Spatial:
                                   },
                                  geometry=polygons,
                                  crs=self.crs_local)
+        print(cells.crs)
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
 
         adj = np.zeros((self.N, self.N))
@@ -130,10 +131,13 @@ class Spatial:
         distances = np.linspace(0, boundary.length, n+1)
         points = [boundary.interpolate(d) for d in distances[:-1]]
 
-        dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(epsg=self.epsg_lonlat)
-
+        print(f'add {n} dummy radars')
+        dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(f'EPSG:{self.epsg_lonlat}')
+        print(self.pts_local.crs)
         self.pts_lonlat = self.pts_lonlat.append(dummy_radars, ignore_index=True)
         self.pts_local = self.pts_local.append(dummy_radars.to_crs(self.crs_local), ignore_index=True)
+        self.pts_local = gpd.GeoSeries(self.pts_local, crs=self.crs_local)
+        print(self.pts_local.crs)
 
 
     def G_max_dist(self, max_distance):
