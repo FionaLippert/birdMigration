@@ -29,14 +29,24 @@ def static_features(data_dir, season, year, max_distance, n_dummy_radars=0, excl
 
     print('create radar buffer dataframe')
     # 25 km buffers around radars
+
+
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
                                      'observed' : voronoi.observed},
                                      geometry=space.pts_local.buffer(25_000),
                                      crs=space.crs_local)
+    print(space.pts_local.crs)
+    print(radar_buffers.crs)
+    #radar_buffers.set_crs(space.crs_local)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
     radar_buffers['area_km2'] = radar_buffers.area / 10**6
     voronoi['area_km2'] = voronoi.area / 10**6
+
+    radar_buffers = radar_buffers.to_crs(f'epsg:{space.epsg_lonlat}')
+    voronoi = voronoi.to_crs(f'epsg:{space.epsg_lonlat}')
+
+    print('done with static preprocessing')
 
     return voronoi, radar_buffers, G_voronoi, G_max_dist
 
@@ -72,9 +82,13 @@ def dynamic_features(data_dir, data_source, season, year, voronoi, radar_buffers
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
         voronoi_radars = voronoi.query('observed == True')
+        print(voronoi_radars.radar.values)
         radar_buffers_radars = radar_buffers.query('observed == True')
+        print(radar_buffers_radars.crs)
         data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, voronoi_radars)
+        print('loaded voronoi cell data')
         buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
+        print('loaded buffer data')
 
         birds_km2 = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None] # rescale to birds per km^2
         buffer_data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale to birds per voronoi cell
@@ -195,10 +209,15 @@ def prepare_features(target_dir, data_dir, year, data_source, season, radar_year
                                                             n_dummy_radars=n_dummy_radars, exclude=exclude)
 
     # save to disk
-    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
+    print('save voronoi')
+    #print(voronoi)
+    #print(voronoi.crs)
+    #TODO fix fiona error that occurs when saving voronoi GeoSeries
+    #voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
     static_feature_df = voronoi.drop(columns='geometry')
+    print('save static features')
     static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
-
+    print('save radar buffers')
     radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
     nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
     nx.write_gpickle(G_max_dist, osp.join(target_dir, f'G_max_dist={max_distance}.gpickle'), protocol=4)

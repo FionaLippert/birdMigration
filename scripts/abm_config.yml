@@ -1,25 +1,25 @@
 # settings for ABM simulation
-year: '2018'
+year: '2015'
 season: fall
 start_date: 08-01 12:00
 end_date: 11-15 12:00
 #end_date: 11-15 12:00
-num_birds: 100000
+num_birds: 1000
 #num_birds: 50
 
 settings:
   energy_tol_mean: 0.25
   energy_tol_std: 0.1
   compensation: 0.6
-  start_day_range: 105
+  #start_day_range: 31
 #  start_day_range: 2
-  departure_window: 8
+  departure_window: 4
   pref_dir_std: 0
   start_line:
     - [9.90, 62.60]
     - [30.17, 38.45]
-#  start_day_mean: 15
-#  start_day_std: 5
+  start_day_mean: 32
+  start_day_std: 15
 #  sources:
 #    - [9.58, 54.50] # Schleswig-Holstein
 #    - [11.91, 54.10] # Rostock

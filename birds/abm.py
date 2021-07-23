@@ -285,8 +285,8 @@ class Simulation:
                 target_lon, target_lat = self.sample_target_pos()
                 print('target_pos', target_lon, target_lat)
 
-            # start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
-            start_day = self.rng.choice(range(self.settings['start_day_range']))
+            start_day = self.rng.normal(self.settings['start_day_mean'], self.settings['start_day_std'])
+            #start_day = self.rng.choice(range(self.settings['start_day_range']))
             energy_tol = self.rng.normal(self.settings['energy_tol_mean'], self.settings['energy_tol_std'])
             self.birds.append(Bird(id, lat, lon, self.env, start_day,
                                    compensation=self.settings['compensation'],
