@@ -41,6 +41,7 @@ cd $HOME/birdMigration/scripts
 srun python run_2.py root=$TMPDIR +sub_dir=final_$SLURM_ARRAY_TASK_ID \
 	action=training+testing \
 	datasource.test_year=$TEST_YEAR \
+	datasource.val_train_split=0 \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	model=$MODEL \
 	experiment=final_evaluation \

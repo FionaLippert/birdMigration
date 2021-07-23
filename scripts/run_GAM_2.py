@@ -20,21 +20,28 @@ def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GAM'
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.horizon
+    seq_len = cfg.model.horizon
+
+    data_root = osp.join(cfg.root, 'data')
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_' \
+                        f'use_nights={cfg.use_nights}_edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
+                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
 
     print('normalize features')
-    normalization = dataloader.Normalization(cfg.datasource.training_years, cfg.datasource.name,
-                                             data_root=data_root, **cfg)
+    training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
+    normalization = dataloader.Normalization(training_years, cfg.datasource.name,
+                                             data_root, preprocessed_dirname, **cfg)
 
     print('load data')
-    data_list = [dataloader.RadarData(year, ts, **cfg,
+    data_list = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
+                                 **cfg, **cfg.model,
                                  data_root=data_root,
                                  data_source=cfg.datasource.name,
-                                 use_buffers=cfg.datasource.use_buffers,
                                  normalization=normalization,
                                  env_vars=cfg.datasource.env_vars,
-                                 compute_fluxes=False)
-            for year in cfg.datasource.training_years]
+                                 )
+            for year in training_years]
 
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -47,7 +54,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_masks = []
     all_mappings = []
     for idx, data in enumerate(data_list):
-        X_train, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, mask_daytime=False)
+        X_train, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=seq_len, mask_daytime=False)
         all_X.append(X_train)
         all_y.append(y_train)
         all_masks.append(mask_train)
@@ -84,7 +91,13 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'GAM'
 
     data_root = osp.join(cfg.root, 'data')
+    seq_len = cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
+
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_' \
+                        f'use_nights={cfg.use_nights}_edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
+                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
 
     # load normalizer
     with open(osp.join(model_dir, 'normalization.pkl'), 'rb') as f:
@@ -93,17 +106,18 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
 
     # load test data
-    test_data = dataloader.RadarData(str(cfg.datasource.test_year), cfg.model.test_horizon, **cfg,
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len,
+                                     preprocessed_dirname, processed_dirname,
+                                     **cfg, **cfg.model,
                                      data_root=data_root,
                                      data_source=cfg.datasource.name,
-                                     use_buffers=cfg.datasource.use_buffers,
                                      normalization=normalization,
                                      env_vars=cfg.datasource.env_vars,
-                                     compute_fluxes=False
                                      )
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
+    areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars_gam(test_data,
@@ -111,7 +125,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
 
 
     # load models and predict
-    results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], seqID=[],
+    results = dict(gt_km2=[], prediction_km2=[], gt=[], prediction=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[], constant_prediction=[])
 
     for nidx, data in enumerate(test_data):
@@ -131,8 +145,10 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
 
-            results['gt_km2'].append(y[ridx, :])
-            results['prediction_km2'].append(y_hat)
+            results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
+            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
+            results['prediction'].append(y_hat * areas[ridx] if cfg.birds_per_km2 else y_hat)
             results['constant_prediction'].append([y[ridx, 0]] * y.shape[1])
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
@@ -147,6 +163,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     for k, v in results.items():
         results[k] = np.concatenate(v)
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
+    results['residual'] = results['gt'] - results['prediction']
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
