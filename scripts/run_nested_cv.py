@@ -4,20 +4,20 @@ import itertools as it
 import os.path as osp
 import os
 import subprocess
-import argparse
 
-parser = argparse.ArgumentParser()
-parser.add_argument('task', type=str, help='inner or outer')
-parser.add_argument('--job_file', type=str, help='slurm array job file')
-args = parser.parse_args()
 
 @hydra.main(config_path="conf2", config_name="config")
 def run(cfg: DictConfig):
 
-    if args.task == 'inner':
-        inner_cv(cfg, args.job_file)
-    elif args.task == 'outer':
-        outer_cv(cfg, args.job_file)
+    task = cfg.cv_task
+
+    if task == 'inner':
+        job_file = osp.join(cfg.root, 'scripts', 'run_inner_cv.job')
+        inner_cv(cfg, job_file)
+    elif task == 'outer':
+        job_file = osp.join(cfg.root, 'scripts', 'run_outer_cv.job')
+        outer_cv(cfg, job_file)
+
 
 
 def outer_cv(cfg: DictConfig, job_file: str):
@@ -30,24 +30,24 @@ def outer_cv(cfg: DictConfig, job_file: str):
 
 def inner_cv(cfg: DictConfig, job_file: str):
 
+    hp_file, n_comb = generate_hp_file(cfg)
+
     for year in cfg.datasource.years:
         # run inner cv to determine best hyperparameters
-        hp_grid_search(cfg, job_file, year)
+        hp_grid_search(cfg, job_file, year, n_comb, hp_file)
 
 
 def final_train_eval(cfg: DictConfig, job_file: str, test_year: int):
 
-    print("Start cross-validation for all hyperparameter settings")
-    repeats = cfg.cv_settings.repeats
-    subprocess.Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model, test_year])
+    print(f"Run train/eval for year {test_year}")
+    repeats = cfg.cv_repeats
+    subprocess.Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model.name, str(test_year)])
 
 
-def hp_grid_search(cfg: DictConfig, job_file: str, test_year: int):
+def hp_grid_search(cfg: DictConfig, job_file: str, test_year: int, n_comb: int, hp_file: str):
 
-    hp_file, n_comb = generate_hp_file(cfg)
-
-    print("Start cross-validation for all hyperparameter settings")
-    subprocess.Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file, cfg.model, test_year])
+    print(f"Run grid search for year {test_year}")
+    subprocess.Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file, cfg.model.name, str(test_year)])
 
 
 

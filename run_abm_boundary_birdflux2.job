@@ -2,7 +2,7 @@
 
 #SBATCH --partition=gpu_shared
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=LLSTM2
+#SBATCH --job-name=TrainBGNN2
 #SBATCH --time=120:00:00
 # #SBATCH --mem=16G
 #SBATCH --array=1-5
@@ -36,12 +36,12 @@ module load NCCL/2.7.8-gcccuda-2020a
 #module load GDAL/3.0.4-foss-2020a-Python-3.8.2
 ##module load GDAL/2.2.3-intel-2019b-Python-3.6.6
 
-#module load parallel
+module load parallel
 
-JOBFILE=$HOME/birdMigration/run_local_lstm2.job
-CHECKPOINTDIR=$HOME/birdMigration/checkpoints/local_lstm/array_job_${SLURM_ARRAY_JOB_ID}
+JOBFILE=$HOME/birdMigration/run_abm_boundary_birdflux2.job
+CHECKPOINTDIR=$HOME/birdMigration/checkpoints/abm_boundary_birdflux/array_job_${SLURM_ARRAY_JOB_ID}
 mkdir -p $CHECKPOINTDIR
-cp $JOBFILE $CHECKPOINTDIR
+rsync $JOBFILE $CHECKPOINTDIR/
 
 
 #Copy all necessary input files to scratch
@@ -50,11 +50,11 @@ cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
 cd $HOME/birdMigration/scripts
 # setup GNU parallel
-#parallel="parallel -j 4 --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
+#parallel="parallel -N 1 -j $SLURM_NTASKS --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
 
 # run tasks in parallel
-#$parallel "CUDA_VISIBLE_DEVICES={} 
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=LocalLSTM edge_type=none birds_per_km2=True experiment=nights_2layer_fc_in_new_structure model.epochs=200 data_perc=0.1 model.use_encoder=False model.context=0 model.teacher_forcing_gamma=0.95 use_nights=True output_dir=$CHECKPOINTDIR model.lr_decay=200 model.lr=0.00005
+#$parallel "
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False datasource=abm experiment=nights model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.00005 model.use_boundary_model=True output_dir=$CHECKPOINTDIR n_dummy_radars=15 missing_data_threshold=0.75 +model.use_uv=False model.lr_decay=200
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home
