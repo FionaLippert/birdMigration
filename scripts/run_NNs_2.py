@@ -41,7 +41,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     data_root = osp.join(cfg.root, 'data')
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
                         f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
                         f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
 
@@ -52,7 +52,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     seq_len = cfg.model.get('context', 0) + cfg.model.horizon
 
     print('normalize features')
-    training_years = set(cfg.datasource.years) - set(cfg.datasource.test_year)
+    training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
     normalization = dataloader.Normalization(training_years, cfg.datasource.name,
                                              data_root, preprocessed_dirname, **cfg)
     print('load data')
@@ -62,7 +62,7 @@ def train(cfg: DictConfig, output_dir: str, log):
                                  data_source=cfg.datasource.name,
                                  normalization=normalization,
                                  env_vars=cfg.datasource.env_vars,
-                                 compute_fluxes=cfg.model.get('compute_fluxes', False))
+                                 )
                   for year in training_years]
 
     data = torch.utils.data.ConcatDataset(data)
@@ -212,12 +212,12 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     Model = MODEL_MAPPING[cfg.model.name]
 
-    n_folds = cfg.cv_settings.n_folds
+    n_folds = cfg.cv_folds
     seed = cfg.seed + cfg.get('job_id', 0)
 
     data_root = osp.join(cfg.root, 'data')
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
                         f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
                         f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
 
@@ -227,7 +227,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     seq_len = cfg.model.get('context', 0) + cfg.model.horizon
 
     print('normalize features')
-    training_years = set(cfg.datasource.years) - set(cfg.datasource.test_year)
+    training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
     normalization = dataloader.Normalization(training_years, cfg.datasource.name,
                                              data_root, preprocessed_dirname, **cfg)
     print('load data')
@@ -237,7 +237,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
                                  data_source=cfg.datasource.name,
                                  normalization=normalization,
                                  env_vars=cfg.datasource.env_vars,
-                                 compute_fluxes=cfg.model.get('compute_fluxes', False))
+                                 )
             for year in training_years]
 
     data = torch.utils.data.ConcatDataset(data)
@@ -401,7 +401,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
 
     data_root = osp.join(cfg.root, 'data')
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
                         f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
                         f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
 
@@ -414,7 +414,6 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     seq_len = context + cfg.model.test_horizon
     seq_shift = context // 24
 
-    compute_fluxes = cfg.model.get('compute_fluxes', False)
     p_std = cfg.model.get('perturbation_std', 0)
     p_mean = cfg.model.get('perturbation_mean', 0)
 
@@ -450,7 +449,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
                                     data_source=cfg.datasource.name,
                                     normalization=normalization,
                                     env_vars=cfg.datasource.env_vars,
-                                    compute_fluxes=compute_fluxes)
+                                    )
 
 
     test_loader = DataLoader(test_data, batch_size=1, shuffle=False)
