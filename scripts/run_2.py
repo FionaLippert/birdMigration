@@ -31,6 +31,7 @@ def run(cfg: DictConfig):
             if 'cv' in action: run_NNs_2.cross_validation(cfg, out, log)
             if 'training' in action: run_NNs_2.train(cfg, out, log)
             if 'testing' in action:
+                cfg['use_nights'] = True
                 run_NNs_2.test(cfg, out, log)
                 cfg['use_nights'] = False
                 run_NNs_2.test(cfg, out, log, ext='_no_nights')

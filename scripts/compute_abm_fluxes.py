@@ -36,9 +36,9 @@ landing = np.zeros((T, N))
 outfluxes = np.zeros((T, N, N))
 
 for tidx in range(T):
-    print(f'computing flows for time step {tidx}')
+    print(f'computing fluxes for time step {tidx}')
 
-    df_flows = abm.bird_flows(traj, states, tidx, cells)
+    df_flows = abm.bird_fluxes(traj, states, tidx, cells)
 
     if len(df_flows) > 0:
         groups = df_flows.groupby('radar')

@@ -507,8 +507,8 @@ class RadarData(InMemoryDataset):
         data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
 
 
-        tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
-        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
+        tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights, seq_index)
+        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights, seq_index)
 
 
         # set bird densities during the day to zero
@@ -551,7 +551,7 @@ class RadarData(InMemoryDataset):
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
-        n_seq_discarded = np.sum(data['missing'].mean((0, 1)) > self.missing_data_threshold)
+        n_seq_discarded = np.sum(data['missing'][observed_idx].mean((0, 1)) > self.missing_data_threshold)
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
                 'areas' : voronoi.area_km2.values,
