@@ -280,9 +280,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     print(f'--- run cross-validation with {n_folds} folds ---')
 
-    subdir = osp.join(output_dir, f'cv_fold_{f}')
-    os.makedirs(subdir, exist_ok=True)
-
+    
     training_curves = np.ones((n_folds, epochs)) * np.nan
     val_curves = np.ones((n_folds, epochs)) * np.nan
     best_val_losses = np.ones(n_folds) * np.nan
@@ -290,6 +288,10 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     for f in range(n_folds):
         print(f'------------------- fold = {f} ----------------------')
+
+        subdir = osp.join(output_dir, f'cv_fold_{f}')
+        os.makedirs(subdir, exist_ok=True)
+
         # split into training and validation set
         val_data = Subset(data, cv_folds[f].tolist())
         train_idx = np.concatenate([cv_folds[i] for i in range(n_folds) if i!=f]).tolist()
@@ -368,14 +370,14 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         log.flush()
 
         # update training and validation curves
-        np.save(osp.join(output_dir, 'training_curves.npy'), training_curves)
-        np.save(osp.join(output_dir, 'validation_curves.npy'), val_curves)
-        np.save(osp.join(output_dir, 'learning_rates.npy'), all_lr)
-        np.save(osp.join(output_dir, 'teacher_forcing.npy'), all_tf)
+        np.save(osp.join(subdir, 'training_curves.npy'), training_curves)
+        np.save(osp.join(subdir, 'validation_curves.npy'), val_curves)
+        np.save(osp.join(subdir, 'learning_rates.npy'), all_lr)
+        np.save(osp.join(subdir, 'teacher_forcing.npy'), all_tf)
 
         # plotting
-        utils.plot_training_curves(training_curves, val_curves, output_dir, log=True)
-        utils.plot_training_curves(training_curves, val_curves, output_dir, log=False)
+        utils.plot_training_curves(training_curves, val_curves, subdir, log=True)
+        utils.plot_training_curves(training_curves, val_curves, subdir, log=False)
 
     print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
 

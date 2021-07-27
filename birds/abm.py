@@ -462,7 +462,7 @@ def aggregate_uv(trajectories, states, grid, t_range, state, u, v):
     return grid_df, cols_u, cols_v
 
 
-def bird_flows(trajectories, states, tidx, grid):
+def bird_fluxes(trajectories, states, tidx, grid):
     mask = np.where(states[tidx] == 1)
     df_t0 = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
     df_t1 = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
@@ -477,7 +477,6 @@ def bird_flows(trajectories, states, tidx, grid):
         xx_t1 = trajectories[tidx+1, mask, 0].flatten()
         yy_t1 = trajectories[tidx+1, mask, 1].flatten()
         df_t1['geometry'] = gpd.points_from_xy(xx_t1, yy_t1)
-
 
     # determine flows
     merged_t0 = gpd.sjoin(df_t0, grid, how='inner', op='within')

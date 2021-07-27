@@ -1683,6 +1683,7 @@ class FluxGraphLSTM(MessagePassing):
         self.fixed_boundary = kwargs.get('fixed_boundary', False)
         self.perturbation_std = kwargs.get('perturbation_std', 0)
         self.perturbation_mean = kwargs.get('perturbation_mean', 0)
+        self.n_graph_layers = kwargs.get('n_graph_layers', 0)
 
         # model components
         n_node_in = n_env + coord_dim + 1
@@ -1694,6 +1695,8 @@ class FluxGraphLSTM(MessagePassing):
             self.encoder = RecurrentEncoder3(n_node_in, **kwargs)
         if self.use_boundary_model:
             self.boundary_model = Extrapolation()
+
+        self.graph_layers = [GraphLayer(**kwargs) for l in range(self.n_graph_layers)]
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -1749,12 +1752,19 @@ class FluxGraphLSTM(MessagePassing):
                 x = x * inner_nodes + x_boundary * boundary_nodes
                 hidden = hidden * inner_nodes + h_boundary * boundary_nodes
 
+            # propagate hidden states through graph to combine spatial information
+            hidden_sp = hidden
+            for l in self.n_graph_layers:
+                data = dict(edge_index=data.edge_index, inputs=hidden_sp)
+                hidden_sp = self.graph_layers[l](data)
+
             # message passing through graph
             x, hidden = self.propagate(data.edge_index,
                                          reverse_edges=data.reverse_edges,
                                          x=x,
                                          coords=data.coords,
                                          hidden=hidden,
+                                         hidden_sp=hidden_sp,
                                          areas=data.areas,
                                          edge_attr=data.edge_attr,
                                          env=data.env[..., t],
@@ -1773,14 +1783,14 @@ class FluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, hidden_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
+    def message(self, x_j, hidden_sp_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
         # construct messages to node i for each edge (j,i)
         # x_j are source features with shape [E, out_channels]
 
         inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr]
         inputs = torch.cat(inputs, dim=1)
 
-        flux = self.edge_mlp(x_j, inputs, hidden_j)
+        flux = self.edge_mlp(x_j, inputs, hidden_sp_j)
 
         self.local_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
@@ -1800,6 +1810,51 @@ class FluxGraphLSTM(MessagePassing):
         pred = x + delta + aggr_out
 
         return pred, hidden
+
+
+class GraphLayer(MessagePassing):
+
+    def __init__(self, **kwargs):
+        super(GraphLayer, self).__init__(aggr='add', node_dim=0)
+
+        # model settings
+        self.n_hidden = kwargs.get('n_hidden', 64)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+
+        # model components
+        self.fc_edge = torch.nn.Linear(self.n_hidden, self.n_hidden)
+        self.fc_node = torch.nn.Linear(self.n_hidden, self.n_hidden)
+
+        seed = kwargs.get('seed', 1234)
+        torch.manual_seed(seed)
+
+
+    def forward(self, data):
+
+        edge_index = data.get('edge_index')
+        inputs = data.get('inputs')
+
+        # message passing through graph
+        out = self.propagate(edge_index, inputs)
+
+        return out
+
+
+    def message(self, inputs_i):
+        # construct messages to node i for each edge (j,i)
+
+        out = self.fc_edge(inputs_i)
+        out = torch.nn.LeakyReLU(out)
+
+        return out
+
+
+    def update(self, aggr_out):
+
+        out = self.fc_node(aggr_out)
+
+        return out
+
 
 # class RecurrentGCN(torch.nn.Module):
 #     def __init__(self, timesteps, node_features, n_hidden=32, n_out=1, K=1):
