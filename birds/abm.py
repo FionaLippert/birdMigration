@@ -523,11 +523,22 @@ def landing_birds(trajectories, states, tidx, grid):
 def load_season(root, season, year, cells, uv=True):
 
     abm_dir = osp.join(root, season, year)
+    
+    if osp.isfile(osp.join(abm_dir, 'traj.npy')):
+        traj = np.load(osp.join(abm_dir, 'traj.npy'))
+        states = np.load(osp.join(abm_dir, 'states.npy'))
+    else:
+        all_files = glob.glob(abm_dir + f'/simulation_results_**.pkl')
+        all_traj = []
+        all_states = []
+        for i, file in enumerate(all_files):
+            with open(file) as f:
+                result = pickle.load(f)
+                all_traj.append(result['trajectories'])
+                all_states.append(result['states'])
+        traj = np.concatenate(all_traj)
+        states = np.concatenate(all_states)
 
-    traj = np.load(osp.join(abm_dir, 'traj.npy'))
-    states = np.load(osp.join(abm_dir, 'states.npy'))
-    directions = np.load(osp.join(abm_dir, 'directions.npy'))
-    speeds = np.load(osp.join(abm_dir, 'ground_speeds.npy'))
     T = states.shape[0]
 
     with open(osp.join(abm_dir, 'time.pkl'), 'rb') as f:
@@ -538,6 +549,8 @@ def load_season(root, season, year, cells, uv=True):
     data = np.nan_to_num(counts[cols].to_numpy())
 
     if uv:
+        directions = np.load(osp.join(abm_dir, 'directions.npy'))
+        speeds = np.load(osp.join(abm_dir, 'ground_speeds.npy'))
         u, v = deg2uv(directions, speeds)  # in meters
         grid_df, cols_u, cols_v = aggregate_uv(traj, states, cells, range(T), 1, u, v)
         # grid_df = grid_df.fillna(0)

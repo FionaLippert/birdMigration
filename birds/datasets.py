@@ -14,8 +14,9 @@ import itertools as it
 from birds import spatial, datahandling, era5interface, abm
 
 
-def static_features(data_dir, season, year, **kwargs):
+def static_features(data_dir, year, **kwargs):
 
+    season = kwargs.get('season', 'fall')
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
     radars = {k: v for k, v in radars.items() if not v in kwargs.get('exclude', [])}
@@ -60,6 +61,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     wp_threshold = kwargs.get('wp_threshold', -0.5)
     edge_type = kwargs.get('edge_type', 'voronoi')
     t_unit = kwargs.get('t_unit', '1H')
+    use_uv = kwargs.get('use_uv', True)
 
     print(f'##### load data for {season} {year} #####')
 
@@ -92,7 +94,10 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         print(voronoi_radars.radar.values)
         radar_buffers_radars = radar_buffers.query('observed == True')
         print(radar_buffers_radars.crs)
-        data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, voronoi_radars)
+        if not use_uv:
+            data, t_range = abm.load_season(abm_dir, season, year, voronoi_radars, uv=False)
+        else:
+            data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, voronoi_radars)
         print('loaded voronoi cell data')
         buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
         print('loaded buffer data')
@@ -126,8 +131,9 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         # bird measurements for radar ridx
         df['birds'] = data[ridx] if row.observed else [np.nan] * len(t_range)
         df['birds_km2'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
-        df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
-        df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
+        if use_uv:
+            df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
         if data_source == 'abm':
             df['birds_from_buffer'] = buffer_data[ridx] if row.observed else [np.nan] * len(t_range)
         else:

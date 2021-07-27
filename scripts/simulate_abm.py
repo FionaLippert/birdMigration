@@ -38,7 +38,7 @@ end = f'{config["year"]}-{config["end_date"]}'
 wind_path = osp.join(args.env_path, 'pressure_level_850.nc')
 wind = xr.open_dataset(wind_path).sel(time=slice(start, end))[['u', 'v']]
 env = abm.Environment(wind)
-
+print('total area', wind.longitude.max(), wind.latitude.max(), wind.longitude.min(), wind.latitude.min())
 
 # simulation settings
 settings = config['settings']
