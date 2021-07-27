@@ -5,7 +5,7 @@
 #SBATCH --job-name=TrainBGNN2
 #SBATCH --time=120:00:00
 # #SBATCH --mem=16G
-#SBATCH --array=1-5
+#SBATCH --array=1-3
 #SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
@@ -54,7 +54,7 @@ cd $HOME/birdMigration/scripts
 
 # run tasks in parallel
 #$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM experiment=extrapolated_boundary_nights_single_node2hidden_layer_uv_normalization_new_structure model.conservation_constraint=0.0 model.boundary_constraint_only=False model.epochs=200 data_perc=0.1 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.0001 model.use_boundary_model=True  model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR missing_data_threshold=0.1 model.lr_decay=10 model.lr_gamma=0.8 +model.use_uv=True
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM action=training+testing model.epochs=200 data_perc=0.05 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.0001 model.use_boundary_model=True  model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR missing_data_threshold=0.1 +model.use_uv=True +model.n_graph_layers=0 model.batch_size=4
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home
