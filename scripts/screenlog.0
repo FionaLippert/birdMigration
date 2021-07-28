@@ -168,3 +168,206 @@ epsg:4326
 loaded voronoi cell data
 loaded buffer data
 load env data
+Traceback (most recent call last):
+  File "/home/flipper/birdMigration/scripts/prepare_data.py", line 1, in <module>
+    from omegaconf import DictConfig, OmegaConf
+ModuleNotFoundError: No module named 'omegaconf'
+Could not override 'n_dummy_radars'.
+To append to your config use +n_dummy_radars=15
+Key 'n_dummy_radars' is not in struct
+	full_key: n_dummy_radars
+	reference_type=Optional[Dict[Union[str, Enum], Any]]
+	object_type=dict
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+Traceback (most recent call last):
+  File "prepare_data.py", line 12, in run
+    log = open(log_file, 'w')
+FileNotFoundError: [Errno 2] No such file or directory: '/home/flippert/birdMigration/results/preprocessing_log.txt'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+Traceback (most recent call last):
+  File "prepare_data.py", line 12, in run
+    log = open(log_file, 'w+')
+FileNotFoundError: [Errno 2] No such file or directory: '/home/flippert/birdMigration/results/preprocessing_log.txt'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+Traceback (most recent call last):
+  File "prepare_data.py", line 12, in run
+    log = open(log_file, 'a')
+FileNotFoundError: [Errno 2] No such file or directory: '/home/flippert/birdMigration/results/preprocessing_log.txt'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+Traceback (most recent call last):
+  File "prepare_data.py", line 15, in run
+    datasets.preprocess(cfg)
+AttributeError: module 'birds.datasets' has no attribute 'preprocess'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+Could not override 'model.n_dummy_radars'.
+To append to your config use +model.n_dummy_radars=15
+Key 'n_dummy_radars' is not in struct
+	full_key: model.n_dummy_radars
+	reference_type=Optional[Dict[Union[str, Enum], Any]]
+	object_type=dict
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+Primary config directory not found.
+Check that the config directory '/home/flipper/birdMigration/scripts/conf22' exists and readable
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 16, in run
+    dir = osp.join(data_root, 'preprocessed', cfg.t_unit, f'{cfg.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}',
+omegaconf.errors.ConfigAttributeError: Key 'edge_type' is not in struct
+	full_key: edge_type
+	reference_type=Optional[Dict[Union[str, Enum], Any]]
+	object_type=dict
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 21, in run
+    os.makedirs(dir)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  [Previous line repeated 5 more times]
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 223, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/home/flippert'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: nothing to be done
+year 2016: nothing to be done
+year 2017: nothing to be done
+preprocess data for years [2015, 2016, 2017]
+year 2015: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 21, in run
+    os.makedirs(dir)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  [Previous line repeated 5 more times]
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 223, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/home/flippert'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 21, in run
+    os.makedirs(dir)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  [Previous line repeated 5 more times]
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 223, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/home/flippert'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 21, in run
+    os.makedirs(target_dir, exit_ok=True)
+TypeError: makedirs() got an unexpected keyword argument 'exit_ok'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 21, in run
+    os.makedirs(target_dir, exist_ok=True)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 213, in makedirs
+    makedirs(head, exist_ok=exist_ok)
+  [Previous line repeated 5 more times]
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/os.py", line 223, in makedirs
+    mkdir(name, mode)
+PermissionError: [Errno 13] Permission denied: '/home/flippert'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: nothing to be done
+year 2016: nothing to be done
+year 2017: nothing to be done
+preprocess data for years [2015, 2016, 2017]
+year 2015: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 22, in run
+    datasets.prepare_features(target_dir, osp.join(data_root, 'raw'), cfg.datasource.name, cfg.season, str(year),
+TypeError: prepare_features() takes 4 positional arguments but 5 were given
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: nothing to be done
+year 2016: start preprocessing
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 22, in run
+    datasets.prepare_features(target_dir, osp.join(data_root, 'raw'), str(year), cfg.datasource.name,
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/datasets.py", line 220, in prepare_features
+    voronoi, radar_buffers, G = static_features(data_dir, radar_year, **kwargs)
+TypeError: static_features() got multiple values for argument 'season'
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
+preprocess data for years [2015, 2016, 2017]
+year 2015: nothing to be done
+year 2016: nothing to be done
+year 2017: start preprocessing
+add 15 dummy radars
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
+[2021-07-26 15:55:38,379][geovoronoi][INFO] - running Voronoi tesselation for 37 points / treating geoms separately: True
+[2021-07-26 15:55:38,379][geovoronoi][INFO] - 37 of 37 points in geometry #1 of 1
+[2021-07-26 15:55:38,379][geovoronoi][INFO] - generating Voronoi regions
+[2021-07-26 15:55:38,380][geovoronoi][INFO] - generating Voronoi region polygons
+[2021-07-26 15:55:38,678][geovoronoi][INFO] - collecting Voronoi region results
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
+create radar buffer dataframe
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
++proj=aeqd +ellps=WGS84 +datum=WGS84 +lat_0=51.01108648249956 +lon_0=8.87537835943326 +type=crs
+[2021-07-26 15:55:38,791][numexpr.utils][INFO] - Note: NumExpr detected 20 cores but "NUMEXPR_MAX_THREADS" not set, so enforcing safe limit of 8.
+[2021-07-26 15:55:38,791][numexpr.utils][INFO] - NumExpr defaulting to 8 threads.
+done with static preprocessing
+save voronoi
+save static features
+save radar buffers
+##### load data for fall 2017 #####
+load abm data
+['dehnr' 'deneu' 'depro' 'bezav' 'defld' 'bejab' 'deros' 'deeis' 'nlhrw'
+ 'denhb' 'deess' 'dedrs' 'deoft' 'deboo' 'deemd' 'bewid' 'deisn' 'deumd'
+ 'defbg' 'demem' 'detur' 'nldhl']
+epsg:4326
+Traceback (most recent call last):
+  File "run_preprocessing.py", line 22, in run
+    datasets.prepare_features(target_dir, osp.join(data_root, 'raw'), str(year), cfg.datasource.name,
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/datasets.py", line 239, in prepare_features
+    dynamic_feature_df = dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/datasets.py", line 98, in dynamic_features
+    data, t_range = abm.load_season(abm_dir, season, year, voronoi_radars, uv=False)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/site-packages/birds-0.1.0-py3.8.egg/birds/abm.py", line 536, in load_season
+    result = pickle.load(f)
+  File "/home/flipper/anaconda3/envs/birdmigration/lib/python3.8/codecs.py", line 322, in decode
+    (result, consumed) = self._buffer_decode(data, self.errors, final)
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte
+
+Set the environment variable HYDRA_FULL_ERROR=1 for a complete stack trace.
