@@ -13,6 +13,7 @@ root: /home/flippert/birdMigration
 output_dir: results
 season: fall
 seed: 1234
+model_seed: ${seed}
 cuda: True
 root_transform: 0
 missing_data_threshold: 0.1

@@ -78,7 +78,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of training sequences = {n_train}')
     print(f'number of validation sequences = {n_val}')
 
-    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(seed))
+    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
@@ -93,7 +93,7 @@ def train(cfg: DictConfig, output_dir: str, log):
         input_col = 'birds_km2'
 
     cfg.datasource.bird_scale = float(normalization.max(input_col))
-    cfg.seed = seed
+    cfg.model_seed = seed
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -254,7 +254,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         input_col = 'birds_km2'
 
     cfg.datasource.bird_scale = float(normalization.max(input_col))
-    cfg.seed = seed
+    cfg.model_seed = seed
     with open(osp.join(output_dir, 'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
