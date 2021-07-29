@@ -1,13 +1,13 @@
 # main config file
+defaults:
+  - datasource: radar
+  - model: BirdFluxGraphLSTM
+  - hp_search_space: LR
 experiment: test
 root: /home/flippert/birdMigration
 output_dir: results
 job_id: 0
 action: training+testing
-defaults:
-  - datasource: radar
-  - model: BirdFluxGraphLSTM
-  - hp_search_space: LR
 season: fall
 seed: 1234
 model_seed: ${seed}
@@ -18,3 +18,5 @@ t_unit: 1H
 use_nights: true
 data_perc: 1.0
 exclude: []
+verbose: True
+debugging: True

@@ -18,18 +18,12 @@ import pandas as pd
 
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
-                 'LSTM': LSTM,
-                 'LocalLSTM': LocalLSTM2,
-                 'GraphLSTM': BirdDynamicsGraphLSTM,
-                 'GraphLSTM_transformed': BirdDynamicsGraphLSTM_transformed,
+                 'LocalLSTM': LocalLSTM,
                  'BirdFluxGraphLSTM': FluxGraphLSTM,
-                 'BirdFluxGraphLSTM2': BirdFluxGraphLSTM2,
-                 'testFluxMLP': testFluxMLP,
                  'AttentionGraphLSTM': AttentionGraphLSTM}
 
 
-
-def train(cfg: DictConfig, output_dir: str, log):
+def run_training(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
@@ -107,17 +101,10 @@ def train(cfg: DictConfig, output_dir: str, log):
         #    if param.requires_grad:
         #        print(name, param.data, param.grad)
 
-        if 'Flux' in cfg.model.name:
-            loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
-                                conservation_constraint=cfg.model.get('conservation_constraint', 0),
-                                teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0))
-        else:
-            loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
-                              daymask=cfg.model.get('force_zeros', 0))
+        loss = train(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf, **cfg.model)
         training_curve[0, epoch] = loss / n_train
 
-        val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
-                                 daymask=cfg.model.get('force_zeros', 0)).cpu()
+        val_loss = test(model, val_loader, loss_func, device, **cfg.model).cpu()
         val_loss = val_loss[torch.isfinite(val_loss)].mean()
         val_curve[0, epoch] = val_loss
 
@@ -153,9 +140,9 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     log.flush()
 
-def cross_validation(cfg: DictConfig, output_dir: str, log):
+def run_cross_validation(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
-    assert action.name == 'cv'
+    assert cfg.action.name == 'cv'
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
 
@@ -236,17 +223,10 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
             #    if param.requires_grad:
             #        print(name, param.data, param.grad)
 
-            if 'Flux' in cfg.model.name:
-                loss = train_fluxes(model, train_loader, optimizer, loss_func, device,
-                                    conservation_constraint=cfg.model.get('conservation_constraint', 0),
-                                    teacher_forcing=tf, daymask=cfg.model.get('force_zeros', 0))
-            else:
-                loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
-                                  daymask=cfg.model.get('force_zeros', 0))
+            loss = train(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf, **cfg.model)
             training_curves[f, epoch] = loss / n_train
 
-            val_loss = test_dynamics(model, val_loader, loss_func, device, bird_scale=1,
-                                     daymask=cfg.model.get('force_zeros', 0)).cpu()
+            val_loss = test(model, val_loader, loss_func, device, **cfg.model).cpu()
             val_loss = val_loss[torch.isfinite(val_loss)].mean()
             val_curves[f, epoch] = val_loss
 
@@ -342,7 +322,7 @@ def setup_training(cfg: DictConfig, output_dir: str):
     return data
 
 
-def test(cfg: DictConfig, output_dir: str, log, ext=''):
+def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
     assert cfg.model.name in MODEL_MAPPING
 
     Model = MODEL_MAPPING[cfg.model.name]
@@ -360,9 +340,6 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     context = cfg.model.get('context', 0)
     seq_len = context + cfg.model.test_horizon
     seq_shift = context // 24
-
-    p_std = cfg.model.get('perturbation_std', 0)
-    p_mean = cfg.model.get('perturbation_mean', 0)
 
     if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
@@ -423,8 +400,6 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     model.horizon = cfg.model.test_horizon
     if cfg.model.get('fixed_boundary', 0):
         model.fixed_boundary = True
-        model.perturbation_mean = p_mean
-        model.perturbation_std = p_std
 
     model.to(device)
     model.eval()
@@ -437,7 +412,8 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
     radar_fluxes = {}
     radar_mtr = {}
     attention_weights = {}
-    # attention_weights_state = {}
+
+    enc_att = hasattr(model, 'node_lstm') and cfg.model.get('use_encoder', False)
 
     for nidx, data in enumerate(test_loader):
         nidx += seq_shift
@@ -454,8 +430,11 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
         local_night = data.local_night.cpu()
         missing = data.missing.cpu()
 
+        if enc_att:
+            attention_weights[nidx] = torch.stack(model.node_lstm.alphas, dim=-1)
+
         if 'Flux' in cfg.model.name:
-            # load fluxes along edges
+            # fluxes along edges
             local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
@@ -467,6 +446,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
             influxes = local_fluxes[nidx].sum(1)
             outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
             local_deltas = model.local_deltas.detach().cpu()
+
         elif cfg.model.name == 'AttentionGraphLSTM':
             attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu()
@@ -491,7 +471,6 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
                 results['influxes'].append(influxes[ridx].view(-1))
                 results['outfluxes'].append(outfluxes[ridx].view(-1))
 
-
     if 'Flux' in cfg.model.name:
         with open(osp.join(output_dir, f'local_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
@@ -499,7 +478,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
             pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:
             pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
-    if cfg.model.name == 'AttentionGraphLSTM':
+    if enc_att or cfg.model.name == 'AttentionGraphLSTM':
         with open(osp.join(output_dir, f'attention_weights{ext}.pickle'), 'wb') as f:
             pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
 
@@ -523,7 +502,9 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
 
 
 def run(cfg: DictConfig, output_dir: str, log):
+    if 'cv' in cfg.action.name:
+        run_cross_validation(cfg, output_dir, log)
     if 'training' in cfg.action.name:
-        train(cfg, output_dir, log)
+        run_training(cfg, output_dir, log)
     if 'testing' in cfg.action.name:
-        test(cfg, output_dir, log)
+        run_testing(cfg, output_dir, log)
