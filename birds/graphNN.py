@@ -1735,10 +1735,24 @@ class FluxGraphLSTM(MessagePassing):
         self.total_fluxes = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
 
         forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
+        #print(f'number of nodes in batch = {data.x.size(0)}')
+        #print(f'number of edges = {data.edge_index.shape}')
+        #print(f'edge index = {data.edge_index}')
+        #print(f'reverse edges = {data.reverse_edges}')
+        #print(f'reverse edges shape = {data.reverse_edges.shape}')
+        #print(f'edge attr shape = {data.edge_attr.shape}')
 
         #print(f'env shape = {data.env.shape}')
         #print(f'forecast_horizon = {forecast_horizon}')
         # make predictions
+
+        #n_edges = data.edge_index.shape[1]
+        #reverse_edges = torch.zeros(n_edges, dtype=torch.long)
+        #for idx in range(n_edges):
+        #    for jdx in range(n_edges):
+        #        if (data.edge_index[:, idx] == torch.flip(data.edge_index[:, jdx], dims=[0])).all():
+        #            reverse_edges[idx] = jdx
+
         for t in forecast_horizon:
             
             r = torch.rand(1)
@@ -1754,7 +1768,7 @@ class FluxGraphLSTM(MessagePassing):
 
             # propagate hidden states through graph to combine spatial information
             hidden_sp = hidden
-            for l in self.n_graph_layers:
+            for l in range(self.n_graph_layers):
                 data = dict(edge_index=data.edge_index, inputs=hidden_sp)
                 hidden_sp = self.graph_layers[l](data)
 

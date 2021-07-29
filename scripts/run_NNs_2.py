@@ -477,7 +477,7 @@ def test(cfg: DictConfig, output_dir: str, log, ext=''):
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=model_cfg['seed'], **model_cfg['model'])
-    model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
+    model.load_state_dict(torch.load(osp.join(model_dir, f'final_model.pkl')))
 
     # adjust model settings for testing
     model.horizon = cfg.model.test_horizon

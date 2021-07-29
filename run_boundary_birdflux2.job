@@ -54,7 +54,7 @@ cd $HOME/birdMigration/scripts
 
 # run tasks in parallel
 #$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM action=training+testing model.epochs=200 data_perc=0.05 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.001 model.use_boundary_model=True  model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR missing_data_threshold=0.1 +model.use_uv=True +model.n_graph_layers=0 model.batch_size=4
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM action=training+testing model.epochs=100 data_perc=0.05 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.002 model.lr_decay=200 model.lr_gamma=0.1 model.use_boundary_model=True  model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR missing_data_threshold=0.1 +model.use_uv=True +model.n_graph_layers=0 model.batch_size=8
 #" ::: $(seq 0 3) 
 
 #Copy output directory from scratch to home

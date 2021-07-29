@@ -1,3 +1,0 @@
-# @package _group_
-script: run_outer_cv.py
-job_file: run_outer_cv.job
