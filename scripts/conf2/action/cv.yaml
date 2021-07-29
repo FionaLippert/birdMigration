@@ -1,6 +1,5 @@
 # @package _group_
 name: cv
-task: inner
-n_folds: 5
 repeats: 1
-horizon: 40
+n_folds: 5
+hp_search_space: LR

@@ -5,6 +5,7 @@ import os
 import traceback
 import run_NNs_2, run_GAM_2, run_GBT_2, run_HA_2
 
+
 @hydra.main(config_path="conf2", config_name="config")
 def run(cfg: DictConfig):
 
@@ -15,7 +16,7 @@ def run(cfg: DictConfig):
     log_file = os.path.join(out, 'log.txt')
     log = open(log_file, 'w+')
 
-    action = cfg.get('action', 'training+testing')
+    action = cfg.action.name
 
     try:
         if cfg.model.name == 'GBT':

@@ -25,7 +25,7 @@ class Spatial:
 
         # setup geodesic (lonlat) coordinate system
         self.epsg_lonlat = '4326'
-        self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()], crs=f'EPSG:{self.epsg_lonlat}')
+        self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()], crs=f'epsg:{self.epsg_lonlat}')
 
         # setup local "aximuthal equidistant" coordinate system
         lat_0 = self.pts_lonlat.y.mean()
@@ -132,7 +132,7 @@ class Spatial:
         points = [boundary.interpolate(d) for d in distances[:-1]]
 
         print(f'add {n} dummy radars')
-        dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(f'EPSG:{self.epsg_lonlat}')
+        dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(f'epsg:{self.epsg_lonlat}')
         print(self.pts_local.crs)
         self.pts_lonlat = self.pts_lonlat.append(dummy_radars, ignore_index=True)
         self.pts_local = self.pts_local.append(dummy_radars.to_crs(self.crs_local), ignore_index=True)
