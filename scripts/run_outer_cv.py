@@ -19,9 +19,10 @@ def run(cfg: DictConfig):
 
 def final_train_eval(cfg: DictConfig, test_year: int):
 
-    print(f"Run train/eval for year {test_year}")
+    print(f"Start train/eval for year {test_year}")
     repeats = cfg.action.repeats
-    Popen(['sbatch', f'--array=1-{repeats}', cfg.task.job_file, cfg.model.name, str(test_year)])
+    job_file = osp.join(cfg.root, cfg.task.job_file)
+    Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model.name, str(test_year)])
 
 
 

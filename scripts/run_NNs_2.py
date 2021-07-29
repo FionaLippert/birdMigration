@@ -72,7 +72,7 @@ def run_training(cfg: DictConfig, output_dir: str, log):
     training_curve = np.ones((1, cfg.model.epochs)) * np.nan
     val_curve = np.ones((1, cfg.model.epochs)) * np.nan
 
-    if cfg.verose: print(f'environmental variables: {cfg.datasource.env_vars}')
+    if cfg.verbose: print(f'environmental variables: {cfg.datasource.env_vars}')
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=seed, **cfg.model)

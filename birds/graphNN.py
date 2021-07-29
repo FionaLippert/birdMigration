@@ -445,7 +445,7 @@ class LocalMLP(torch.nn.Module):
 
 
 
-    def step(self, coords, env, areas, night, acc):
+    def step(self, coords, env, acc):
         # use only location-specific features to predict migration intensities
         if self.use_acc:
             features = torch.cat([coords, env, acc], dim=1)

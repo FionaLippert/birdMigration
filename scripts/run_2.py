@@ -29,13 +29,13 @@ def run(cfg: DictConfig):
             if 'train' in action: run_HA_2.train(cfg, out, log)
             if 'test' in action: run_HA_2.test(cfg, out, log)
         else:
-            if 'cv' in action: run_NNs_2.cross_validation(cfg, out, log)
-            if 'train' in action: run_NNs_2.train(cfg, out, log)
+            if 'cv' in action: run_NNs_2.run_cross_validation(cfg, out, log)
+            if 'train' in action: run_NNs_2.run_training(cfg, out, log)
             if 'test' in action:
                 cfg['use_nights'] = True
-                run_NNs_2.test(cfg, out, log)
+                run_NNs_2.run_testing(cfg, out, log)
                 cfg['use_nights'] = False
-                run_NNs_2.test(cfg, out, log, ext='_no_nights')
+                run_NNs_2.run_testing(cfg, out, log, ext='_no_nights')
     except Exception:
         print(traceback.format_exc(), file=log)
     print('flush log')

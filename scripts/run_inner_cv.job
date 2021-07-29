@@ -44,7 +44,6 @@ srun python run_2.py root=$TMPDIR +sub_dir=setting_$SLURM_ARRAY_TASK_ID \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	model=$MODEL \
-	experiment=hp_grid_search \
 	output_dir=$CHECKPOINTDIR \
 	$(head -$SLURM_ARRAY_TASK_ID $HPARAM_FILE | tail -1)
 

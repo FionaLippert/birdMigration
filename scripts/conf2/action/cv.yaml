@@ -2,4 +2,3 @@
 name: cv
 repeats: 1
 n_folds: 5
-hp_search_space: LR

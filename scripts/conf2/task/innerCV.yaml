@@ -1,3 +1,3 @@
 # @package _group_
-script: run_inner_cv.py
-job_file: run_inner_cv.job
+name: innerCV
+job_file: scripts/run_inner_cv.job

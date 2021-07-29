@@ -17,4 +17,4 @@ use_nights: true
 data_perc: 1.0
 exclude: []
 verbose: True
-debugging: True
+debugging: False
