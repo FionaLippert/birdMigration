@@ -20,7 +20,7 @@ def run(cfg: DictConfig):
 
 def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str):
 
-    print(f"Run grid search for year {test_year}")
+    if cfg.verbose: print(f"Run grid search for year {test_year}")
 
     process = Popen(['sbatch', f'--array=1-{n_comb}', cfg.action.task.job_file,
                      hp_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
@@ -45,9 +45,11 @@ def generate_hp_file(cfg: DictConfig):
         for combi in all_combinations:
             hp_str = " ".join([f'model.{name}={val}' for name, val in combi.items()]) + "\n"
             f.write(hp_str)
-    print("successfully generated hyperparameter settings file")
-    print(f"File path: {hp_file}")
-    print(f"Number of combinations: {len(all_combinations)}")
+
+    if cfg.verbose:
+        print("successfully generated hyperparameter settings file")
+        print(f"File path: {hp_file}")
+        print(f"Number of combinations: {len(all_combinations)}")
 
     return hp_file, len(all_combinations)
 

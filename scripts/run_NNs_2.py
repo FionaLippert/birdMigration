@@ -219,10 +219,6 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
             all_tf[epoch] = tf
             all_lr[epoch] = optimizer.param_groups[0]["lr"]
 
-            #for name, param in model.named_parameters():
-            #    if param.requires_grad:
-            #        print(name, param.data, param.grad)
-
             loss = train(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf, **cfg.model)
             training_curves[f, epoch] = loss / n_train
 
@@ -236,14 +232,16 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
 
             if val_loss <= best_val_loss:
                 if cfg.verbose: print('best model so far; save to disk ...')
-                torch.save(model.state_dict(), osp.join(subdir, f'model.pkl'))
+                torch.save(model.state_dict(), osp.join(subdir, f'best_model.pkl'))
                 best_val_loss = val_loss
                 best_epochs[f] = epoch
 
             tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
             scheduler.step()
 
-        print(f'fold {f}: validation loss = {best_val_loss}', file=log)
+        torch.save(model.state_dict(), osp.join(output_dir, 'final_model.pkl'))
+
+        print(f'fold {f}: final validation loss = {val_curves[f, -1]}', file=log)
         best_val_losses[f] = best_val_loss
 
         log.flush()
@@ -258,12 +256,12 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
         utils.plot_training_curves(training_curves, val_curves, subdir, log=True)
         utils.plot_training_curves(training_curves, val_curves, subdir, log=False)
 
-    print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
+    print(f'average validation loss = {val_curves[:, -1].mean()}', file=log)
 
     summary = pd.DataFrame({'fold': range(n_folds),
-                            'val_loss': best_val_losses,
+                            'final_val_loss': val_curves[:, -1],
+                            'best_val_loss': best_val_losses,
                             'best_epoch': best_epochs})
-                            #'hp_settings': [json.dumps(cfg.model)] * n_folds})
     summary.to_csv(osp.join(output_dir, 'summary.csv'))
 
 
@@ -504,7 +502,7 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 def run(cfg: DictConfig, output_dir: str, log):
     if 'cv' in cfg.action.name:
         run_cross_validation(cfg, output_dir, log)
-    if 'training' in cfg.action.name:
+    if 'train' in cfg.action.name:
         run_training(cfg, output_dir, log)
-    if 'testing' in cfg.action.name:
+    if 'test' in cfg.action.name:
         run_testing(cfg, output_dir, log)

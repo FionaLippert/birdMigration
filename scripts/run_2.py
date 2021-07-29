@@ -20,18 +20,18 @@ def run(cfg: DictConfig):
 
     try:
         if cfg.model.name == 'GBT':
-            if 'training' in action: run_GBT_2.train(cfg, out, log)
-            if 'testing' in action: run_GBT_2.test(cfg, out, log)
+            if 'train' in action: run_GBT_2.train(cfg, out, log)
+            if 'test' in action: run_GBT_2.test(cfg, out, log)
         elif cfg.model.name == 'GAM':
-            if 'training' in action: run_GAM_2.train(cfg, out, log)
-            if 'testing' in action: run_GAM_2.test(cfg, out, log)
+            if 'train' in action: run_GAM_2.train(cfg, out, log)
+            if 'test' in action: run_GAM_2.test(cfg, out, log)
         elif cfg.model.name == 'HA':
-            if 'training' in action: run_HA_2.train(cfg, out, log)
-            if 'testing' in action: run_HA_2.test(cfg, out, log)
+            if 'train' in action: run_HA_2.train(cfg, out, log)
+            if 'test' in action: run_HA_2.test(cfg, out, log)
         else:
             if 'cv' in action: run_NNs_2.cross_validation(cfg, out, log)
-            if 'training' in action: run_NNs_2.train(cfg, out, log)
-            if 'testing' in action:
+            if 'train' in action: run_NNs_2.train(cfg, out, log)
+            if 'test' in action:
                 cfg['use_nights'] = True
                 run_NNs_2.test(cfg, out, log)
                 cfg['use_nights'] = False

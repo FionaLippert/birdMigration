@@ -2,12 +2,10 @@
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
-  - hp_search_space: LR
-experiment: test
+  - action: train+test
 root: /home/flippert/birdMigration
 output_dir: results
 job_id: 0
-action: training+testing
 season: fall
 seed: 1234
 model_seed: ${seed}
