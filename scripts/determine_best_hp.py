@@ -20,7 +20,7 @@ def determine_best_hp():
     for dir in job_dirs:
         # load cv summary
         df = pd.read_csv(osp.join(dir, 'summary.csv'))
-        losses.append(df.val_loss.mean())
+        losses.append(df.final_val_loss.mean())
 
         # load config
         yaml = ruamel.yaml.YAML()
