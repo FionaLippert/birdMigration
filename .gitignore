@@ -14,12 +14,17 @@ models/
 departure_models/
 results/*
 scripts/outputs/
+checkpoints/
 *.tif
 *.png
 *.jpg
 *.h5
 *.nc
 *.pkl
+*.npy
+
+# slurm output
+slurm*
 
 # pycharm stuff
 .idea/

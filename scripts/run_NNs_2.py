@@ -239,7 +239,7 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
             tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
             scheduler.step()
 
-        torch.save(model.state_dict(), osp.join(output_dir, 'final_model.pkl'))
+        torch.save(model.state_dict(), osp.join(subdir, 'final_model.pkl'))
 
         print(f'fold {f}: final validation loss = {val_curves[f, -1]}', file=log)
         best_val_losses[f] = best_val_loss
@@ -384,10 +384,10 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
     results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     if 'Flux' in cfg.model.name:
-        results['fluxes'] = []
-        results['local_deltas'] = []
-        results['influxes'] = []
-        results['outfluxes'] = []
+        results['flux'] = []
+        results['source/sink'] = []
+        results['influx'] = []
+        results['outflux'] = []
 
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
@@ -406,7 +406,7 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
     #     if param.requires_grad:
     #         print(name, param.data)
 
-    local_fluxes = {}
+    edge_fluxes = {}
     radar_fluxes = {}
     radar_mtr = {}
     attention_weights = {}
@@ -429,21 +429,21 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
         missing = data.missing.cpu()
 
         if enc_att:
-            attention_weights[nidx] = torch.stack(model.node_lstm.alphas, dim=-1)
+            attention_weights[nidx] = torch.stack(model.node_lstm.alphas, dim=-1).detach().cpu()
 
         if 'Flux' in cfg.model.name:
             # fluxes along edges
-            local_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.local_fluxes).view(
+            edge_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.edge_fluxes).view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             # net fluxes per node
-            fluxes = model.total_fluxes.detach().cpu()
-            influxes = local_fluxes[nidx].sum(1)
-            outfluxes = local_fluxes[nidx].permute(1, 0, 2).sum(1)
-            local_deltas = model.local_deltas.detach().cpu()
+            fluxes = model.node_fluxes.detach().cpu()
+            influxes = edge_fluxes[nidx].sum(1)
+            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
+            node_deltas = model.node_deltas.detach().cpu()
 
         elif cfg.model.name == 'AttentionGraphLSTM':
             attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
@@ -464,14 +464,14 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['missing'].append(missing[ridx, context:])
 
             if 'Flux' in cfg.model.name:
-                results['fluxes'].append(fluxes[ridx].view(-1))
-                results['local_deltas'].append(local_deltas[ridx].view(-1))
-                results['influxes'].append(influxes[ridx].view(-1))
-                results['outfluxes'].append(outfluxes[ridx].view(-1))
+                results['flux'].append(fluxes[ridx].view(-1))
+                results['source/sink'].append(node_deltas[ridx].view(-1))
+                results['influx'].append(influxes[ridx].view(-1))
+                results['outflux'].append(outfluxes[ridx].view(-1))
 
     if 'Flux' in cfg.model.name:
-        with open(osp.join(output_dir, f'local_fluxes{ext}.pickle'), 'wb') as f:
-            pickle.dump(local_fluxes, f, pickle.HIGHEST_PROTOCOL)
+        with open(osp.join(output_dir, f'model_fluxes{ext}.pickle'), 'wb') as f:
+            pickle.dump(edge_fluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'radar_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:

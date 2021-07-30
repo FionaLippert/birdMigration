@@ -1,0 +1,3 @@
+- model=LocalMLP
+- +hp_search_space=LocalNNs
+- +task=innerCV

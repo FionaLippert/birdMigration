@@ -1689,7 +1689,7 @@ class FluxGraphLSTM(MessagePassing):
         if self.use_boundary_model:
             self.boundary_model = Extrapolation()
 
-        self.graph_layers = [GraphLayer(**kwargs) for l in range(self.n_graph_layers)]
+        self.graph_layers = nn.ModuleList([GraphLayer(**kwargs) for l in range(self.n_graph_layers)])
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -1742,8 +1742,7 @@ class FluxGraphLSTM(MessagePassing):
             # propagate hidden states through graph to combine spatial information
             hidden_sp = hidden
             for l in range(self.n_graph_layers):
-                data = dict(edge_index=data.edge_index, inputs=hidden_sp)
-                hidden_sp = self.graph_layers[l](data)
+                hidden_sp = self.graph_layers[l]([data.edge_index, hidden_sp])
 
             # message passing through graph
             x, hidden = self.propagate(data.edge_index,
@@ -1823,20 +1822,18 @@ class GraphLayer(MessagePassing):
 
     def forward(self, data):
 
-        edge_index = data.get('edge_index')
-        inputs = data.get('inputs')
+        edge_index, inputs = data
 
         # message passing through graph
-        out = self.propagate(edge_index, inputs)
+        out = self.propagate(edge_index, inputs=inputs)
 
         return out
 
 
     def message(self, inputs_i):
         # construct messages to node i for each edge (j,i)
-
         out = self.fc_edge(inputs_i)
-        out = torch.nn.LeakyReLU(out)
+        out = F.leaky_relu(out)
 
         return out
 
@@ -3887,7 +3884,7 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
 
     return loss_all
 
-def flux_penalty(model, data, conservation_constraint):
+def flux_penalty(model, data, weight):
 
     inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
     inferred_fluxes = inferred_fluxes - inferred_fluxes[data.reverse_edges]
@@ -3899,7 +3896,7 @@ def flux_penalty(model, data, conservation_constraint):
     edges = data.boundary2inner_edges + data.inner2boundary_edges + data.inner_edges
     diff = diff[edges]
     penalty = (torch.square(diff[~torch.isnan(diff)])).mean()
-    penalty = conservation_constraint * penalty
+    penalty = weight * penalty
 
     return penalty
 
@@ -3907,7 +3904,7 @@ def train(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, 
 
     model.train()
     loss_all = 0
-    conservation_constraint = kwargs.get('conservation_constraint', 0)
+    flux_loss_weight = kwargs.get('flux_loss_weight', 0)
     for nidx, data in enumerate(train_loader):
         data = data.to(device)
         optimizer.zero_grad()
@@ -3917,7 +3914,7 @@ def train(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, 
         gt = data.y
 
         if conservation_constraint > 0:
-            penalty = flux_penalty(model, data, conservation_constraint)
+            penalty = flux_penalty(model, data, flux_loss_weight)
         else:
             penalty = 0
 

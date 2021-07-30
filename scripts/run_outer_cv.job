@@ -40,11 +40,10 @@ cd $HOME/birdMigration/scripts
 
 # run training and testing using best hyperparameter setting determined in inner CV 
 srun python run_2.py root=$TMPDIR +sub_dir=final_$SLURM_ARRAY_TASK_ID \
-	action=training+testing \
+	action=train+test \
 	datasource.test_year=$TEST_YEAR \
 	datasource.val_train_split=0 \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	model=$MODEL \
-	experiment=final_evaluation \
 	output_dir=$OUTDIR \
 	$(cat $HPARAM_FILE)

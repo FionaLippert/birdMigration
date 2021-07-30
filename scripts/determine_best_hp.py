@@ -28,7 +28,7 @@ def determine_best_hp():
             cfgs.append(yaml.load(f))
 
     # determine config with best average validation loss
-    best_idx = np.argmax(losses)
+    best_idx = np.argmin(losses)
     best_cfg = cfgs[best_idx]
     hp_str = " ".join([f'model.{name}={val}' for name, val in dict(best_cfg['model']).items()])
 
