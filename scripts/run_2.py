@@ -6,7 +6,7 @@ import traceback
 import run_NNs_2, run_GAM_2, run_GBT_2, run_HA_2
 
 
-@hydra.main(config_path="conf2", config_name="config")
+@hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
     out = osp.join(cfg.output_dir, cfg.get('sub_dir', ''))

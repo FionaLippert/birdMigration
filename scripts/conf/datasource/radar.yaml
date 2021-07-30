@@ -1,11 +1,10 @@
 # @package _group_
 name: radar
-training_years:
+years:
+  - 2015
   - 2016
   - 2017
-validation_year: 2015
 test_year: 2015
-val_test_split: 0.25
 val_train_split: 0.1
 env_vars:
   - u
@@ -15,8 +14,12 @@ env_vars:
   - sp
   - t2m
   - sshf
+  - solarpos
+  - solarpos_dt
+  - night
+  - dusk
+  - dawn
 
 use_buffers: True
 # will be filled at runtime
 bird_scale: ???
-#bird_scale: 1e7
