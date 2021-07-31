@@ -3913,7 +3913,7 @@ def train(model, train_loader, optimizer, loss_func, device, teacher_forcing=0, 
         output = model(data)
         gt = data.y
 
-        if conservation_constraint > 0:
+        if flux_loss_weight > 0:
             penalty = flux_penalty(model, data, flux_loss_weight)
         else:
             penalty = 0
