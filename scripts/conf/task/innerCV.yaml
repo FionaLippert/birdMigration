@@ -1,0 +1,4 @@
+# @package _group_
+name: innerCV
+slurm_job: scripts/run_inner_cv_slurm.job
+local_job: scripts/run_inner_cv_local.job

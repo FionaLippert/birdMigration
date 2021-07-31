@@ -1,9 +1,0 @@
-Traceback (most recent call last):
-  File "/home/flippert/birdMigration/scripts/run.py", line 29, in run
-    run_NNs.run(cfg, output_dir, log)
-  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 517, in run
-    train(cfg, output_dir, log)
-  File "/home/flippert/birdMigration/scripts/run_NNs.py", line 227, in train
-    loss = train_dynamics(model, train_loader, optimizer, loss_func, device, teacher_forcing=tf,
-TypeError: train_dynamics() got an unexpected keyword argument 'n_devices'
-

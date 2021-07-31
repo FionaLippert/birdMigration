@@ -1,4 +1,0 @@
-- model=GBT
-- root=/home/flipper/birdMigration
-- cuda=False
-- action=training

@@ -7,35 +7,49 @@ from subprocess import Popen, PIPE
 from datetime import datetime
 
 
-@hydra.main(config_path="conf2", config_name="config")
+@hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
-    if cfg.task.name == 'innerCV':
-        run_inner_cv(cfg)
-    elif cfg.task.name == 'outerCV':
-        run_outer_cv(cfg)
 
-def run_outer_cv(cfg: DictConfig):
+    target_dir = osp.join(cfg.device.root, cfg.output_dir, f'nested_cv_{cfg.model.name}')
+
+    if cfg.task.name == 'innerCV':
+        run_inner_cv(cfg, target_dir)
+    elif cfg.task.name == 'outerCV':
+        run_outer_cv(cfg, target_dir)
+
+def run_outer_cv(cfg: DictConfig, target_dir):
 
     for year in cfg.datasource.years:
         # train on all data except for one year
-        final_train_eval(cfg, year)
+        output_dir = osp.join(target_dir, f'test_{year}', 'final_evaluation')
+        final_train_eval(cfg, year, output_dir)
 
 
-def run_inner_cv(cfg: DictConfig):
+def run_inner_cv(cfg: DictConfig, target_dir):
 
-    hp_file, n_comb = generate_hp_file(cfg)
+    hp_file, n_comb = generate_hp_file(cfg, target_dir)
 
     for year in cfg.datasource.years:
         # run inner cv to determine best hyperparameters
-        hp_grid_search(cfg, year, n_comb, hp_file)
+        output_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
+        hp_grid_search(cfg, year, n_comb, hp_file, output_dir)
 
 
-def final_train_eval(cfg: DictConfig, test_year: int, timeout=10):
+def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=10):
 
-    print(f"Start train/eval for year {test_year}")
+    if cfg.verbose: print(f"Start train/eval for year {test_year}")
+
+    config_path = osp.dirname(output_dir)
     repeats = cfg.task.repeats
-    job_file = osp.join(cfg.root, cfg.task.job_file)
-    Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
+
+    if cfg.device.slurm:
+        job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
+        proc = Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.device.root, output_dir, config_path,
+                      str(test_year)], stdout=PIPE, stderr=PIPE)
+    else:
+        job_file = osp.join(cfg.device.root, cfg.task.local_job)
+        proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
+                      str(test_year), repeats], stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     start_time = datetime.now()
 
@@ -52,14 +66,23 @@ def final_train_eval(cfg: DictConfig, test_year: int, timeout=10):
 
 
 
-def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str):
+def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str, output_dir: str, timeout=10):
 
     if cfg.verbose: print(f"Start grid search for year {test_year}")
 
-    job_file = osp.join(cfg.root, cfg.task.job_file)
+    # directory created by hydra, containing current config
+    # including settings overwritten from command line
+    config_path = osp.join(os.getcwd(), '.hydra')
 
-    proc = Popen(['sbatch', f'--array=1-{n_comb}', job_file,
-                     hp_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
+    # run inner cross-validation loop for all different hyperparameter settings
+    if cfg.device.slurm:
+        job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
+        proc = Popen(['sbatch', f'--array=1-{n_comb}', job_file, cfg.device.root, output_dir, config_path,
+                      hp_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
+    else:
+        job_file = osp.join(cfg.device.root, cfg.task.local_job)
+        proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
+                      hp_file, cfg.model.name, str(test_year), n_comb], stdout=PIPE, stderr=PIPE)
 
     stdout, stderr = proc.communicate()
     start_time = datetime.now()
@@ -78,9 +101,9 @@ def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str):
             return
 
 
-def generate_hp_file(cfg: DictConfig):
+def generate_hp_file(cfg: DictConfig, target_dir):
     search_space = {k: v for k, v in cfg.hp_search_space.items() if k in cfg.model.keys()}
-    hp_file = osp.join(cfg.root, 'hyperparameters.txt')
+    hp_file = osp.join(target_dir, 'hyperparameters.txt')
 
     names, values = zip(*search_space.items())
     all_combinations = [dict(zip(names, v)) for v in it.product(*values)]

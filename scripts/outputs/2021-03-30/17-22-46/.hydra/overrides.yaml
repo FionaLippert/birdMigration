@@ -1,4 +1,0 @@
-- model=LocalMLP
-- root=/home/flipper/birdMigration
-- cuda=True
-- action=training
