@@ -1,9 +1,9 @@
 # main config file
 output_dir: results
+action: ???
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
-  - action: train+test
   - device: cluster
 job_id: 0
 season: fall
@@ -12,8 +12,8 @@ model_seed: ${seed}
 root_transform: 0
 missing_data_threshold: 0.1
 t_unit: 1H
-use_nights: true
-data_perc: 1.0
+use_nights: false
+data_perc: 0.2
 exclude: []
 verbose: True
 debugging: False

@@ -11,6 +11,7 @@ from datetime import datetime
 def run(cfg: DictConfig):
 
     target_dir = osp.join(cfg.device.root, cfg.output_dir, f'nested_cv_{cfg.model.name}')
+    os.makedirs(target_dir, exist_ok=True)
 
     if cfg.task.name == 'innerCV':
         run_inner_cv(cfg, target_dir)

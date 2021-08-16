@@ -142,7 +142,7 @@ def run_training(cfg: DictConfig, output_dir: str, log):
 
 def run_cross_validation(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
-    assert cfg.action.name == 'cv'
+    assert cfg.task.name == 'innerCV'
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
 
@@ -150,7 +150,7 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
 
     device = 'cuda' if (cfg.device.cuda and torch.cuda.is_available()) else 'cpu'
     epochs = cfg.model.epochs
-    n_folds = cfg.action.n_folds
+    n_folds = cfg.task.n_folds
     seed = cfg.seed + cfg.get('job_id', 0)
 
     data = setup_training(cfg, output_dir)
@@ -279,15 +279,16 @@ def setup_training(cfg: DictConfig, output_dir: str):
     processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
                         f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
                         f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
-
+    
+    data_dir = osp.join(cfg.device.root, 'data')
     # initialize normalizer
     training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
     normalization = dataloader.Normalization(training_years, cfg.datasource.name,
-                                             cfg.device.data_dir, preprocessed_dirname, **cfg)
+                                             data_dir, preprocessed_dirname, **cfg)
     # load training and validation data
     data = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
                                  **cfg, **cfg.model,
-                                 data_root=cfg.device.data_dir,
+                                 data_root=data_dir,
                                  data_source=cfg.datasource.name,
                                  normalization=normalization,
                                  env_vars=cfg.datasource.env_vars,
@@ -362,10 +363,11 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
         cfg.datasource.bird_scale = float(normalization.root_max(input_col, cfg.root_transform))
 
     # load test data
+    data_dir = osp.join(cfg.device.root, 'data')
     test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len,
                                     preprocessed_dirname, processed_dirname,
                                     **cfg, **cfg.model,
-                                    data_root=cfg.device.data_dir,
+                                    data_root=data_dir,
                                     data_source=cfg.datasource.name,
                                     normalization=normalization,
                                     env_vars=cfg.datasource.env_vars,
