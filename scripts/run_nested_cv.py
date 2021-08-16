@@ -79,11 +79,11 @@ def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str, o
     if cfg.device.slurm:
         job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
         proc = Popen(['sbatch', f'--array=1-{n_comb}', job_file, cfg.device.root, output_dir, config_path,
-                      hp_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
+                      hp_file, str(test_year)], stdout=PIPE, stderr=PIPE)
     else:
         job_file = osp.join(cfg.device.root, cfg.task.local_job)
         proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
-                      hp_file, cfg.model.name, str(test_year), n_comb], stdout=PIPE, stderr=PIPE)
+                      hp_file, str(test_year), n_comb], stdout=PIPE, stderr=PIPE)
 
     stdout, stderr = proc.communicate()
     start_time = datetime.now()
