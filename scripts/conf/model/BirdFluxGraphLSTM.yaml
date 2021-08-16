@@ -25,3 +25,6 @@ load_states_from: none
 edge_type: voronoi
 birds_per_km2: false
 n_dummy_radars: 15
+early_stopping: true
+stopping_criterion: 1e-6
+stopping_period: 50

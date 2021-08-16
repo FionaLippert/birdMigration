@@ -93,6 +93,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
     tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
     all_tf = np.zeros(cfg.model.epochs)
     all_lr = np.zeros(cfg.model.epochs)
+    avg_loss = np.inf
+
     for epoch in range(cfg.model.epochs):
         all_tf[epoch] = tf
         all_lr[epoch] = optimizer.param_groups[0]["lr"]
@@ -116,6 +118,16 @@ def run_training(cfg: DictConfig, output_dir: str, log):
             if cfg.verbose: print('best model so far; save to disk ...')
             torch.save(model.state_dict(), osp.join(output_dir, f'best_model.pkl'))
             best_val_loss = val_loss
+
+        if cfg.early_stopping and (epoch + 1) % cfg.stopping_period == 0:
+            # every 5 epochs, check for convergence of validation loss
+            l = val_curve[0, (epoch - (cfg.stopping_period - 1)) : (epoch + 1)].mean()
+            if (avg_loss - l) > cfg.model.stopping_criterion:
+                # loss decayed significantly, continue training
+                avg_loss = l
+            else:
+                # loss converged sufficiently, stop training
+                break
 
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
         scheduler.step()
@@ -208,6 +220,7 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
         optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
         scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay, gamma=cfg.model.get('lr_gamma', 0.1))
         best_val_loss = np.inf
+        avg_loss = np.inf
 
         for p in model.parameters():
             p.register_hook(lambda grad: torch.clamp(grad, -1.0, 1.0))
@@ -235,6 +248,17 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
                 torch.save(model.state_dict(), osp.join(subdir, f'best_model.pkl'))
                 best_val_loss = val_loss
                 best_epochs[f] = epoch
+
+            if cfg.early_stopping and (epoch + 1) % cfg.stopping_period == 0:
+                # every X epochs, check for convergence of validation loss
+                l = val_curves[f, (epoch - (cfg.stopping_period - 1)): (epoch + 1)].mean()
+                if (avg_loss - l) > cfg.model.stopping_criterion:
+                    # loss decayed significantly, continue training
+                    avg_loss = l
+                else:
+                    # loss converged sufficiently, stop training
+                    val_curves[f, epoch:] = l
+                    break
 
             tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
             scheduler.step()

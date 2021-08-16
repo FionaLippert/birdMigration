@@ -16,3 +16,6 @@ batch_size: 8
 edge_type: none
 birds_per_km2: true
 n_dummy_radars: 0
+early_stopping: true
+stopping_criterion: 1e-6
+stopping_period: 50
