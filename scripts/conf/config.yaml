@@ -5,6 +5,7 @@ defaults:
   - model: BirdFluxGraphLSTM
   - action: train+test
   - device: cluster
+  - hp_search_space: ${model.name}
 job_id: 0
 season: fall
 seed: 1234
