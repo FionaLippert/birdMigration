@@ -94,7 +94,7 @@ if not osp.exists(target_area_path):
 
 start_time = datetime.now()
 processes = set()
-num_processes = mp.cpu_count() - 3
+num_processes = int(mp.cpu_count() / 2) - 1
 
 # log file
 logfile = os.path.join(output_path, 'log.txt')

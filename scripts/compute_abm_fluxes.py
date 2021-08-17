@@ -13,16 +13,20 @@ parser.add_argument('--radar_year', type=int, default=2015, help='year to use to
 parser.add_argument('--season', type=str, default='fall', help='season to be processed')
 args = parser.parse_args()
 
-radar_path = osp.join(args.root, 'raw', 'radar', args.season, args.radar_year)
-abm_path = osp.join(args.root, 'raw', 'abm', args.season, args.year)
+radar_path = osp.join(args.root, 'raw', 'radar', args.season, str(args.radar_year))
+abm_path = osp.join(args.root, 'raw', 'abm', args.season, str(args.year))
 
 radars = datahandling.load_radars(radar_path)
-radar_index = {name : idx for idx, name in enumerate(radars.values())}
-radar_index['sink'] = len(radar_index)
-N = len(radar_index)
+#radar_index = {name : idx for idx, name in enumerate(radars.values())}
+#radar_index['sink'] = len(radar_index)
+#N = len(radar_index)
 
-sp = spatial.Spatial(radars)
-cells = sp.voronoi_with_sink().to_crs(epsg='4326')
+sp = spatial.Spatial(radars, n_dummy_radars=15)
+cells, G = sp.voronoi()
+cells = cells.to_crs(f'epsg:{sp.epsg_lonlat}')   #to_crs(epsg='4326')
+
+radar_index = {name : idx for idx, name in enumerate(cells.radar.values)}
+N = len(radar_index)
 
 traj = np.load(osp.join(abm_path, 'traj.npy'))
 states = np.load(osp.join(abm_path, 'states.npy'))

@@ -478,24 +478,29 @@ def bird_fluxes(trajectories, states, tidx, grid):
         yy_t1 = trajectories[tidx+1, mask, 1].flatten()
         df_t1['geometry'] = gpd.points_from_xy(xx_t1, yy_t1)
 
-    # determine flows
-    merged_t0 = gpd.sjoin(df_t0, grid, how='inner', op='within')
-    merged_t1 = gpd.sjoin(df_t1, grid, how='inner', op='within')
-    merged_t0['dst_radar'] = merged_t1['radar']
-    merged_t0['dst_index'] = merged_t1['index_right']
+        # determine flows
+        merged_t0 = gpd.sjoin(df_t0, grid, how='inner', op='within')
+        merged_t1 = gpd.sjoin(df_t1, grid, how='inner', op='within')
+        merged_t0['dst_radar'] = merged_t1['radar']
+        merged_t0['dst_index'] = merged_t1['index_right']
+    else:
+        merged_t0 = df_t0
+
     return merged_t0
 
 def count_birds_of_interest(positions, grid):
     df = gpd.GeoDataFrame({'geometry': []}, crs='epsg:4326')
-
-    if positions.shape[1] > 0:
+    #print(positions.shape)
+    if positions.shape[-2] > 0:
         # get positions of all birds of interest
         xx_t0 = positions[..., 0].flatten()
         yy_t0 = positions[..., 1].flatten()
         df['geometry'] = gpd.points_from_xy(xx_t0, yy_t0)
 
-    # count birds of interest per grid cell
-    merged = gpd.sjoin(df, grid, how='inner', op='within')
+        # count birds of interest per grid cell
+        merged = gpd.sjoin(df, grid, how='inner', op='within')
+    else:
+        merged = df
     return merged
 
 def departing_birds(trajectories, states, tidx, grid):
@@ -503,7 +508,7 @@ def departing_birds(trajectories, states, tidx, grid):
         mask = np.where(states[tidx] == 1)
     else:
         mask = np.where(np.logical_and(states[tidx-1] == 0, states[tidx] == 1))
-
+    #print(mask)
     departing = count_birds_of_interest(trajectories[tidx, mask], grid)
     return departing
 
