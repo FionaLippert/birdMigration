@@ -14,6 +14,7 @@ def run(cfg: DictConfig):
     os.makedirs(out, exist_ok=True)
 
     log_file = os.path.join(out, 'log.txt')
+    print(f'log file: {osp.abspath(log_file)}')
     log = open(log_file, 'w+')
 
     action = cfg.action

@@ -13,8 +13,9 @@ def run(cfg: DictConfig):
     print('preprocess data for years', years)
     data_root = osp.join(cfg.root, 'data')
     for year in years:
-        target_dir = osp.join(data_root, 'preprocessed', cfg.t_unit, f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}',
-                        cfg.datasource.name, cfg.season, str(year))
+        target_dir = osp.join(data_root, 'preprocessed', cfg.t_unit,
+                              f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}',
+                              cfg.datasource.name, cfg.season, str(year))
         if not osp.isdir(target_dir):
             # load all features and organize them into dataframes
             print(f'year {year}: start preprocessing')

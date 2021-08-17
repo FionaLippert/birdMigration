@@ -23,6 +23,7 @@ def determine_best_hp():
         if loss < best_loss:
             # copy config file to parent directory
             copy(osp.join(dir, 'config.yaml'), osp.dirname(args.hp_tuning_dir))
+            best_loss = loss
 
 
 

@@ -125,6 +125,7 @@ def run_training(cfg: DictConfig, output_dir: str, log):
             if (avg_loss - l) > cfg.model.stopping_criterion:
                 # loss decayed significantly, continue training
                 avg_loss = l
+                torch.save(model.state_dict(), osp.join(output_dir, 'model.pkl'))
             else:
                 # loss converged sufficiently, stop training
                 break
@@ -132,7 +133,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
         scheduler.step()
 
-    torch.save(model.state_dict(), osp.join(output_dir, 'final_model.pkl'))
+    if not cfg.early_stopping:
+        torch.save(model.state_dict(), osp.join(output_dir, 'model.pkl'))
 
     print(f'validation loss = {best_val_loss}', file=log)
     log.flush()
@@ -255,6 +257,7 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
                 if (avg_loss - l) > cfg.model.stopping_criterion:
                     # loss decayed significantly, continue training
                     avg_loss = l
+                    torch.save(model.state_dict(), osp.join(subdir, 'model.pkl'))
                 else:
                     # loss converged sufficiently, stop training
                     val_curves[f, epoch:] = l
@@ -263,7 +266,8 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
             tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
             scheduler.step()
 
-        torch.save(model.state_dict(), osp.join(subdir, 'final_model.pkl'))
+        if not cfg.model.early_stopping:
+            torch.save(model.state_dict(), osp.join(subdir, 'model.pkl'))
 
         print(f'fold {f}: final validation loss = {val_curves[f, -1]}', file=log)
         best_val_losses[f] = best_val_loss
@@ -416,7 +420,7 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=model_cfg['seed'], **model_cfg['model'])
-    model.load_state_dict(torch.load(osp.join(model_dir, f'final_model.pkl')))
+    model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
 
     # adjust model settings for testing
     model.horizon = cfg.model.test_horizon

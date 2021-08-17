@@ -1,4 +1,5 @@
 # @package _group_
+name: lisa-cluster
 root: /home/${env:USER}/birdMigration
 cuda: true
 slurm: true
