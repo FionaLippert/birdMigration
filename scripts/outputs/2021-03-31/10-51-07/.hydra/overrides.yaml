@@ -1,3 +1,0 @@
-- action.grid_search=False
-- model.epochs=10
-- model=LocalMLP

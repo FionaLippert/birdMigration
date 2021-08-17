@@ -1,66 +1,30 @@
 # @package _group_
 name: BirdFluxGraphLSTM
-hyperparameters:
-  n_hidden:
-    default: 128
-    search_space:
-    - 64
-    - 128
-  n_fc_layers:
-    default: 2
-    search_space:
-      - 1
-      - 2
-  n_fc_layers_fluxmlp:
-    default: 2
-    search_space:
-      - 1
-      - 2
-  n_hidden_fluxmlp:
-    default: 128
-    search_space:
-      - 64
-      - 128
-  n_lstm_layers:
-    default: 1
-    search_space:
-    - 1
-  dropout_p:
-    default: 0.25
-    search_space:
-    - 0.25
-  lr:
-    default: 0.001
-    search_space:
-      - 0.001
-      - 0.0001
-      - 0.00001
-  lr_decay:
-    default: 50
-    search_space:
-    - 50
-  teacher_forcing_gamma:
-    default: 0.95
-    search_space:
-    - 0.9
-  conservation_constraint:
-    default: 0.0
-    search_space:
-      - 0.0
-      - 0.01
-      - 0.1
-epochs: 100
+n_hidden: 128
+n_fc_layers: 2
+n_lstm_layers: 1
+dropout_p: 0.25
+lr: 0.00005
+lr_decay: 300
+lr_gamma: 0.1
+teacher_forcing_gamma: 0.95
+flux_loss_weight: 0.0
+epochs: 300
 horizon: 40
+test_horizon: 64
 fixed_boundary: false
 force_zeros: false
 use_encoder: true
+use_boundary_model: true
 context: 24
-root_transformed_loss: true
-enforce_conservation: false
-compute_fluxes: false
-boundary_constraint_only: true
-perturbation_std: 0
-perturbation_mean: 0
-batch_size: 1
-boundary_model: none
+root_transformed_loss: false
+compute_fluxes: true
+batch_size: 8
+boundary_model: Extrapolation
 load_states_from: none
+edge_type: voronoi
+birds_per_km2: false
+n_dummy_radars: 15
+early_stopping: true
+stopping_criterion: 1e-6
+avg_window: 50

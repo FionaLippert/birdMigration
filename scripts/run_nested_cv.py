@@ -4,63 +4,107 @@ import itertools as it
 import os.path as osp
 import os
 from subprocess import Popen, PIPE
-import datetime
+from datetime import datetime
 
 
-@hydra.main(config_path="conf2", config_name="config")
+@hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
-    task = cfg.cv_task
+    target_dir = osp.join(cfg.device.root, cfg.output_dir, f'nested_cv_{cfg.model.name}')
+    os.makedirs(target_dir, exist_ok=True)
 
-    if task == 'inner':
-        job_file = osp.join(cfg.root, 'scripts', 'run_inner_cv.job')
-        inner_cv(cfg, job_file)
-    elif task == 'outer':
-        job_file = osp.join(cfg.root, 'scripts', 'run_outer_cv.job')
-        outer_cv(cfg, job_file)
+    if cfg.task.name == 'innerCV':
+        run_inner_cv(cfg, target_dir)
+    elif cfg.task.name == 'outerCV':
+        run_outer_cv(cfg, target_dir)
 
+def run_outer_cv(cfg: DictConfig, target_dir):
 
-
-def outer_cv(cfg: DictConfig, job_file: str):
-
-    # outer cv loop
     for year in cfg.datasource.years:
         # train on all data except for one year
-        final_train_eval(cfg, job_file, year)
+        output_dir = osp.join(target_dir, f'test_{year}', 'final_evaluation')
+        final_train_eval(cfg, year, output_dir)
 
 
-def inner_cv(cfg: DictConfig, job_file: str):
+def run_inner_cv(cfg: DictConfig, target_dir):
 
-    hp_file, n_comb = generate_hp_file(cfg)
+    hp_file, n_comb = generate_hp_file(cfg, target_dir)
 
     for year in cfg.datasource.years:
         # run inner cv to determine best hyperparameters
-        hp_grid_search(cfg, job_file, year, n_comb, hp_file)
+        output_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
+        hp_grid_search(cfg, year, n_comb, hp_file, output_dir)
 
 
-def final_train_eval(cfg: DictConfig, job_file: str, test_year: int):
+def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=10):
 
-    print(f"Run train/eval for year {test_year}")
-    repeats = cfg.cv_repeats
-    Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.model.name, str(test_year)])
+    if cfg.verbose: print(f"Start train/eval for year {test_year}")
 
+    config_path = osp.dirname(output_dir)
+    repeats = cfg.task.repeats
 
-def hp_grid_search(cfg: DictConfig, job_file: str, test_year: int, n_comb: int, hp_file: str):
+    if cfg.device.slurm:
+        job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
+        proc = Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.device.root, output_dir, config_path,
+                      str(test_year)], stdout=PIPE, stderr=PIPE)
+    else:
+        job_file = osp.join(cfg.device.root, cfg.task.local_job)
+        proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
+                      str(test_year), repeats], stdout=PIPE, stderr=PIPE)
+    stdout, stderr = proc.communicate()
+    start_time = datetime.now()
 
-    print(f"Run grid search for year {test_year}")
-
-    process = Popen(['sbatch', f'--array=1-{n_comb}', job_file, hp_file, cfg.model.name, str(test_year)], stdout=PIPE, stderr=PIPE)
-    stdout, stderr = process.communicate()
-    start_time = datetime.datetime.now()
     while True:
-        if stdout: print(stdout.decode("utf-8"))
-        if 'Submitted batch job' in stdout.decode("utf-8") or (datetime.datetime.now() - start_time).seconds > 10:
+        if stderr:
+            print(stderr.decode("utf-8"))
+            return
+        if stdout:
+            print(stdout.decode("utf-8"))
+            return
+        if (datetime.now() - start_time).seconds > timeout:
+            print(f'timeout after {timeout} seconds')
             return
 
 
-def generate_hp_file(cfg: DictConfig):
+
+def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str, output_dir: str, timeout=10):
+
+    if cfg.verbose: print(f"Start grid search for year {test_year}")
+
+    # directory created by hydra, containing current config
+    # including settings overwritten from command line
+    config_path = osp.join(os.getcwd(), '.hydra')
+
+    # run inner cross-validation loop for all different hyperparameter settings
+    if cfg.device.slurm:
+        job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
+        proc = Popen(['sbatch', f'--array=1-{n_comb}', job_file, cfg.device.root, output_dir, config_path,
+                      hp_file, str(test_year)], stdout=PIPE, stderr=PIPE)
+    else:
+        job_file = osp.join(cfg.device.root, cfg.task.local_job)
+        proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
+                      hp_file, str(test_year), n_comb], stdout=PIPE, stderr=PIPE)
+
+    stdout, stderr = proc.communicate()
+    start_time = datetime.now()
+
+    # wait until job has been submitted (at most 10s)
+    while True:
+        if stderr: 
+            # something went wrong
+            print(stderr.decode("utf-8"))
+        if stdout: 
+            # successful job submission
+            print(stdout.decode("utf-8"))
+            return
+        if (datetime.now() - start_time).seconds > timeout:
+            print(f'timeout after {timeout} seconds')
+            return
+
+
+def generate_hp_file(cfg: DictConfig, target_dir):
     search_space = {k: v for k, v in cfg.hp_search_space.items() if k in cfg.model.keys()}
-    hp_file = osp.join(cfg.root, 'hyperparameters.txt')
+    hp_file = osp.join(target_dir, 'hyperparameters.txt')
 
     names, values = zip(*search_space.items())
     all_combinations = [dict(zip(names, v)) for v in it.product(*values)]
@@ -69,20 +113,16 @@ def generate_hp_file(cfg: DictConfig):
         for combi in all_combinations:
             hp_str = " ".join([f'model.{name}={val}' for name, val in combi.items()]) + "\n"
             f.write(hp_str)
-    print("successfully generated hyperparameter settings file")
-    print(f"File path: {hp_file}")
-    print(f"Number of combinations: {len(all_combinations)}")
+
+    if cfg.verbose:
+        print("successfully generated hyperparameter settings file")
+        print(f"File path: {hp_file}")
+        print(f"Number of combinations: {len(all_combinations)}")
 
     return hp_file, len(all_combinations)
 
 
 if __name__ == '__main__':
-
-    # to run nested cross-validation run the following in the terminal:
-    # python run_nested_cv.py inner --job_file run_inner_cv.job
-    # and once all jobs are done and 'best_hp_settings.txt' exists:
-    # # python run_nested_cv.py outer --job_file run_outer_cv.job
-
 
     run()
 

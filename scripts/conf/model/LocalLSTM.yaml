@@ -1,42 +1,23 @@
 # @package _group_
 name: LocalLSTM
-hyperparameters:
-  n_hidden:
-    default: 128
-    search_space:
-    - 64
-    - 128
-  n_lstm_layers:
-    default: 1
-    search_space:
-    - 1
-  dropout_p:
-    default: 0.25
-    search_space:
-    - 0.25
-  lr:
-    default: 0.001
-    search_space:
-      - 0.001
-      - 0.0001
-      - 0.00001
-      - 0.000001
-  lr_decay:
-    default: 50
-    search_space:
-    - 50
-  teacher_forcing_gamma:
-    default: 0.9
-    search_space:
-    - 0.9
-  predict_delta:
-    default: true
-    search_space:
-    - true
-epochs: 10
+n_hidden: 128
+n_lstm_layers: 1
+dropout_p: 0.25
+epochs: 300
+lr: 0.0001
+lr_decay: 300
+teacher_forcing_gamma: 0.95
+predict_delta: true
 horizon: 40
+test_horizon: 64
 force_zeros: false
 root_transformed_loss: false
-use_encoder: false
-context: 0
+use_encoder: true
+context: 24
 batch_size: 1
+edge_type: none
+birds_per_km2: true
+n_dummy_radars: 0
+early_stopping: true
+stopping_criterion: 1e-6
+avg_window: 50

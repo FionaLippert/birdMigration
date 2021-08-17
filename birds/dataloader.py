@@ -521,15 +521,14 @@ class RadarData(InMemoryDataset):
         R, T, N = data['inputs'].shape
 
         # create graph data objects per night
-        data_list = [Data(x=torch.tensor(data['inputs'][:, :, nidx], dtype=torch.float),
+        data_list = [SensorData(edge_index=edge_index, reverse_edges=reverse_edges,
+                          x=torch.tensor(data['inputs'][:, :, nidx], dtype=torch.float),
                           y=torch.tensor(data['targets'][:, :, nidx], dtype=torch.float),
                           coords=torch.tensor(coords, dtype=torch.float),
                           areas=torch.tensor(areas, dtype=torch.float),
                           boundary=torch.tensor(boundary, dtype=torch.bool),
                           env=torch.tensor(data['env'][..., nidx], dtype=torch.float),
                           acc=torch.tensor(data['acc'][..., nidx], dtype=torch.float),
-                          edge_index=edge_index,
-                          reverse_edges=reverse_edges,
                           boundary2inner_edges=boundary2inner_edges.bool(),
                           inner2boundary_edges=inner2boundary_edges.bool(),
                           boundary2boundary_edges=boundary2boundary_edges.bool(),
@@ -571,3 +570,15 @@ class RadarData(InMemoryDataset):
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
+
+
+class SensorData(Data):
+    def __init__(self, **kwargs):
+        super(SensorData, self).__init__(**kwargs)
+
+    def __inc__(self, key, value):
+        # in mini-batches, increase edge indices in reverse_edges by the number of edges in the graph
+        if key == 'reverse_edges':
+            return self.num_edges
+        else:
+            return super().__inc__(key, value)

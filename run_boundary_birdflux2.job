@@ -49,14 +49,5 @@ mkdir "$TMPDIR"/data
 cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
 cd $HOME/birdMigration/scripts
-# setup GNU parallel
-#parallel="parallel -N 1 -j $SLURM_NTASKS --delay .2 --joblog $CHECKPOINTDIR/parallel.log"
 
-# run tasks in parallel
-#$parallel "
-srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM action=training+testing model.epochs=200 data_perc=0.05 model.use_encoder=True model.teacher_forcing_gamma=0.95 model.context=24 use_nights=True model.lr=0.0001 model.use_boundary_model=True  model.boundary_model=Extrapolation output_dir=$CHECKPOINTDIR missing_data_threshold=0.1 +model.use_uv=True +model.n_graph_layers=0 model.batch_size=4
-#" ::: $(seq 0 3) 
-
-#Copy output directory from scratch to home
-#mkdir "$HOME"/output_"$SLURM_JOBID"
-#cp -r "$TMPDIR"/results $HOME/birdMigration/output_"$SLURM_JOBID"
+srun python run_2.py root=$TMPDIR +sub_dir=job_$SLURM_ARRAY_TASK_ID job_id=$SLURM_ARRAY_TASK_ID model=BirdFluxGraphLSTM action=train+test model.epochs=200 use_nights=True model.lr=0.0005 model.lr_decay=200 model.lr_gamma=0.1 output_dir=$CHECKPOINTDIR +model.use_uv=True +model.n_graph_layers=0 model.batch_size=8 #data_perc=0.1
