@@ -37,9 +37,9 @@ cp -r $WDIR/data/preprocessed "$TMPDIR"/data
 cd $WDIR/scripts
 
 # run array jobs for all hyperparameter settings
-srun python run_2.py --config_path $CONFIGPATH \
+srun python run_2.py -cp $CONFIGPATH \
   +sub_dir=setting_$SLURM_ARRAY_TASK_ID \
-  root=$TMPDIR \
+  device.root=$TMPDIR \
 	action=cv \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$SLURM_ARRAY_TASK_ID \

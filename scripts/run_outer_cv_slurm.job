@@ -35,9 +35,9 @@ cp -r $WDIR/data/preprocessed "$TMPDIR"/data
 cd $WDIR/scripts
 
 # run training and testing using best hyperparameter setting
-srun python run_2.py --config_path $CONFIGPATH \
+srun python run_2.py -cp $CONFIGPATH \
   +sub_dir=final_$SLURM_ARRAY_TASK_ID \
-  root=$TMPDIR \
+  device.root=$TMPDIR \
 	action=train+test \
 	datasource.test_year=$TEST_YEAR \
 	datasource.val_train_split=0 \

@@ -5,7 +5,6 @@ defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
   - device: cluster
-  - hp_search_space: ${model.name}
 job_id: 0
 season: fall
 seed: 1234
@@ -13,8 +12,8 @@ model_seed: ${seed}
 root_transform: 0
 missing_data_threshold: 0.1
 t_unit: 1H
-use_nights: false
-data_perc: 0.2
+use_nights: true
+data_perc: 1.0
 exclude: []
 verbose: True
 debugging: False

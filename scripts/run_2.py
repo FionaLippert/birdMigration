@@ -16,7 +16,7 @@ def run(cfg: DictConfig):
     log_file = os.path.join(out, 'log.txt')
     log = open(log_file, 'w+')
 
-    action = cfg.action.name
+    action = cfg.action
 
     try:
         if cfg.model.name == 'GBT':
@@ -37,6 +37,7 @@ def run(cfg: DictConfig):
                 cfg['use_nights'] = False
                 run_NNs_2.run_testing(cfg, out, log, ext='_no_nights')
     except Exception:
+        print('Error occurred!')
         print(traceback.format_exc(), file=log)
     print('flush log')
     log.flush()

@@ -1,0 +1,80 @@
+output_dir: results
+action: ???
+job_id: 0
+season: fall
+seed: 1234
+model_seed: ${seed}
+root_transform: 0
+missing_data_threshold: 0.1
+t_unit: 1H
+use_nights: true
+data_perc: 1.0
+exclude: []
+verbose: true
+debugging: false
+datasource:
+  name: radar
+  years:
+  - 2015
+  - 2016
+  - 2017
+  test_year: 2015
+  val_train_split: 0.1
+  env_vars:
+  - u
+  - v
+  - cc
+  - tp
+  - sp
+  - t2m
+  - sshf
+  - solarpos
+  - solarpos_dt
+  - night
+  - dusk
+  - dawn
+  use_buffers: true
+  bird_scale: ???
+model:
+  name: LocalLSTM
+  n_hidden: 128
+  n_lstm_layers: 1
+  dropout_p: 0.25
+  epochs: 300
+  lr: 0.0001
+  lr_decay: 300
+  teacher_forcing_gamma: 0.95
+  predict_delta: true
+  horizon: 40
+  test_horizon: 64
+  force_zeros: false
+  root_transformed_loss: false
+  use_encoder: true
+  context: 24
+  batch_size: 1
+  edge_type: none
+  birds_per_km2: true
+  n_dummy_radars: 0
+device:
+  root: /home/${env:USER}/birdMigration
+  cuda: true
+  slurm: true
+task:
+  name: innerCV
+  n_folds: 5
+  slurm_job: scripts/run_inner_cv_slurm.job
+  local_job: scripts/run_inner_cv_local.job
+hp_search_space:
+  n_hidden:
+  - 64
+  - 128
+  - 256
+  - 512
+  lr:
+  - 0.001
+  - 0.0005
+  - 0.0001
+  - 5.0e-05
+  - 1.0e-05
+  - 5.0e-06
+  - 1.0e-06

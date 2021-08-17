@@ -249,9 +249,9 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
                 best_val_loss = val_loss
                 best_epochs[f] = epoch
 
-            if cfg.early_stopping and (epoch + 1) % cfg.stopping_period == 0:
+            if cfg.model.early_stopping and ((epoch + 1) % cfg.model.avg_window) == 0:
                 # every X epochs, check for convergence of validation loss
-                l = val_curves[f, (epoch - (cfg.stopping_period - 1)): (epoch + 1)].mean()
+                l = val_curves[f, (epoch - (cfg.model.avg_window - 1)): (epoch + 1)].mean()
                 if (avg_loss - l) > cfg.model.stopping_criterion:
                     # loss decayed significantly, continue training
                     avg_loss = l
@@ -283,7 +283,7 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
     print(f'average validation loss = {val_curves[:, -1].mean()}', file=log)
 
     summary = pd.DataFrame({'fold': range(n_folds),
-                            'final_val_loss': val_curves[:, -1],
+        'final_val_loss': val_curves[:, -cfg.model.avg_window:].mean(1),
                             'best_val_loss': best_val_losses,
                             'best_epoch': best_epochs})
     summary.to_csv(osp.join(output_dir, 'summary.csv'))
