@@ -13,7 +13,7 @@ def run(cfg: DictConfig):
     print(f'output directory: {out}')
     os.makedirs(out, exist_ok=True)
 
-    log_file = os.path.join(out, 'log.txt')
+    log_file = osp.join(out, 'log.txt')
     print(f'log file: {osp.abspath(log_file)}')
     log = open(log_file, 'w+')
 

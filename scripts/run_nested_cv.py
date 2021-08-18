@@ -5,6 +5,9 @@ import os.path as osp
 import os
 from subprocess import Popen, PIPE
 from datetime import datetime
+import numpy as np
+import pandas as pd
+from shutil import copy
 
 
 @hydra.main(config_path="conf", config_name="config")
@@ -18,22 +21,26 @@ def run(cfg: DictConfig):
     elif cfg.task.name == 'outerCV':
         run_outer_cv(cfg, target_dir)
 
-def run_outer_cv(cfg: DictConfig, target_dir):
-
-    for year in cfg.datasource.years:
-        # train on all data except for one year
-        output_dir = osp.join(target_dir, f'test_{year}', 'final_evaluation')
-        final_train_eval(cfg, year, output_dir)
-
-
 def run_inner_cv(cfg: DictConfig, target_dir):
 
     hp_file, n_comb = generate_hp_file(cfg, target_dir)
 
     for year in cfg.datasource.years:
-        # run inner cv to determine best hyperparameters
+        # run inner cv for all hyperparameter settings
         output_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
         hp_grid_search(cfg, year, n_comb, hp_file, output_dir)
+
+
+def run_outer_cv(cfg: DictConfig, target_dir):
+
+    for year in cfg.datasource.years:
+        # determine best hyperparameter setting
+        input_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
+        determine_best_hp(input_dir)
+
+        # use this setting and train on all data except for one year
+        output_dir = osp.join(target_dir, f'test_{year}', 'final_evaluation')
+        final_train_eval(cfg, year, output_dir)
 
 
 def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=10):
@@ -64,6 +71,20 @@ def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=1
         if (datetime.now() - start_time).seconds > timeout:
             print(f'timeout after {timeout} seconds')
             return
+
+
+def determine_best_hp(input_dir: str):
+    job_dirs = [f.path for f in os.scandir(input_dir) if f.is_dir()]
+    best_loss = np.inf
+    for dir in job_dirs:
+        # load cv summary
+        df = pd.read_csv(osp.join(dir, 'summary.csv'))
+        loss = df.final_val_loss.mean()
+
+        if loss < best_loss:
+            # copy config file to parent directory
+            copy(osp.join(dir, 'config.yaml'), osp.dirname(input_dir))
+            best_loss = loss
 
 
 

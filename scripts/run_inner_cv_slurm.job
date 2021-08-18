@@ -46,7 +46,4 @@ srun python run_2.py -cp $CONFIGPATH \
 	output_dir=$OUTPUTDIR \
 	$(head -$SLURM_ARRAY_TASK_ID $HPARAM_FILE | tail -1)
 
-# after all jobs are done, find setting with best average validation error
-python determine_best_hp.py $OUTPUTDIR
-
 
