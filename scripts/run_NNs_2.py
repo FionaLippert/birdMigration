@@ -36,6 +36,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
     data = setup_training(cfg, output_dir)
     n_data = len(data)
 
+    print('done with setup', file=log)
+
     # split data into training and validation set
     n_val = max(1, int(cfg.datasource.val_train_split * n_data))
     n_train = n_data - n_val
@@ -50,6 +52,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
     train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
     train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
+
+    print('loaded data', file=log)
 
     if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
@@ -77,6 +81,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=seed, **cfg.model)
 
+    print('initialized model', file=log)
+
     states_path = cfg.model.get('load_states_from', '')
     if osp.isfile(states_path):
         model.load_state_dict(torch.load(states_path))
@@ -94,6 +100,9 @@ def run_training(cfg: DictConfig, output_dir: str, log):
     all_tf = np.zeros(cfg.model.epochs)
     all_lr = np.zeros(cfg.model.epochs)
     avg_loss = np.inf
+    saved = False
+
+    print('start training', file=log)
 
     for epoch in range(cfg.model.epochs):
         all_tf[epoch] = tf
@@ -119,13 +128,14 @@ def run_training(cfg: DictConfig, output_dir: str, log):
             torch.save(model.state_dict(), osp.join(output_dir, f'best_model.pkl'))
             best_val_loss = val_loss
 
-        if cfg.early_stopping and (epoch + 1) % cfg.stopping_period == 0:
+        if cfg.model.early_stopping and (epoch + 1) % cfg.model.avg_window == 0:
             # every 5 epochs, check for convergence of validation loss
-            l = val_curve[0, (epoch - (cfg.stopping_period - 1)) : (epoch + 1)].mean()
+            l = val_curve[0, (epoch - (cfg.model.avg_window - 1)) : (epoch + 1)].mean()
             if (avg_loss - l) > cfg.model.stopping_criterion:
                 # loss decayed significantly, continue training
                 avg_loss = l
                 torch.save(model.state_dict(), osp.join(output_dir, 'model.pkl'))
+                saved = True
             else:
                 # loss converged sufficiently, stop training
                 break
@@ -133,7 +143,7 @@ def run_training(cfg: DictConfig, output_dir: str, log):
         tf = tf * cfg.model.get('teacher_forcing_gamma', 0)
         scheduler.step()
 
-    if not cfg.early_stopping:
+    if not cfg.model.early_stopping or not saved:
         torch.save(model.state_dict(), osp.join(output_dir, 'model.pkl'))
 
     print(f'validation loss = {best_val_loss}', file=log)

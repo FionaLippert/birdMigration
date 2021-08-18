@@ -10,6 +10,7 @@ from datetime import datetime
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
+    print(os.getcwd())
     target_dir = osp.join(cfg.device.root, cfg.output_dir, f'nested_cv_{cfg.model.name}')
     os.makedirs(target_dir, exist_ok=True)
 

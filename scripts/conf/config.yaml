@@ -1,6 +1,6 @@
 # main config file
 output_dir: results
-action: ???
+action: train+test
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
