@@ -38,7 +38,7 @@ def run(cfg: DictConfig):
                 cfg['use_nights'] = False
                 run_NNs_2.run_testing(cfg, out, log, ext='_no_nights')
     except Exception:
-        print('Error occurred!')
+        print(f'Error occurred! See {osp.abspath(log_file)} for more details.')
         print(traceback.format_exc(), file=log)
     print('flush log')
     log.flush()
