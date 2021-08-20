@@ -6,7 +6,7 @@ OUTPUTDIR=$2 # directory to which grid search results will be written
 CONFIGPATH=$3 # hydra config path
 HPARAM_FILE=$4 # path to hyperparameter file
 TEST_YEAR=$5 # year to hold out in cross-validation
-$N_SETTINGS=$6 # number of hyperparameter settings
+N_SETTINGS=$6 # number of hyperparameter settings
 
 mkdir -p $OUTPUTDIR
 rsync $HPARAM_FILE $OUTPUTDIR/

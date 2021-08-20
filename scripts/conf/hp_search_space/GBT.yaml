@@ -1,6 +1,4 @@
 # @package _group_
-n_estimators:
-  - 100
 lr:
   - 0.01
   - 0.05
