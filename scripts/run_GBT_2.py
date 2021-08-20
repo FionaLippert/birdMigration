@@ -92,11 +92,11 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 def cross_validation(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GBT'
+    assert cfg.task.name == 'innerCV'
 
-    data_root = osp.join(cfg.root, 'data')
     seq_len = cfg.model.horizon
 
-    n_folds = cfg.cv_folds
+    n_folds = cfg.task.n_folds
     seed = cfg.seed + cfg.get('job_id', 0)
 
     data_root = osp.join(cfg.root, 'data')
@@ -123,15 +123,10 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     data = torch.utils.data.ConcatDataset(data)
     n_data = len(data)
 
-    # split data into training and validation set
-    n_val = max(1, int(cfg.datasource.val_train_split * n_data))
-    n_train = n_data - n_val
-
-    print('------------------------------------------------------')
-    print('-------------------- data sets -----------------------')
-    print(f'total number of sequences = {n_data}')
-    print(f'number of training sequences = {n_train}')
-    print(f'number of validation sequences = {n_val}')
+    if cfg.verbose:
+        print('------------------ model settings --------------------')
+        print(cfg.model)
+        print(f'environmental variables: {cfg.datasource.env_vars}')
 
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -148,7 +143,8 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     cv_folds = np.array_split(np.arange(n_data), n_folds)
 
-    print(f'--- run cross-validation with {n_folds} folds ---')
+    if cfg.verbose: print(f'--- run cross-validation with {n_folds} folds ---')
+
 
     subdir = osp.join(output_dir, f'cv_fold_{f}')
     os.makedirs(subdir, exist_ok=True)
@@ -156,11 +152,14 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     best_val_losses = np.ones(n_folds) * np.nan
 
     for f in range(n_folds):
-        print(f'------------------- fold = {f} ----------------------')
+        if cfg.verbose: print(f'------------------- fold = {f} ----------------------')
+
+        subdir = osp.join(output_dir, f'cv_fold_{f}')
+        os.makedirs(subdir, exist_ok=True)
+
         # split into training and validation set
         val_data = Subset(data, cv_folds[f].tolist())
         train_idx = np.concatenate([cv_folds[i] for i in range(n_folds) if i!=f]).tolist()
-        n_train = len(train_idx)
         train_data = Subset(data, train_idx) # everything else
         X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=seq_len, mask_daytime=False,
                                                         use_acc_vars=cfg.model.use_acc_vars)
@@ -185,7 +184,8 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
 
     summary = pd.DataFrame({'fold': range(n_folds),
-                            'val_loss': best_val_losses})
+                            'final_val_loss': best_val_losses,
+                            'best_val_loss': best_val_losses})
     summary.to_csv(osp.join(output_dir, 'summary.csv'))
 
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
