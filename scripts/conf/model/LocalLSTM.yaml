@@ -3,7 +3,7 @@ name: LocalLSTM
 n_hidden: 512
 n_lstm_layers: 1
 dropout_p: 0.25
-epochs: 500
+epochs: 2
 lr: 1e-6
 lr_decay: 500
 teacher_forcing_gamma: 0.95
@@ -14,7 +14,7 @@ force_zeros: false
 root_transformed_loss: false
 use_encoder: true
 context: 24
-batch_size: 8
+batch_size: 4
 edge_type: none
 birds_per_km2: true
 n_dummy_radars: 0

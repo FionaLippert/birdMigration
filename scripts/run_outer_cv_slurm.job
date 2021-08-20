@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_shared
+#SBATCH --partition=gpu_short
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=outerCV
-#SBATCH --time=120:00:00
+#SBATCH --time=1:00:00
 #SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
@@ -36,7 +36,7 @@ cd $WDIR/scripts
 
 # run training and testing using best hyperparameter setting
 srun python run_2.py -cp $CONFIGPATH \
-  +sub_dir=final_$SLURM_ARRAY_TASK_ID \
+  sub_dir=final_$SLURM_ARRAY_TASK_ID \
   device.root=$TMPDIR \
 	action=train+test \
 	datasource.test_year=$TEST_YEAR \

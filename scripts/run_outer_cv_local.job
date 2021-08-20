@@ -17,7 +17,7 @@ echo "Start job"
 for i in $(eval echo "{1..$REPEATS}")
 do
   srun python run_2.py -cp $CONFIGPATH \
-    +sub_dir=final_$i \
+    sub_dir=final_$i \
     device.root=$WDIR \
     action=train+test \
     datasource.test_year=$TEST_YEAR \
