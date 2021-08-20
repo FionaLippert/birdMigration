@@ -13,7 +13,8 @@ from shutil import copy
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
-    print(os.getcwd())
+    if cfg.verbose: print(f'hydra working directory: {os.getcwd()}')
+
     target_dir = osp.join(cfg.device.root, cfg.output_dir, f'nested_cv_{cfg.model.name}')
     os.makedirs(target_dir, exist_ok=True)
 
@@ -139,7 +140,7 @@ def generate_hp_file(cfg: DictConfig, target_dir):
     if cfg.verbose:
         print("successfully generated hyperparameter settings file")
         print(f"File path: {hp_file}")
-        print(f"Number of combinations: {len(all_combinations)}")
+        print(f"Number of combinations: {len(all_combinations)} \n")
 
     return hp_file, len(all_combinations)
 
