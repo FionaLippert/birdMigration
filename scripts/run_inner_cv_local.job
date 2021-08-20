@@ -29,7 +29,4 @@ do
 	$(head -$i $HPARAM_FILE | tail -1)
 done
 
-# after all jobs are done, find setting with best average validation error
-python determine_best_hp.py $OUTPUTDIR
-
 
