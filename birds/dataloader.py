@@ -290,9 +290,27 @@ class RadarData(InMemoryDataset):
         else:
             input_col = 'birds_km2'
 
+        uv_cols = ['bird_u', 'bird_v', 'bird_direction', 'bird_speed']
 
         dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
-        dynamic_feature_df[input_col].fillna(0, inplace=True)
+        #dynamic_feature_df[input_col].fillna(0, inplace=True)
+
+        # for each radar separately, replace missing observations with mean over all available nights
+        for radar in dynamic_feature_df.radar.unique():
+            # bird densities
+            mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[input_col].apply(np.nanmean)
+            mean = np.nan_to_num(mean) # for dummy radars, fill with 0
+            dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][input_col].fillna(mean, inplace=True)
+
+            # bird velocities
+            mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[uv_cols].apply(np.nanmean)
+            mean = np.nan_to_num(mean)  # for dummy radars, fill with 0
+            dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][uv_cols].fillna(mean, inplace=True)
+
+        # set bird quantities to 0 during the day
+        for col in uv_cols + [input_col]:
+            dynamic_feature_df[col] = dynamic_feature_df[col] * dynamic_feature_df['night']
+
 
         # apply root transform
         if self.root_transform > 0:
@@ -497,16 +515,16 @@ class RadarData(InMemoryDataset):
         if not self.compute_fluxes:
             data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
-        dir_mask = np.isfinite(data['direction'])
-        data['direction'][dir_mask] = (data['direction'][dir_mask] + 360) % 360
-        data['direction'][dir_mask] = rescale(data['direction'][dir_mask], min=0, max=360)
-        data['direction'][~dir_mask] = -1
+        #dir_mask = np.isfinite(data['direction'])
+        data['direction'] = (data['direction'] + 360) % 360
+        data['direction'] = rescale(data['direction'], min=0, max=360)
+        #data['direction'][~dir_mask] = -1
 
         min_speed = self.normalization.min('bird_speed') if self.data_source == 'radar' else 0
         max_speed = self.normalization.max('bird_speed') if self.data_source == 'radar' else 1
         data['speed'] = (data['speed'] - min_speed) / (max_speed - min_speed)
-        data['speed'][~np.isfinite(data['speed'])] = -1
-        data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
+        #data['speed'][~np.isfinite(data['speed'])] = -1
+        #data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights, seq_index)
