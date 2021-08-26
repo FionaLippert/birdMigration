@@ -15,6 +15,8 @@ cd $WDIR/scripts
 
 echo "Start job"
 
+echo $CONFIGPATH
+
 # run array jobs for all hyperparameter settings
 for i in $(eval echo "{1..$N_SETTINGS}")
 do
@@ -24,7 +26,6 @@ do
 	action=cv \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$i \
-	model=$MODEL \
 	output_dir=$OUTPUTDIR \
 	$(head -$i $HPARAM_FILE | tail -1)
 done

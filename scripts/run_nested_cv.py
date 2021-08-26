@@ -106,6 +106,7 @@ def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str, o
     else:
         job_file = osp.join(cfg.device.root, cfg.task.local_job)
         os.environ['MKL_THREADING_LAYER'] = 'GNU'
+        os.environ['HYDRA_FULL_ERROR'] = '1'
         proc = Popen([job_file, cfg.device.root, output_dir, config_path,
                       hp_file, str(test_year), str(n_comb)], stdout=PIPE, stderr=PIPE)
 
