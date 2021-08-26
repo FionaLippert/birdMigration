@@ -290,9 +290,28 @@ class RadarData(InMemoryDataset):
         else:
             input_col = 'birds_km2'
 
+        uv_cols = ['bird_u', 'bird_v', 'bird_direction', 'bird_speed']
+        uv_cols = [col for col in uv_cols if col in dynamic_feature_df.columns]
 
         dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
-        dynamic_feature_df[input_col].fillna(0, inplace=True)
+        #dynamic_feature_df[input_col].fillna(0, inplace=True)
+
+        # for each radar separately, replace missing observations with mean over all available nights
+        for radar in dynamic_feature_df.radar.unique():
+            # bird densities
+            mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[input_col].apply(np.nanmean)
+            mean = np.nan_to_num(mean) # for dummy radars, fill with 0
+            dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][input_col].fillna(mean, inplace=True)
+
+            # bird velocities
+            mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[uv_cols].apply(np.nanmean)
+            mean = np.nan_to_num(mean)  # for dummy radars, fill with 0
+            dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][uv_cols].fillna(mean, inplace=True)
+
+        # set bird quantities to 0 during the day
+        for col in uv_cols + [input_col]:
+            dynamic_feature_df[col] = dynamic_feature_df[col] * dynamic_feature_df['night']
+
 
         # apply root transform
         if self.root_transform > 0:
@@ -389,13 +408,12 @@ class RadarData(InMemoryDataset):
                     #dawn=[],
                     missing=[])
 
-        if self.data_source == 'radar' and self.compute_fluxes:
-            data['speed'] = []
-            data['direction'] = []
-            data['birds_km2'] = []
-
         if self.compute_fluxes:
             data['bird_uv'] = []
+            if self.data_source == 'radar':
+                data['speed'] = []
+                data['direction'] = []
+                data['birds_km2'] = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
@@ -411,11 +429,10 @@ class RadarData(InMemoryDataset):
 
             if self.compute_fluxes:
                 data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
-
-            if self.data_source == 'radar' and self.compute_fluxes:
-                data['speed'].append(df.bird_speed.to_numpy())
-                data['direction'].append(df.bird_direction.to_numpy())
-                data['birds_km2'].append(df.birds_km2.to_numpy())
+                if self.data_source == 'radar':
+                    data['speed'].append(df.bird_speed.to_numpy())
+                    data['direction'].append(df.bird_direction.to_numpy())
+                    data['birds_km2'].append(df.birds_km2.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0).astype(float)
@@ -458,55 +475,55 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
 
 
+        if self.compute_fluxes:
+            if self.data_source == 'radar':
+                print('compute fluxes')
+                fluxes = []
+                mtr = []
+                for i, j, e_data in G.edges(data=True):
+                    vid_i = data['birds_km2'][i]
+                    vid_j = data['birds_km2'][j]
+                    vid_i[np.isnan(vid_i)] = vid_j[np.isnan(vid_i)]
+                    vid_j[np.isnan(vid_j)] = vid_i[np.isnan(vid_j)]
 
-        if self.data_source == 'radar' and self.compute_fluxes:
-            print('compute fluxes')
-            fluxes = []
-            mtr = []
-            for i, j, e_data in G.edges(data=True):
-                vid_i = data['birds_km2'][i]
-                vid_j = data['birds_km2'][j]
-                vid_i[np.isnan(vid_i)] = vid_j[np.isnan(vid_i)]
-                vid_j[np.isnan(vid_j)] = vid_i[np.isnan(vid_j)]
+                    dd_i = data['direction'][i]
+                    dd_j = data['direction'][j]
+                    dd_i[np.isnan(dd_i)] = dd_j[np.isnan(dd_i)]
+                    dd_j[np.isnan(dd_j)] = dd_i[np.isnan(dd_j)]
 
-                dd_i = data['direction'][i]
-                dd_j = data['direction'][j]
-                dd_i[np.isnan(dd_i)] = dd_j[np.isnan(dd_i)]
-                dd_j[np.isnan(dd_j)] = dd_i[np.isnan(dd_j)]
+                    ff_i = data['speed'][i]
+                    ff_j = data['speed'][j]
+                    ff_i[np.isnan(ff_i)] = ff_j[np.isnan(ff_i)]
+                    ff_j[np.isnan(ff_j)] = ff_i[np.isnan(ff_j)]
 
-                ff_i = data['speed'][i]
-                ff_j = data['speed'][j]
-                ff_i[np.isnan(ff_i)] = ff_j[np.isnan(ff_i)]
-                ff_j[np.isnan(ff_j)] = ff_i[np.isnan(ff_j)]
+                    vid_interp = (vid_i + vid_j) / 2
+                    dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
+                    ff_interp = (ff_i + ff_j) / 2
+                    length = e_data.get('face_length', 1)
+                    fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
+                    mtr.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], 1))
+                fluxes = np.stack(fluxes, axis=0)
+                mtr = np.stack(mtr, axis=0)
+            else:
+                fluxes = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
+                mtr = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
-                vid_interp = (vid_i + vid_j) / 2
-                dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
-                ff_interp = (ff_i + ff_j) / 2
-                length = e_data.get('face_length', 1)
-                fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
-                mtr.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], 1))
-            fluxes = np.stack(fluxes, axis=0)
-            mtr = np.stack(mtr, axis=0)
+                data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+                data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+
         else:
-            fluxes = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
-            mtr = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
-
-            data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-            data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-
-        if not self.compute_fluxes:
             data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
-        dir_mask = np.isfinite(data['direction'])
-        data['direction'][dir_mask] = (data['direction'][dir_mask] + 360) % 360
-        data['direction'][dir_mask] = rescale(data['direction'][dir_mask], min=0, max=360)
-        data['direction'][~dir_mask] = -1
+        #dir_mask = np.isfinite(data['direction'])
+        data['direction'] = (data['direction'] + 360) % 360
+        data['direction'] = rescale(data['direction'], min=0, max=360)
+        #data['direction'][~dir_mask] = -1
 
         min_speed = self.normalization.min('bird_speed') if self.data_source == 'radar' else 0
         max_speed = self.normalization.max('bird_speed') if self.data_source == 'radar' else 1
         data['speed'] = (data['speed'] - min_speed) / (max_speed - min_speed)
-        data['speed'][~np.isfinite(data['speed'])] = -1
-        data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
+        #data['speed'][~np.isfinite(data['speed'])] = -1
+        #data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights, seq_index)

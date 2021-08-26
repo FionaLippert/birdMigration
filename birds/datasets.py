@@ -128,21 +128,6 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
         df = {}
 
-        # bird measurements for radar ridx
-        df['birds'] = data[ridx] if row.observed else [np.nan] * len(t_range)
-        df['birds_km2'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
-        if use_uv:
-            df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
-            df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
-        if data_source == 'abm':
-            df['birds_from_buffer'] = buffer_data[ridx] if row.observed else [np.nan] * len(t_range)
-        else:
-            df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
-            df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
-            df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
-            # df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
-            # df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
-
         df['radar'] = [row.radar] * len(t_range)
 
         # time related variables for radar ridx
@@ -156,6 +141,31 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         df['datetime'] = t_range
         df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
         df['tidx'] = np.arange(t_range.size)
+
+        # bird measurements for radar ridx
+        df['birds'] = data[ridx] if row.observed else [np.nan] * len(t_range)
+        df['birds_km2'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
+
+        cols = ['birds', 'birds_km2']
+        if use_uv:
+            df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
+            cols.extend(['bird_u', 'bird_v'])
+        if data_source == 'abm':
+            df['birds_from_buffer'] = buffer_data[ridx] if row.observed else [np.nan] * len(t_range)
+            cols.append('birds_from_buffer')
+        else:
+            df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
+            df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
+            # df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
+            # df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
+
+            cols.extend(['birds_from_buffer', 'bird_speed', 'bird_direction'])
+
+        for col in cols:
+            # set bird quantities to 0 during the day
+            df[col] = df[col] * df['night']
 
         # environmental variables for radar ridx
         for var in env_vars:
