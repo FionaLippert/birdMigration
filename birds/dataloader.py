@@ -300,12 +300,13 @@ class RadarData(InMemoryDataset):
         for radar in dynamic_feature_df.radar.unique():
             # bird densities
             mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[input_col].apply(np.nanmean)
-            mean = np.nan_to_num(mean) # for dummy radars, fill with 0
+            mean.fillna(0, inplace=True) # for dummy radars, fill with 0
+            #mean = np.nan_to_num(mean) # for dummy radars, fill with 0
             dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][input_col].fillna(mean, inplace=True)
 
             # bird velocities
             mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[uv_cols].apply(np.nanmean)
-            mean = np.nan_to_num(mean)  # for dummy radars, fill with 0
+            mean.fillna(0, inplace=True)  # for dummy radars, fill with 0
             dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][uv_cols].fillna(mean, inplace=True)
 
         # set bird quantities to 0 during the day
