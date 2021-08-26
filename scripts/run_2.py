@@ -9,6 +9,7 @@ import run_NNs_2, run_GAM_2, run_GBT_2, run_HA_2
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
+    print(f'hydra working directory: {os.getcwd()}')
     out = osp.join(cfg.output_dir, cfg.get('sub_dir', ''))
     print(f'output directory: {out}')
     os.makedirs(out, exist_ok=True)
@@ -21,6 +22,7 @@ def run(cfg: DictConfig):
 
     try:
         if cfg.model.name == 'GBT':
+            if 'cv' in action: run_GBT_2.cross_validation(cfg, out, log)
             if 'train' in action: run_GBT_2.train(cfg, out, log)
             if 'test' in action: run_GBT_2.test(cfg, out, log)
         elif cfg.model.name == 'GAM':

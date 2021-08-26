@@ -20,7 +20,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     seq_len = cfg.model.horizon
     seed = cfg.seed + cfg.get('job_id', 0)
 
-    data_root = osp.join(cfg.root, 'data')
+    data_root = osp.join(cfg.device.root, 'data')
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
     processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_' \
                         f'use_nights={cfg.use_nights}_edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
@@ -99,7 +99,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     n_folds = cfg.task.n_folds
     seed = cfg.seed + cfg.get('job_id', 0)
 
-    data_root = osp.join(cfg.root, 'data')
+    data_root = osp.join(cfg.device.root, 'data')
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
     processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_' \
                         f'use_nights={cfg.use_nights}_edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
@@ -170,8 +170,8 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         print(f'train model')
         gbt = GBT.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
 
-        with open(osp.join(output_dir, f'model.pkl'), 'wb') as f:
-            pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
+        with open(osp.join(output_dir, f'model.pkl'), 'wb') as file:
+            pickle.dump(gbt, file, pickle.HIGHEST_PROTOCOL)
 
         y_hat = gbt.predict(X_val)
         val_loss = utils.MSE_numpy(y_hat, y_val, mask_val)
@@ -197,7 +197,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'GBT'
 
-    data_root = osp.join(cfg.root, 'data')
+    data_root = osp.join(cfg.device.root, 'data')
     seq_len = cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
 
