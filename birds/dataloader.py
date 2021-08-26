@@ -475,43 +475,42 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
 
 
-        if self.compute_fluxes:
-            if self.data_source == 'radar':
-                print('compute fluxes')
-                fluxes = []
-                mtr = []
-                for i, j, e_data in G.edges(data=True):
-                    vid_i = data['birds_km2'][i]
-                    vid_j = data['birds_km2'][j]
-                    vid_i[np.isnan(vid_i)] = vid_j[np.isnan(vid_i)]
-                    vid_j[np.isnan(vid_j)] = vid_i[np.isnan(vid_j)]
+        if self.compute_fluxes and self.data_source == 'radar':
+            print('compute fluxes')
+            fluxes = []
+            mtr = []
+            for i, j, e_data in G.edges(data=True):
+                vid_i = data['birds_km2'][i]
+                vid_j = data['birds_km2'][j]
+                vid_i[np.isnan(vid_i)] = vid_j[np.isnan(vid_i)]
+                vid_j[np.isnan(vid_j)] = vid_i[np.isnan(vid_j)]
 
-                    dd_i = data['direction'][i]
-                    dd_j = data['direction'][j]
-                    dd_i[np.isnan(dd_i)] = dd_j[np.isnan(dd_i)]
-                    dd_j[np.isnan(dd_j)] = dd_i[np.isnan(dd_j)]
+                dd_i = data['direction'][i]
+                dd_j = data['direction'][j]
+                dd_i[np.isnan(dd_i)] = dd_j[np.isnan(dd_i)]
+                dd_j[np.isnan(dd_j)] = dd_i[np.isnan(dd_j)]
 
-                    ff_i = data['speed'][i]
-                    ff_j = data['speed'][j]
-                    ff_i[np.isnan(ff_i)] = ff_j[np.isnan(ff_i)]
-                    ff_j[np.isnan(ff_j)] = ff_i[np.isnan(ff_j)]
+                ff_i = data['speed'][i]
+                ff_j = data['speed'][j]
+                ff_i[np.isnan(ff_i)] = ff_j[np.isnan(ff_i)]
+                ff_j[np.isnan(ff_j)] = ff_i[np.isnan(ff_j)]
 
-                    vid_interp = (vid_i + vid_j) / 2
-                    dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
-                    ff_interp = (ff_i + ff_j) / 2
-                    length = e_data.get('face_length', 1)
-                    fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
-                    mtr.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], 1))
-                fluxes = np.stack(fluxes, axis=0)
-                mtr = np.stack(mtr, axis=0)
-            else:
-                fluxes = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
-                mtr = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
-
-                data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-                data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-
+                vid_interp = (vid_i + vid_j) / 2
+                dd_interp = ((dd_i + 360) % 360 + (dd_j + 360) % 360) / 2
+                ff_interp = (ff_i + ff_j) / 2
+                length = e_data.get('face_length', 1)
+                fluxes.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], length))
+                mtr.append(compute_flux(vid_interp, ff_interp, dd_interp, e_data['angle'], 1))
+            fluxes = np.stack(fluxes, axis=0)
+            mtr = np.stack(mtr, axis=0)
         else:
+            fluxes = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            mtr = np.zeros((len(G.edges()), data['inputs'].shape[1], data['inputs'].shape[2]))
+
+            data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+            data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
+
+        if not self.compute_fluxes:
             data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
         #dir_mask = np.isfinite(data['direction'])
