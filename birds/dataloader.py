@@ -318,7 +318,7 @@ class RadarData(InMemoryDataset):
         if self.root_transform > 0:
             dynamic_feature_df[input_col] = dynamic_feature_df[input_col].apply(
                                             lambda x: np.power(x, 1/self.root_transform))
-
+        print(dynamic_feature_df.isna().sum())
         # normalize dynamic features
         cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2',
                                                  'bird_speed', 'bird_direction',

@@ -58,8 +58,10 @@ def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=1
                       str(test_year)], stdout=PIPE, stderr=PIPE)
     else:
         job_file = osp.join(cfg.device.root, cfg.task.local_job)
-        proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
-                      str(test_year), repeats], stdout=PIPE, stderr=PIPE)
+        os.environ['MKL_THREADING_LAYER'] = 'GNU'
+        os.environ['HYDRA_FULL_ERROR'] = '1'
+        proc = Popen([job_file, cfg.device.root, output_dir, config_path,
+                      str(test_year), str(repeats)], stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     start_time = datetime.now()
 
@@ -81,7 +83,7 @@ def determine_best_hp(input_dir: str):
     for dir in job_dirs:
         # load cv summary
         df = pd.read_csv(osp.join(dir, 'summary.csv'))
-        loss = df.final_val_loss.mean()
+        loss = df.final_val_loss.apply(np.nanmean)
 
         if loss < best_loss:
             # copy config file to parent directory
