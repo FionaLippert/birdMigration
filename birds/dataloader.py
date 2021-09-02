@@ -250,19 +250,10 @@ class RadarData(InMemoryDataset):
             edge_index = edges.t().contiguous()
             n_edges = edge_index.size(1)
         else:
-            #G_path = osp.join(self.preprocessed_dir, f'G_max_dist={self.max_distance}.gpickle')
-            #G = nx.read_gpickle(G_path)
             G = nx.Graph()
             n_edges = 0
             edge_index = torch.zeros(0, dtype=torch.long)
 
-        print('number of nans: ', dynamic_feature_df.birds.isna().sum())
-
-
-        # extract edges from graph
-        #edges = torch.tensor(list(G.edges()), dtype=torch.long)
-        #edge_index = edges.t().contiguous()
-        #n_edges = edge_index.size(1)
 
         # boundary radars and boundary edges
         boundary = voronoi['boundary'].to_numpy()
@@ -293,25 +284,25 @@ class RadarData(InMemoryDataset):
         uv_cols = ['bird_u', 'bird_v', 'bird_direction', 'bird_speed']
         uv_cols = [col for col in uv_cols if col in dynamic_feature_df.columns]
 
-        dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
-        #dynamic_feature_df[input_col].fillna(0, inplace=True)
+        # dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
+        # #dynamic_feature_df[input_col].fillna(0, inplace=True)
 
-        # for each radar separately, replace missing observations with mean over all available nights
-        for radar in dynamic_feature_df.radar.unique():
-            # bird densities
-            mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[input_col].apply(np.nanmean)
-            mean.fillna(0, inplace=True) # for dummy radars, fill with 0
-            #mean = np.nan_to_num(mean) # for dummy radars, fill with 0
-            dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][input_col].fillna(mean, inplace=True)
-
-            # bird velocities
-            mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[uv_cols].apply(np.nanmean)
-            mean.fillna(0, inplace=True)  # for dummy radars, fill with 0
-            dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][uv_cols].fillna(mean, inplace=True)
-
-        # set bird quantities to 0 during the day
-        for col in uv_cols + [input_col]:
-            dynamic_feature_df[col] = dynamic_feature_df[col] * dynamic_feature_df['night']
+        # # for each radar separately, replace missing observations with mean over all available nights
+        # for radar in dynamic_feature_df.radar.unique():
+        #     # bird densities
+        #     mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[input_col].apply(np.nanmean)
+        #     mean.fillna(0, inplace=True) # for dummy radars, fill with 0
+        #     #mean = np.nan_to_num(mean) # for dummy radars, fill with 0
+        #     dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][input_col].fillna(mean, inplace=True)
+        #
+        #     # bird velocities
+        #     mean = dynamic_feature_df.query(f'radar == "{radar}" & night == 1')[uv_cols].apply(np.nanmean)
+        #     mean.fillna(0, inplace=True)  # for dummy radars, fill with 0
+        #     dynamic_feature_df.iloc[(dynamic_feature_df.radar == radar).index][uv_cols].fillna(mean, inplace=True)
+        #
+        # # set bird quantities to 0 during the day
+        # for col in uv_cols + [input_col]:
+        #     dynamic_feature_df[col] = dynamic_feature_df[col] * dynamic_feature_df['night']
 
 
         # apply root transform
@@ -345,21 +336,16 @@ class RadarData(InMemoryDataset):
 
         if 'u' in self.env_vars and 'v' in self.env_vars:
             dynamic_feature_df[['u', 'v']] = dynamic_feature_df[['u', 'v']] / uv_scale
-            #print(f'max wind uv = {dynamic_feature_df[["u", "v"]].max()}')
 
         # normalize static features
         coord_cols = ['x', 'y']
-        areas = voronoi[['area_km2']].apply(lambda col: col / col.max(), axis=0).to_numpy()
-
-        if self.edge_type != 'voronoi':
-            areas = np.ones(areas.shape)
-
-        # voronoi[coord_cols] = voronoi[coord_cols].apply(lambda col: (col - col.min()))
         xy_scale = voronoi[coord_cols].abs().max().max()
         voronoi[coord_cols] = voronoi[coord_cols] / xy_scale
-        #print(f'max coord after scaling = {voronoi[coord_cols].max()}')
-        #print(f'min coord after scaling = {voronoi[coord_cols].min()}')
         coords = voronoi[coord_cols].to_numpy()
+
+        areas = voronoi[['area_km2']].apply(lambda col: col / col.max(), axis=0).to_numpy()
+        if self.edge_type != 'voronoi':
+            areas = np.ones(areas.shape)
 
         # get distances, angles and face lengths between radars
         if self.edge_type == 'voronoi':
@@ -371,15 +357,11 @@ class RadarData(InMemoryDataset):
         # check which radars are observed and which ones are dummy radars
         observed_idx = voronoi.observed.to_numpy()
 
-        # for idx, (i, j) in enumerate(G.edges()):
-        #     print(voronoi.iloc[i].radar, voronoi.iloc[j].radar, delta_x[idx], delta_y[idx])
-
         if self.edge_type == 'voronoi':
             print('Use Voronoi tessellation')
             face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
             edge_attr = torch.stack([
                 torch.tensor(distances, dtype=torch.float),
-                #torch.tensor(angles, dtype=torch.float),
                 torch.tensor(delta_x, dtype=torch.float),
                 torch.tensor(delta_y, dtype=torch.float),
                 torch.tensor(face_lengths, dtype=torch.float)
@@ -391,7 +373,6 @@ class RadarData(InMemoryDataset):
 
         # reorganize data
         target_col = input_col
-        #env_cols =  [var for var in self.env_vars] + ['solarpos', 'solarpos_dt', 'night', 'dusk', 'dawn']
         env_cols = self.env_vars
         acc_cols = ['acc_rain', 'acc_wind']
 
@@ -405,16 +386,13 @@ class RadarData(InMemoryDataset):
                     env=[],
                     acc=[],
                     nighttime=[],
-                    #dusk=[],
-                    #dawn=[],
-                    missing=[])
+                    missing=[],
+                    bird_uv=[])
 
-        if self.compute_fluxes:
-            data['bird_uv'] = []
-            if self.data_source == 'radar':
-                data['speed'] = []
-                data['direction'] = []
-                data['birds_km2'] = []
+        if self.data_source == 'radar':
+            data['speed'] = []
+            data['direction'] = []
+            data['birds_km2'] = []
 
         groups = dynamic_feature_df.groupby('radar')
         for name in voronoi.radar:
@@ -424,20 +402,16 @@ class RadarData(InMemoryDataset):
             data['env'].append(df[env_cols].to_numpy().T)
             data['acc'].append(df[acc_cols].to_numpy().T)
             data['nighttime'].append(df.night.to_numpy())
-            #data['dusk'].append(df.dusk.to_numpy())
-            #data['dawn'].append(df.dawn.to_numpy())
             data['missing'].append(df.missing.to_numpy())
+            data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
 
-            if self.compute_fluxes:
-                data['bird_uv'].append(df[['bird_u', 'bird_v']].to_numpy().T)
-                if self.data_source == 'radar':
-                    data['speed'].append(df.bird_speed.to_numpy())
-                    data['direction'].append(df.bird_direction.to_numpy())
-                    data['birds_km2'].append(df.birds_km2.to_numpy())
+            if self.data_source == 'radar':
+                data['speed'].append(df.bird_speed.to_numpy())
+                data['direction'].append(df.bird_direction.to_numpy())
+                data['birds_km2'].append(df.birds_km2.to_numpy())
 
         for k, v in data.items():
             data[k] = np.stack(v, axis=0).astype(float)
-        
 
 
         # find timesteps where it's night for all radars
@@ -459,7 +433,6 @@ class RadarData(InMemoryDataset):
         # global_dusk[global_dusk_idx] = 1
 
         if self.multinight:
-            #mask = check_any
             mask = np.ones(check_any.shape, dtype=bool)
         else:
             mask = check_all
@@ -476,7 +449,7 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
 
 
-        if self.compute_fluxes and self.data_source == 'radar':
+        if self.data_source == 'radar':
             print('compute fluxes')
             fluxes = []
             mtr = []
@@ -511,19 +484,12 @@ class RadarData(InMemoryDataset):
             data['direction'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
             data['speed'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
 
-        if not self.compute_fluxes:
-            data['bird_uv'] = np.zeros((len(G.nodes()), data['inputs'].shape[1], data['inputs'].shape[2]))
-
-        #dir_mask = np.isfinite(data['direction'])
         data['direction'] = (data['direction'] + 360) % 360
         data['direction'] = rescale(data['direction'], min=0, max=360)
-        #data['direction'][~dir_mask] = -1
 
         min_speed = self.normalization.min('bird_speed') if self.data_source == 'radar' else 0
         max_speed = self.normalization.max('bird_speed') if self.data_source == 'radar' else 1
         data['speed'] = (data['speed'] - min_speed) / (max_speed - min_speed)
-        #data['speed'][~np.isfinite(data['speed'])] = -1
-        #data['bird_uv'][~np.isfinite(data['bird_uv'])] = 0 #TODO necessary?
 
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights, seq_index)
@@ -534,7 +500,6 @@ class RadarData(InMemoryDataset):
         data['inputs'] = data['inputs'] * data['nighttime']
         data['targets'] = data['targets'] * data['nighttime']
 
-        # edge_weights = np.exp(-np.square(distances) / np.square(np.std(distances)))
         R, T, N = data['inputs'].shape
 
         # create graph data objects per night
@@ -551,12 +516,9 @@ class RadarData(InMemoryDataset):
                           boundary2boundary_edges=boundary2boundary_edges.bool(),
                           inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
-                          # edge_weight=torch.tensor(edge_weights, dtype=torch.float),
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
                           day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
-                          #local_dusk=torch.tensor(data['dusk'][:, :, nidx], dtype=torch.bool),
-                          #local_dawn=torch.tensor(data['dawn'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=torch.tensor(fluxes[:, :, nidx], dtype=torch.float),
                           mtr=torch.tensor(mtr[:, :, nidx], dtype=torch.float),
