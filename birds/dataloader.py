@@ -215,7 +215,7 @@ class RadarData(InMemoryDataset):
 
     @property
     def preprocessed_dir(self):
-        return osp.join(self.root, 'preprocessed', self.t_unit, self.preprocessed_dirname,
+        return osp.join(self.root, 'preprocessed', self.preprocessed_dirname,
                         self.data_source, self.season, self.year)
 
     @property
