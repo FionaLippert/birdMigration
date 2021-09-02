@@ -313,10 +313,10 @@ def setup_training(cfg: DictConfig, output_dir: str):
     seq_len = cfg.model.get('context', 0) + cfg.model.horizon
     seed = cfg.seed + cfg.get('job_id', 0)
 
-    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
-                        f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
-                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+    # preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
     
     data_dir = osp.join(cfg.device.root, 'data')
     # initialize normalizer
@@ -363,10 +363,9 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
     Model = MODEL_MAPPING[cfg.model.name]
 
-    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_use_nights={cfg.use_nights}_' \
-                        f'edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
-                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     model_dir = cfg.get('model_dir', output_dir)
 

@@ -20,9 +20,8 @@ def train(cfg: DictConfig, output_dir: str, log):
     seq_len = cfg.model.horizon
 
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_' \
-                        f'use_nights={cfg.use_nights}_edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
-                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     print('normalize features')
     training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
@@ -83,9 +82,8 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     if model_dir is None: model_dir = output_dir
 
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_' \
-                        f'use_nights={cfg.use_nights}_edges={cfg.model.edge_type}_birds_km2={cfg.model.birds_per_km2}_' \
-                        f'dummy_radars={cfg.model.n_dummy_radars}_t_unit={cfg.t_unit}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     # load normalizer
     with open(osp.join(model_dir, 'normalization.pkl'), 'rb') as f:

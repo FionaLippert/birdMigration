@@ -25,7 +25,6 @@ def static_features(data_dir, year, **kwargs):
     space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0))
     voronoi, G = space.voronoi()
     # G = space.subgraph(G, 'type', 'measured')  # graph without sink nodes
-
     #G_max_dist = space.G_max_dist(kwargs.get('max_distance', 250))
 
     print('create radar buffer dataframe')
@@ -61,7 +60,6 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     wp_threshold = kwargs.get('wp_threshold', -0.5)
     edge_type = kwargs.get('edge_type', 'voronoi')
     t_unit = kwargs.get('t_unit', '1H')
-    use_uv = kwargs.get('use_uv', True)
 
     print(f'##### load data for {season} {year} #####')
 
@@ -107,7 +105,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     #solar_t_range = solar_t_range.insert(0, t_range[0] - pd.Timedelta(t_range.freq))
 
     print('load env data')
-    env_vars = ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf']
+    env_vars = ['u', 'v', 'u10', 'v10', 'cc', 'tp', 'sp', 't2m', 'sshf']
 
     if edge_type == 'voronoi':
         env_areas = voronoi.geometry
@@ -212,7 +210,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
             radar_df[col] = radar_df[col] * radar_df['night']
             # fill missing bird measurements by interpolation
             if col == 'bird_direction':
-                # use nearest, to avoid artifacts of interpolating between e.g. 350 and 2 degree
+                # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
                 radar_df[col] = radar_df[col].interpolate(method='nearest')
             else:
                 # for all other quantities simply interpolate linearly
