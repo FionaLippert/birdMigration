@@ -42,6 +42,7 @@ radars :
   - DE/TUR
   - DE/UMD
 night_only : false
+regularize: false
 alt_min : 200
 alt_max : 5000 #4000
 # radar quantity for 2D vertical integration

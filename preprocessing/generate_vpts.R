@@ -57,8 +57,9 @@ if(config$night_only){
   index_night <- check_night(vpts)
   vpts <- vpts[index_night]
 }
-
-vpts <- regularize_vpts(vpts)
+if(config$regularize){
+  vpts <- regularize_vpts(vpts)
+}
 
 radar_alt <- get_radars_df(radars=radar)[['height']]
 vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
