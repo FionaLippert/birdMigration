@@ -9,10 +9,10 @@ login :
   password : eFd5cqJqpv8hJN2D
 # start time
 #ts : 2015-03-01 00:00:00
-ts : 2015-08-01 00:00:00
+ts : 2017-08-01 00:00:00
 # end time
 #te : 2015-05-30 23:59:59
-te : 2015-11-30 23:59:59
+te : 2017-11-30 23:59:59
 # time resolution in minutes
 tr : 5
 # list of radar stations

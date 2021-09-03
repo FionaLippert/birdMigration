@@ -6,12 +6,12 @@ import os
 
 
 
-@hydra.main(config_path="conf2", config_name="config")
+@hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
     years = cfg.datasource.years
     print('preprocess data for years', years)
-    data_root = osp.join(cfg.root, 'data')
+    data_root = osp.join(cfg.device.root, 'data')
     for year in years:
         target_dir = osp.join(data_root, 'preprocessed',
                               f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}',

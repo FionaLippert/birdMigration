@@ -160,8 +160,10 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         # environmental variables for radar ridx
         for var in env_vars:
             if var in env_850:
+                print(f'found {var} in env_850 dataset')
                 df[var] = env_850[var][ridx]
             elif var in env_surface:
+                print(f'found {var} in surface dataset')
                 df[var] = env_surface[var][ridx]
         df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
         # Note that here wind direction is the direction into which the wind is blowing,
@@ -204,6 +206,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
         # remember missing bird density observations
         radar_df['missing'] = radar_df['birds'].isna()
+        print(f'number of missing data points = {radar_df.missing.sum()}')
 
         for col in cols:
             # set bird quantities to 0 during the day
@@ -219,6 +222,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         dfs.append(radar_df)
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
+    print(f'columns: {dynamic_feature_df.columns}')
     return dynamic_feature_df
 
 
