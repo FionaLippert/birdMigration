@@ -13,13 +13,22 @@ import itertools as it
 
 from birds import spatial, datahandling, era5interface, abm
 
+RADAR_REPLACEMENTS = {'nldbl': 'nlhrw'}
 
 def static_features(data_dir, year, **kwargs):
 
     season = kwargs.get('season', 'fall')
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
-    radars = {k: v for k, v in radars.items() if not v in kwargs.get('exclude', [])}
+
+    # check for radars to exclude
+    exclude = kwargs.get('exclude', [])
+    for r1, r2 in RADAR_REPLACEMENTS.items():
+        # if two radars are available for the same location, use the first one
+        if (r1 in radars.values()) and (r2 in radars.values()):
+            exclude.append(r2)
+
+    radars = {k: v for k, v in radars.items() if not v in exclude}
 
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0))
