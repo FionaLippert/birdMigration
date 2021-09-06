@@ -108,7 +108,7 @@ for (var in names(var_def_list)){
 }
 
 # add global attributes
-ncatt_put(ncout, 0, "source", radar_opera_format)
+ncatt_put(ncout, 0, "source", radar_odim_format)
 ncatt_put(ncout, 0, "latitude", lat)
 ncatt_put(ncout, 0, "longitude", lon)
 ncatt_put(ncout, 0, "fillvalue", fillvalue)

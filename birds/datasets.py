@@ -212,21 +212,24 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
             u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
 
         radar_df = pd.DataFrame(df)
-
-        # remember missing bird density observations
-        radar_df['missing'] = radar_df['birds'].isna()
-        print(f'number of missing data points = {radar_df.missing.sum()}')
+        radar_df['missing'] = 0
 
         for col in cols:
-            # set bird quantities to 0 during the day
-            radar_df[col] = radar_df[col] * radar_df['night']
+            # radar quantities being exactly 0 during the night are missing,
+            # radar quantities during the day are set to 0
+            radar_df['birds'] = radar_df.apply(lambda row: np.nan if (row.night and not row.birds)
+                                                        else (0 if not row.night else row.birds), axis=1)
+
+            # remember missing radar observations
+            radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
+
             # fill missing bird measurements by interpolation
             if col == 'bird_direction':
                 # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
-                radar_df[col] = radar_df[col].interpolate(method='nearest')
+                radar_df[col].interpolate(method='nearest', inplace=True)
             else:
                 # for all other quantities simply interpolate linearly
-                radar_df[col] = radar_df[col].interpolate(method='linear')
+                radar_df[col].interpolate(method='linear', inplace=True)
 
         dfs.append(radar_df)
 
