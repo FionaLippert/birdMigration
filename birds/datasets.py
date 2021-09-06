@@ -241,7 +241,7 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
 
     # save to disk
     #TODO fix fiona error that occurs when saving voronoi GeoSeries
-    #voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
+    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
     static_feature_df = voronoi.drop(columns='geometry')
     print('save static features')
     static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
