@@ -361,7 +361,9 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
     Model = MODEL_MAPPING[cfg.model.name]
 
-    context = cfg.model.get('context', 1)
+    context = cfg.model.get('context', 0)
+    if context == 0: context = cfg.model.get('test_context', 0)
+
     seq_len = context + cfg.model.test_horizon
 
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
