@@ -281,8 +281,8 @@ class RadarData(InMemoryDataset):
         else:
             input_col = 'birds_km2'
 
-        uv_cols = ['bird_u', 'bird_v', 'bird_direction', 'bird_speed']
-        uv_cols = [col for col in uv_cols if col in dynamic_feature_df.columns]
+        # uv_cols = ['bird_u', 'bird_v', 'bird_direction', 'bird_speed']
+        # uv_cols = [col for col in uv_cols if col in dynamic_feature_df.columns]
 
         # dynamic_feature_df['missing'] = dynamic_feature_df[input_col].isna() # remember which data was missing
         # #dynamic_feature_df[input_col].fillna(0, inplace=True)
@@ -309,7 +309,7 @@ class RadarData(InMemoryDataset):
         if self.root_transform > 0:
             dynamic_feature_df[input_col] = dynamic_feature_df[input_col].apply(
                                             lambda x: np.power(x, 1/self.root_transform))
-        print(dynamic_feature_df.isna().sum())
+
         # normalize dynamic features
         cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2',
                                                  'bird_speed', 'bird_direction',
