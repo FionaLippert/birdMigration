@@ -16,11 +16,11 @@ env_vars:
   - sp
   - t2m
   - sshf
-  - solarpos
-  - solarpos_dt
   - night
   - dusk
   - dawn
+  - solarpos
+  - solarpos_dt
 
 use_buffers: True
 # will be filled at runtime
