@@ -2,7 +2,7 @@
 # constraints weight = 0.01
 # edge function: linear and sigmoid
 
-from birds.graphNN import *
+from birds.models import *
 import argparse
 from datetime import datetime
 from matplotlib import pyplot as plt
@@ -15,7 +15,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import DataLoader
 from torch.optim import lr_scheduler
-from birds import GBT, datasets
+from birds import gbt, datasets
 
 
 parser = argparse.ArgumentParser(description='GraphNN experiments')
@@ -280,9 +280,9 @@ def load_gam_predictions(csv_file, test_loader, nights, time, radars, timesteps,
     return gam_losses, pred_gam
 
 def gbt_rmse(bird_scale, multinight, mask, seed=1234):
-    gbt = GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, multinight, seed)
-    X, y = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test, args.data_source,
-                                   bird_scale, multinight)
+    gbt = gbt.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale, multinight, seed)
+    X, y = gbt.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test, args.data_source,
+                                              bird_scale, multinight)
     # X has shape (nights, timesteps, radars, features)
     # y has shape (nights, timesteps, radars)
     # mask has shape (radars, timesteps, nights) --> change to (nights, timesteps, radars)
@@ -399,9 +399,9 @@ def plot_predictions(timesteps, local_nights, seq_tidx, time, radars, model_name
 
     gbt_models = []
     for r in range(args.repeats):
-        gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale,
+        gbt_models.append(gbt.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale,
                                       args.multinight, seed=r))
-    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
+    X_gbt, y_gbt = gbt.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
                                                       args.data_source, bird_scale, args.multinight)
 
 
@@ -476,9 +476,9 @@ def plot_predictions_1seq(dataloader, time, radars, model_names, short_names, mo
 
     gbt_models = []
     for r in range(args.repeats):
-        gbt_models.append(GBT.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale,
+        gbt_models.append(gbt.fit_GBT(root, train_years, season, args.ts_train, args.data_source, bird_scale,
                                       args.multinight, seed=r))
-    X_gbt, y_gbt = GBT.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
+    X_gbt, y_gbt = gbt.prepare_data_nights_and_radars('test', root, test_year, season, args.ts_test,
                                                       args.data_source, bird_scale, args.multinight)
 
 

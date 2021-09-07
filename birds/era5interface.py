@@ -124,6 +124,7 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
 
     weather = {}
     for var, ds in data.items():
+        print(var)
         if var in vars:
             var_data = []
             for poly in cell_geometries:

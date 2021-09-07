@@ -6,15 +6,15 @@ import os
 
 
 
-@hydra.main(config_path="conf2", config_name="config")
+@hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
     years = cfg.datasource.years
     print('preprocess data for years', years)
-    data_root = osp.join(cfg.root, 'data')
+    data_root = osp.join(cfg.device.root, 'data')
     for year in years:
-        target_dir = osp.join(data_root, 'preprocessed', cfg.t_unit,
-                              f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}',
+        target_dir = osp.join(data_root, 'preprocessed',
+                              f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}',
                               cfg.datasource.name, cfg.season, str(year))
         if not osp.isdir(target_dir):
             # load all features and organize them into dataframes
@@ -22,7 +22,8 @@ def run(cfg: DictConfig):
             os.makedirs(target_dir, exist_ok=True)
             datasets.prepare_features(target_dir, osp.join(data_root, 'raw'), str(year), cfg.datasource.name,
                              random_seed=cfg.seed, edge_type=cfg.model.edge_type,
-                             n_dummy_radars=cfg.model.n_dummy_radars, **cfg)
+                             n_dummy_radars=cfg.model.n_dummy_radars, **cfg,
+                             process_dynamic=True)
         else:
             print(f'year {year}: nothing to be done')
 

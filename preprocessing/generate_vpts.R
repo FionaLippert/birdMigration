@@ -35,7 +35,7 @@ vpts <- tryCatch(
                     time = seq(from = as.POSIXct(config$ts, tz = "UTC"),
                                to = as.POSIXct(config$te, tz = "UTC"),
                                by = paste(config$tr, "mins")),
-                    #with_db=T (not working for some reasaon. something wrong with keyring?)
+                    #with_db=T (not working for some reason. something wrong with keyring?)
                     )
               },
               error = function(cond){
@@ -50,45 +50,46 @@ if (!inherits(vpts, "vpts")){
 }
 
 # adjust sdvvp threshold
-#print(paste('apply sdvvp threshold applied to ', radar, sdvvp_config$radar))
 #sd_vvp_threshold(vpts) <- sdvvp_config$radar
-
 
 # make a subselection for night time only
 if(config$night_only){
   index_night <- check_night(vpts)
   vpts <- vpts[index_night]
 }
+if(config$regularize){
+  vpts <- regularize_vpts(vpts)
+}
 
-vpts <- regularize_vpts(vpts)
-vpi <- integrate_profile(vpts, alt_min=config$alt_min, alt_max=config$alt_max)
+radar_alt <- get_radars_df(radars=radar)[['height']]
+vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
 
 # extract radar location from vpts object
 lat <- vpts$attributes$where$lat
 lon <- vpts$attributes$where$lon
 
-#plot(my_vpi, night_shade = FALSE, quantity="vid")
 
 #define dimensions
-time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00", as.numeric(c(vpi$datetime)), unlim=FALSE)
+time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00",
+                      as.numeric(c(vpi$datetime)), unlim=FALSE)
 lat_dim <- ncdim_def("lat", "degrees north", c(lat), unlim=FALSE)
 lon_dim <- ncdim_def("lon", "degrees south", c(lon), unlim=FALSE)
 
 
 # create netcdf file
-fname <- paste0("vpi_", str_remove(radar, "/"), ".nc")
-#fname <- paste0("vpi_", radar_odim_format, ".nc") #TODO in the future use this!
+# fname <- paste0("vpi_", str_remove(radar, "/"), ".nc")
+fname <- paste0("vpi_", radar_odim_format, ".nc")
 ncpath <- file.path(root, fname)
 
 # define variables
 fillvalue <- 1e32
-#var_def_list <- lapply(attributes(my_vpi)$names, function(var) ncvar_def(var, "", time_dim, fillvalue, var))
 var_def_list <- list()
 for (var in attributes(vpi)$names){
   if (var != "datetime"){
     var_def_list[[var]] <- ncvar_def(var, "", list(lat_dim, lon_dim, time_dim), fillvalue, var)
   } else {
-    var_def_list[["solarpos"]] <- ncvar_def("solarpos", "", list(lat_dim, lon_dim, time_dim), fillvalue, "solarpos")
+    var_def_list[["solarpos"]] <- ncvar_def("solarpos", "", list(lat_dim, lon_dim, time_dim),
+                                            fillvalue, "solarpos")
   }
 }
 
@@ -107,7 +108,7 @@ for (var in names(var_def_list)){
 }
 
 # add global attributes
-ncatt_put(ncout, 0, "source", radar_opera_format)
+ncatt_put(ncout, 0, "source", radar_odim_format)
 ncatt_put(ncout, 0, "latitude", lat)
 ncatt_put(ncout, 0, "longitude", lon)
 ncatt_put(ncout, 0, "fillvalue", fillvalue)

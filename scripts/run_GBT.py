@@ -1,5 +1,6 @@
-from birds import GBT, dataloader, utils
+from birds import gbt, dataloader, utils
 import torch
+from torch.utils.data import random_split, Subset
 from omegaconf import DictConfig, OmegaConf
 import hydra
 import itertools as it
@@ -13,63 +14,50 @@ import pandas as pd
 # data=json.loads(argv[1])
 
 
-#@hydra.main(config_path="conf", config_name="config")
 def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GBT'
-    assert cfg.action.name == 'training'
 
-    data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.horizon
-    hps = cfg.model.hyperparameters
+    seq_len = cfg.model.horizon
+    seed = cfg.seed + cfg.get('job_id', 0)
 
-    # hyperparameters to use
-    if cfg.action.grid_search:
-        hp_space = it.product(*[settings.search_space for settings in hps.values()])
-    else:
-        hp_space = [[settings.default for settings in hps.values()]]
-    param_names = [key for key in cfg.model.hyperparameters]
+    data_root = osp.join(cfg.device.root, 'data')
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
-    # initialize normalizer
-    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
-                                           cfg.datasource.name, seed=cfg.seed,
-                                   max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit, edge_type=cfg.edge_type)
+    print('normalize features')
+    training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
+    normalization = dataloader.Normalization(training_years, cfg.datasource.name,
+                                             data_root, preprocessed_dirname, **cfg)
 
+    print('load data')
+    data = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
+                                 **cfg, **cfg.model,
+                                 data_root=data_root,
+                                 data_source=cfg.datasource.name,
+                                 normalization=normalization,
+                                 env_vars=cfg.datasource.env_vars,
+                                 )
+            for year in training_years]
 
-    # load datasets
-    train_data = [dataloader.RadarData(data_root, str(year), cfg.season, ts,
-                                     data_source=cfg.datasource.name,
-                                     use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization,
-                                     env_vars=cfg.datasource.env_vars,
-                                     root_transform=cfg.root_transform,
-                                     missing_data_threshold=cfg.missing_data_threshold,
-                                     edge_type=cfg.edge_type,
-                                     max_distance=cfg.max_distance,
-                                     t_unit=cfg.t_unit,
-                                     use_nights=cfg.use_nights
-                                     )
-                  for year in cfg.datasource.training_years]
-    train_data = torch.utils.data.ConcatDataset(train_data)
-    X_train, y_train, mask_train = GBT.prepare_data(train_data, timesteps=ts, mask_daytime=False,
+    data = torch.utils.data.ConcatDataset(data)
+    n_data = len(data)
+
+    # split data into training and validation set
+    n_val = max(1, int(cfg.datasource.val_train_split * n_data))
+    n_train = n_data - n_val
+
+    print('------------------------------------------------------')
+    print('-------------------- data sets -----------------------')
+    print(f'total number of sequences = {n_data}')
+    print(f'number of training sequences = {n_train}')
+    print(f'number of validation sequences = {n_val}')
+
+    train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
+    X_train, y_train, mask_train = gbt.prepare_data(train_data, timesteps=seq_len, mask_daytime=False,
                                                     use_acc_vars=cfg.model.use_acc_vars)
 
-    val_data = dataloader.RadarData(data_root, str(cfg.datasource.validation_year),
-                                  cfg.season, ts,
-                                  data_source=cfg.datasource.name,
-                                  use_buffers=cfg.datasource.use_buffers,
-                                  normalization=normalization,
-                                  env_vars=cfg.datasource.env_vars,
-                                  root_transform=cfg.root_transform,
-                                  missing_data_threshold=cfg.missing_data_threshold,
-                                  edge_type=cfg.edge_type,
-                                  max_distance=cfg.max_distance,
-                                  t_unit=cfg.t_unit,
-                                  use_nights=cfg.use_nights
-                                  )
-    if cfg.datasource.validation_year == cfg.datasource.test_year:
-        val_data, _ = utils.val_test_split(val_data, cfg.datasource.val_test_split, cfg.seed)
-    X_val, y_val, mask_val = GBT.prepare_data(val_data, timesteps=ts, mask_daytime=False,
+    X_val, y_val, mask_val = gbt.prepare_data(val_data, timesteps=seq_len, mask_daytime=False,
                                               use_acc_vars=cfg.model.use_acc_vars)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -78,157 +66,202 @@ def train(cfg: DictConfig, output_dir: str, log):
         cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
     else:
         cfg.datasource.bird_scale = float(normalization.root_max('birds_km2', cfg.root_transform))
+    cfg.model_seed = seed
+
+    print('------------------ model settings --------------------')
+    print(cfg.model)
+    print('------------------------------------------------------')
 
 
-    best_val_loss = np.inf
-    best_hp_settings = None
-    for vals in hp_space:
-        hp_settings = dict(zip(param_names, vals))
-        print('-' * 40)
-        print(f'hyperparameter settings: {hp_settings}')
+    print(f'train model')
+    model = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
 
-        sub_dir = osp.join(output_dir, json.dumps(hp_settings))
-        os.makedirs(sub_dir, exist_ok=True)
+    with open(osp.join(output_dir, f'model.pkl'), 'wb') as f:
+        pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
 
-        val_losses = np.zeros(cfg.repeats)
-        for r in range(cfg.repeats):
-            print(f'train model [trial {r}]')
-            gbt = GBT.fit_GBT(X_train[mask_train], y_train[mask_train], **hp_settings,
-                              seed=(cfg.seed+r), tol=cfg.model.tolerance)
+    y_hat = model.predict(X_val)
+    val_loss = utils.MSE_numpy(y_hat, y_val, mask_val)
 
-            with open(osp.join(sub_dir, f'model_{r}.pkl'), 'wb') as f:
-                pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
+    print(f'validation loss = {val_loss}', file=log)
 
-            y_hat = gbt.predict(X_val)
-            val_losses[r] = utils.MSE(y_hat, y_val, mask_val)
-
-        if val_losses.mean() < best_val_loss:
-            best_val_loss = val_losses.mean()
-            best_hp_settings = hp_settings
-
-            print(f'best settings so far with settings {hp_settings}', file=log)
-            print(f'validation loss = {best_val_loss}', file=log)
-            print('---------------------', file=log)
-
-        log.flush()
-        np.save(osp.join(sub_dir, 'validation_losses.npy'), val_losses)
-
-
-    print('saving best settings as default', file=log)
-    # use ruamel.yaml to not overwrite comments in the original yaml
-    yaml = ruamel.yaml.YAML()
-    fp = osp.join(cfg.root, 'scripts', 'conf', 'model', f'{cfg.model.name}.yaml')
-    with open(fp, 'r') as f:
-        model_config = yaml.load(f)
-    for key, val in best_hp_settings.items():
-        model_config['hyperparameters'][key]['default'] = val
-    with open(fp, 'w') as f:
-        yaml.dump(model_config, f)
-
-
-    # save complete config to output dir
-    for key, val in best_hp_settings.items():
-        cfg.model.hyperparameters[key]['default'] = val
     with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
         OmegaConf.save(config=cfg, f=f)
 
     log.flush()
 
-def test(cfg: DictConfig, output_dir: str, log):
+def cross_validation(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GBT'
-    assert cfg.action.name == 'testing'
+    assert cfg.task.name == 'innerCV'
 
-    data_root = osp.join(cfg.root, 'data')
+    seq_len = cfg.model.horizon
+
+    n_folds = cfg.task.n_folds
+    seed = cfg.seed + cfg.get('job_id', 0)
+
+    data_root = osp.join(cfg.device.root, 'data')
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
+
+    print('normalize features')
+    training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
+    normalization = dataloader.Normalization(training_years, cfg.datasource.name,
+                                             data_root, preprocessed_dirname, **cfg)
+
+    print('load data')
+    data = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
+                                 **cfg, **cfg.model,
+                                 data_root=data_root,
+                                 data_source=cfg.datasource.name,
+                                 normalization=normalization,
+                                 env_vars=cfg.datasource.env_vars,
+                                 )
+            for year in training_years]
+
+    data = torch.utils.data.ConcatDataset(data)
+    n_data = len(data)
+
+    if cfg.verbose:
+        print('------------------ model settings --------------------')
+        print(cfg.model)
+        print(f'environmental variables: {cfg.datasource.env_vars}')
 
 
-    # load best settings from grid search (or setting used for regular training)
-    train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
-                         cfg.model.name, cfg.experiment)
-    yaml = ruamel.yaml.YAML()
-    fp = osp.join(train_dir, 'config.yaml')
-    with open(fp, 'r') as f:
-        model_cfg = yaml.load(f)
+    with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
+        pickle.dump(normalization, f)
+    if cfg.root_transform == 0:
+        cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
+    else:
+        cfg.datasource.bird_scale = float(normalization.root_max('birds_km2', cfg.root_transform))
+    cfg.model_seed = seed
 
-    # load model settings
-    hp_settings = {key: settings['default'] for key, settings in model_cfg['model']['hyperparameters'].items()}
+    cv_folds = np.array_split(np.arange(n_data), n_folds)
 
-    # directory to which outputs will be written
-    output_dir = osp.join(output_dir, json.dumps(hp_settings))
-    os.makedirs(output_dir, exist_ok=True)
+    if cfg.verbose: print(f'--- run cross-validation with {n_folds} folds ---')
 
-    # directory from which model is loaded
-    model_dir = osp.join(train_dir, json.dumps(hp_settings))
+
+    best_val_losses = np.ones(n_folds) * np.nan
+
+    for f in range(n_folds):
+        if cfg.verbose: print(f'------------------- fold = {f} ----------------------')
+
+        subdir = osp.join(output_dir, f'cv_fold_{f}')
+        os.makedirs(subdir, exist_ok=True)
+
+        # split into training and validation set
+        val_data = Subset(data, cv_folds[f].tolist())
+        train_idx = np.concatenate([cv_folds[i] for i in range(n_folds) if i!=f]).tolist()
+        train_data = Subset(data, train_idx) # everything else
+        X_train, y_train, mask_train = gbt.prepare_data(train_data, timesteps=seq_len, mask_daytime=False,
+                                                        use_acc_vars=cfg.model.use_acc_vars)
+
+        X_val, y_val, mask_val = gbt.prepare_data(val_data, timesteps=seq_len, mask_daytime=False,
+                                                  use_acc_vars=cfg.model.use_acc_vars)
+
+        print(f'train model')
+        model = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
+
+        with open(osp.join(subdir, f'model.pkl'), 'wb') as file:
+            pickle.dump(model, file, pickle.HIGHEST_PROTOCOL)
+
+        y_hat = model.predict(X_val)
+        val_loss = utils.MSE_numpy(y_hat, y_val, mask_val)
+
+        print(f'fold {f}: validation loss = {val_loss}', file=log)
+        best_val_losses[f] = val_loss
+
+        log.flush()
+
+    print(f'average validation loss = {np.nanmean(best_val_losses)}', file=log)
+
+    summary = pd.DataFrame({'fold': range(n_folds),
+                            'final_val_loss': best_val_losses,
+                            'best_val_loss': best_val_losses})
+    summary.to_csv(osp.join(output_dir, 'summary.csv'))
+
+    with open(osp.join(output_dir, f'config.yaml'), 'w') as f:
+        OmegaConf.save(config=cfg, f=f)
+
+    log.flush()
+
+
+def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
+    assert cfg.model.name == 'GBT'
+
+    data_root = osp.join(cfg.device.root, 'data')
+    seq_len = cfg.model.test_horizon
+    if model_dir is None: model_dir = output_dir
+
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     # load normalizer
-    with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
+    with open(osp.join(model_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
     if cfg.root_transform == 0:
         cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
     else:
         cfg.datasource.bird_scale = float(normalization.root_max('birds_km2', cfg.root_transform))
-        print(cfg.datasource.bird_scale)
 
     # load test data
-    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.horizon,
-                                   data_source=cfg.datasource.name,
-                                   use_buffers=cfg.datasource.use_buffers,
-                                   normalization=normalization,
-                                   env_vars=cfg.datasource.env_vars,
-                                   root_transform=cfg.root_transform,
-                                   missing_data_threshold=cfg.missing_data_threshold,
-                                   edge_type=cfg.edge_type,
-                                   max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit,
-                                   use_nights=cfg.use_nights
-                                   )
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len,
+                                     preprocessed_dirname, processed_dirname,
+                                     **cfg, **cfg.model,
+                                     data_root=data_root,
+                                     data_source=cfg.datasource.name,
+                                     normalization=normalization,
+                                     env_vars=cfg.datasource.env_vars,
+                                     )
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
+    areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
-    if cfg.datasource.validation_year == cfg.datasource.test_year:
-        _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
-    X_test, y_test, mask_test = GBT.prepare_data_nights_and_radars(test_data,
-                                    timesteps=cfg.model.horizon, mask_daytime=False,
+    X_test, y_test, mask_test = gbt.prepare_data_nights_and_radars(test_data,
+                                                                   timesteps=cfg.model.test_horizon, mask_daytime=False,
                                                                    use_acc_vars=cfg.model.use_acc_vars)
 
 
     # load models and predict
-    results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], seqID=[],
+    results = dict(gt_km2=[], prediction_km2=[], gt=[], prediction=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
-    for r in range(cfg.repeats):
-        with open(osp.join(model_dir, f'model_{r}.pkl'), 'rb') as f:
-            model = pickle.load(f)
 
-        for nidx, data in enumerate(test_data):
-            y = data.y * cfg.datasource.bird_scale
-            _tidx = data.tidx
-            local_night = data.local_night
-            missing = data.missing
+    with open(osp.join(model_dir, f'model.pkl'), 'rb') as f:
+        model = pickle.load(f)
 
+    for nidx, data in enumerate(test_data):
+        y = data.y * cfg.datasource.bird_scale
+        _tidx = data.tidx
+        local_night = data.local_night
+        missing = data.missing
+
+        if cfg.root_transform > 0:
+            y = np.power(y, cfg.root_transform)
+
+        for ridx, name in radar_index.items():
+            y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
-                y = np.power(y, cfg.root_transform)
-
-            for ridx, name in radar_index.items():
-                y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
-                if cfg.root_transform > 0:
-                    y_hat = np.power(y_hat, cfg.root_transform)
-                results['gt_km2'].append(y[ridx, :])
-                results['prediction_km2'].append(y_hat)
-                results['night'].append(local_night[ridx, :])
-                results['radar'].append([name] * y.shape[1])
-                results['seqID'].append([nidx] * y.shape[1])
-                results['tidx'].append(_tidx)
-                results['datetime'].append(time[_tidx])
-                results['trial'].append([r] * y.shape[1])
-                results['horizon'].append(np.arange(y.shape[1]))
-                results['missing'].append(missing[ridx, :])
+                y_hat = np.power(y_hat, cfg.root_transform)
+            results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
+            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
+            results['prediction'].append(y_hat * areas[ridx] if cfg.birds_per_km2 else y_hat)
+            results['night'].append(local_night[ridx, :])
+            results['radar'].append([name] * y.shape[1])
+            results['seqID'].append([nidx] * y.shape[1])
+            results['tidx'].append(_tidx)
+            results['datetime'].append(time[_tidx])
+            results['trial'].append([cfg.get('job_id', 0)] * y.shape[1])
+            results['horizon'].append(np.arange(y.shape[1]))
+            results['missing'].append(missing[ridx, :])
 
     # create dataframe containing all results
     for k, v in results.items():
         results[k] = np.concatenate(v)
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
+    results['residual'] = results['gt'] - results['prediction']
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 

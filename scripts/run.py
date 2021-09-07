@@ -3,38 +3,49 @@ import hydra
 import os.path as osp
 import os
 import traceback
-import run_GBT, run_NNs, run_GAM, run_HA
+import run_NNs, run_GAM, run_GBT, run_HA
+
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
 
-    # directory to which outputs will be written
-    output_dir = osp.join(cfg.root, 'results', cfg.datasource.name, cfg.action.name,
-                          cfg.model.name, cfg.experiment)
-    os.makedirs(output_dir, exist_ok=True)
+    print(f'hydra working directory: {os.getcwd()}')
+    out = osp.join(cfg.output_dir, cfg.get('sub_dir', ''))
+    print(f'output directory: {out}')
+    os.makedirs(out, exist_ok=True)
 
-    log_file = os.path.join(output_dir, 'log.txt')
-    log = open(log_file, 'w')
+    log_file = osp.join(out, 'log.txt')
+    print(f'log file: {osp.abspath(log_file)}')
+    log = open(log_file, 'w+')
+
+    action = cfg.action
 
     try:
         if cfg.model.name == 'GBT':
-            run_GBT.run(cfg, output_dir, log)
+            if 'cv' in action: run_GBT.cross_validation(cfg, out, log)
+            if 'train' in action: run_GBT.train(cfg, out, log)
+            if 'test' in action: run_GBT.test(cfg, out, log)
         elif cfg.model.name == 'GAM':
-            run_GAM.run(cfg, output_dir, log)
-        # elif cfg.model.name in ['BirdFlowGraphLSTM']:
-        #     run_FlowNNs.run(cfg, output_dir, log)
+            if 'train' in action: run_GAM.train(cfg, out, log)
+            if 'test' in action: run_GAM.test(cfg, out, log)
         elif cfg.model.name == 'HA':
-            run_HA.run(cfg, output_dir, log)
+            if 'train' in action: run_HA.train(cfg, out, log)
+            if 'test' in action: run_HA.test(cfg, out, log)
         else:
-            run_NNs.run(cfg, output_dir, log)
-
+            if 'cv' in action: run_NNs.run_cross_validation(cfg, out, log)
+            if 'train' in action: run_NNs.run_training(cfg, out, log)
+            if 'test' in action:
+                cfg['use_nights'] = True
+                run_NNs.run_testing(cfg, out, log)
+                cfg['use_nights'] = False
+                run_NNs.run_testing(cfg, out, log, ext='_no_nights')
     except Exception:
+        print(f'Error occurred! See {osp.abspath(log_file)} for more details.')
         print(traceback.format_exc(), file=log)
-
-    print('reached end. Flush and close log.')
-
+    print('flush log')
     log.flush()
     log.close()
+    print('done')
 
 if __name__ == "__main__":
     run()

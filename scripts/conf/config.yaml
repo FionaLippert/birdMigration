@@ -14,6 +14,8 @@ missing_data_threshold: 0.1
 t_unit: 1H
 use_nights: false
 data_perc: 0.5
+use_nights: true
+data_perc: 1.0
 exclude: []
 verbose: True
 debugging: False

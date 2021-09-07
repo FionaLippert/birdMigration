@@ -1,4 +1,4 @@
-from birds import GBT, dataloader, utils
+from birds import gbt, dataloader, utils
 from omegaconf import DictConfig, OmegaConf
 import hydra
 import itertools as it
@@ -15,31 +15,28 @@ import pandas as pd
 #@hydra.main(config_path="conf", config_name="config")
 def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'HA'
-    assert cfg.action.name == 'training'
 
     data_root = osp.join(cfg.root, 'data')
-    ts = cfg.model.horizon
+    seq_len = cfg.model.horizon
 
-    # initialize normalizer
-    normalization = dataloader.Normalization(data_root, cfg.datasource.training_years, cfg.season,
-                                           cfg.datasource.name, seed=cfg.seed,
-                                   max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit, edge_type=cfg.edge_type)
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
-    # load datasets
-    train_data_list = [dataloader.RadarData(data_root, str(year), cfg.season, ts,
-                                     data_source=cfg.datasource.name,
-                                     use_buffers=cfg.datasource.use_buffers,
-                                     normalization=normalization,
-                                     env_vars=[],
-                                     root_transform=0,
-                                     missing_data_threshold=cfg.missing_data_threshold,
-                                      edge_type=cfg.edge_type,
-                                      max_distance=cfg.max_distance,
-                                          t_unit=cfg.t_unit,
-                                          use_nights=cfg.use_nights
-                                          )
-                  for year in cfg.datasource.training_years]
+    print('normalize features')
+    training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
+    normalization = dataloader.Normalization(training_years, cfg.datasource.name,
+                                             data_root, preprocessed_dirname, **cfg)
+
+    print('load data')
+    data_list = [dataloader.RadarData(year, seq_len, preprocessed_dirname, processed_dirname,
+                                      **cfg, **cfg.model,
+                                      data_root=data_root,
+                                      data_source=cfg.datasource.name,
+                                      normalization=normalization,
+                                      env_vars=cfg.datasource.env_vars,
+                                      )
+                 for year in training_years]
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
         pickle.dump(normalization, f)
@@ -49,8 +46,8 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_y = []
     all_masks = []
     all_mappings = []
-    for idx, data in enumerate(train_data_list):
-        _, y_train, mask_train = GBT.prepare_data_gam(data, timesteps=ts, mask_daytime=True)
+    for idx, data in enumerate(data_list):
+        _, y_train, mask_train = gbt.prepare_data_gam(data, timesteps=seq_len, mask_daytime=True)
         all_y.append(y_train)
         all_masks.append(mask_train)
         radars = ['nldbl-nlhrw' if r in ['nldbl', 'nlhrw'] else r for r in data.info['radars']]
@@ -77,55 +74,47 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     log.flush()
 
-def test(cfg: DictConfig, output_dir: str, log):
+def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'HA'
-    assert cfg.action.name == 'testing'
 
     data_root = osp.join(cfg.root, 'data')
+    seq_len = cfg.model.test_horizon
+    if model_dir is None: model_dir = output_dir
 
-    train_dir = osp.join(cfg.root, 'results', cfg.datasource.name, 'training',
-                         cfg.model.name, cfg.experiment)
-    yaml = ruamel.yaml.YAML()
-    fp = osp.join(train_dir, 'config.yaml')
-    with open(fp, 'r') as f:
-        model_cfg = yaml.load(f)
+    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+                        f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     # load normalizer
-    with open(osp.join(train_dir, 'normalization.pkl'), 'rb') as f:
+    with open(osp.join(model_dir, 'normalization.pkl'), 'rb') as f:
         normalization = pickle.load(f)
 
     cfg.datasource.bird_scale = float(normalization.max('birds_km2'))
 
     # load test data
-    test_data = dataloader.RadarData(data_root, str(cfg.datasource.test_year),
-                                   cfg.season, cfg.model.horizon,
-                                   data_source=cfg.datasource.name,
-                                   use_buffers=cfg.datasource.use_buffers,
-                                   normalization=normalization,
-                                   env_vars=[],
-                                   root_transform=0,
-                                   missing_data_threshold=cfg.missing_data_threshold,
-                                   edge_type=cfg.edge_type,
-                                   max_distance=cfg.max_distance,
-                                   t_unit=cfg.t_unit,
-                                   use_nights=cfg.use_nights
-                                   )
+    test_data = dataloader.RadarData(str(cfg.datasource.test_year), seq_len,
+                                     preprocessed_dirname, processed_dirname,
+                                     **cfg, **cfg.model,
+                                     data_root=data_root,
+                                     data_source=cfg.datasource.name,
+                                     normalization=normalization,
+                                     env_vars=cfg.datasource.env_vars,
+                                     )
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
+    areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
-    if cfg.datasource.validation_year == cfg.datasource.test_year:
-        _, test_data = utils.val_test_split(test_data, cfg.datasource.val_test_split, cfg.seed)
-    _, y_test, mask_test = GBT.prepare_data_nights_and_radars_gam(test_data,
-                                    timesteps=cfg.model.horizon, mask_daytime=True)
+    _, y_test, mask_test = gbt.prepare_data_nights_and_radars_gam(test_data,
+                                                                  timesteps=cfg.model.test_horizon, mask_daytime=True)
 
 
     # load models and predict
-    results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], seqID=[],
+    results = dict(gt_km2=[], prediction_km2=[], gt=[], prediction=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], trial=[], horizon=[], missing=[])
 
-    with open(osp.join(train_dir, f'HAs.pkl'), 'rb') as f:
+    with open(osp.join(model_dir, f'HAs.pkl'), 'rb') as f:
         ha = pickle.load(f)
 
     for nidx, data in enumerate(test_data):
@@ -145,14 +134,16 @@ def test(cfg: DictConfig, output_dir: str, log):
 
             y_hat = np.ones(y.shape[1]) * y_hat * local_night[ridx, :].detach().numpy()
 
-            results['gt_km2'].append(y[ridx, :])
-            results['prediction_km2'].append(y_hat)
+            results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
+            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
+            results['prediction'].append(y_hat * areas[ridx] if cfg.birds_per_km2 else y_hat)
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
-            results['trial'].append([0] * y.shape[1])
+            results['trial'].append([cfg.get('job_id', 0)] * y.shape[1])
             results['horizon'].append(np.arange(y.shape[1]))
             results['missing'].append(missing[ridx, :])
 
@@ -160,6 +151,7 @@ def test(cfg: DictConfig, output_dir: str, log):
     for k, v in results.items():
         results[k] = np.concatenate(v, axis=0)
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
+    results['residual'] = results['gt'] - results['prediction']
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, 'results.csv'))
 
