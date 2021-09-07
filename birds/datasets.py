@@ -134,6 +134,8 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
         df['radar'] = [row.radar] * len(t_range)
 
+        print(f'preprocess radar {row.radar}')
+
         # time related variables for radar ridx
         solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
         night = np.logical_or(solarpos[:-1] < -6, solarpos[1:] < -6)
@@ -217,8 +219,9 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         for col in cols:
             # radar quantities being exactly 0 during the night are missing,
             # radar quantities during the day are set to 0
-            radar_df['birds'] = radar_df.apply(lambda row: np.nan if (row.night and not row.birds)
-                                                        else (0 if not row.night else row.birds), axis=1)
+            print(f'check missing data for column {col}')
+            radar_df[col] = radar_df.apply(lambda row: np.nan if (row.night and not row[col])
+                                                        else (0 if not row.night else row[col]), axis=1)
 
             # remember missing radar observations
             radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
@@ -232,6 +235,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
                 radar_df[col].interpolate(method='linear', inplace=True)
 
         dfs.append(radar_df)
+        print(f'found {radar_df.missing.sum()} misssing time points')
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     print(f'columns: {dynamic_feature_df.columns}')

@@ -123,7 +123,7 @@ class Normalization:
         return root_transformed.dropna().max()
 
     def preprocessed_dir(self, year):
-        return osp.join(self.root, 'preprocessed', self.t_unit, self.preprocessed_dirname,
+        return osp.join(self.root, 'preprocessed', self.preprocessed_dirname,
                         self.data_source, self.season, str(year))
 
     @property
@@ -449,7 +449,7 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
 
 
-        if self.data_source == 'radar':
+        if self.data_source == 'radar' and len(G.edges()) > 0:
             print('compute fluxes')
             fluxes = []
             mtr = []
