@@ -20,7 +20,7 @@ echo $CONFIGPATH
 # run array jobs for all hyperparameter settings
 for i in $(eval echo "{1..$N_SETTINGS}")
 do
-  python run_2.py -cp $CONFIGPATH \
+  python run.py -cp $CONFIGPATH \
   +sub_dir=setting_$i \
   device.root=$WDIR \
 	action=cv \

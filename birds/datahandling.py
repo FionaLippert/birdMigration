@@ -3,6 +3,7 @@ import xarray as xr
 import warnings
 import pandas as pd
 import glob, os
+import os.path as osp
 from matplotlib import pyplot as plt
 from pvlib import solarposition
 
@@ -16,12 +17,19 @@ def add_coords_to_xr(f):
 
 def get_coords(f):
     ds = xr.open_dataset(f)
-    return (ds.longitude, ds.latitude)
+    if hasattr(ds, 'longitude') and hasattr(ds, 'latitude'):
+        return (ds.longitude, ds.latitude)
+    else:
+        return(ds.lon.values[0], ds.lat.values[0])
 
 
 def get_name(f, opera_format=True):
     ds = xr.open_dataset(f)
-    radar = ds.source
+    if hasattr(ds, 'source'):
+        radar = ds.source
+    else:
+        filename = osp.splitext(osp.basename(f))[0]
+        radar = filename.split('_')[-1]
 
     if opera_format:
         if '/' in radar:

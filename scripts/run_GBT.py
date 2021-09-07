@@ -74,12 +74,12 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 
     print(f'train model')
-    gbt = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
+    model = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
 
     with open(osp.join(output_dir, f'model.pkl'), 'wb') as f:
-        pickle.dump(gbt, f, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
 
-    y_hat = gbt.predict(X_val)
+    y_hat = model.predict(X_val)
     val_loss = utils.MSE_numpy(y_hat, y_val, mask_val)
 
     print(f'validation loss = {val_loss}', file=log)
@@ -135,17 +135,10 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         cfg.datasource.bird_scale = float(normalization.root_max('birds_km2', cfg.root_transform))
     cfg.model_seed = seed
 
-    print('------------------ model settings --------------------')
-    print(cfg.model)
-    print('------------------------------------------------------')
-
     cv_folds = np.array_split(np.arange(n_data), n_folds)
 
     if cfg.verbose: print(f'--- run cross-validation with {n_folds} folds ---')
 
-
-    subdir = osp.join(output_dir, f'cv_fold_{f}')
-    os.makedirs(subdir, exist_ok=True)
 
     best_val_losses = np.ones(n_folds) * np.nan
 
@@ -166,12 +159,12 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
                                                   use_acc_vars=cfg.model.use_acc_vars)
 
         print(f'train model')
-        gbt = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
+        model = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
 
-        with open(osp.join(output_dir, f'model.pkl'), 'wb') as file:
-            pickle.dump(gbt, file, pickle.HIGHEST_PROTOCOL)
+        with open(osp.join(subdir, f'model.pkl'), 'wb') as file:
+            pickle.dump(model, file, pickle.HIGHEST_PROTOCOL)
 
-        y_hat = gbt.predict(X_val)
+        y_hat = model.predict(X_val)
         val_loss = utils.MSE_numpy(y_hat, y_val, mask_val)
 
         print(f'fold {f}: validation loss = {val_loss}', file=log)
