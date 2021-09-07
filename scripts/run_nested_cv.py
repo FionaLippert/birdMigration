@@ -90,7 +90,7 @@ def determine_best_hp(input_dir: str):
     for dir in job_dirs:
         # load cv summary
         df = pd.read_csv(osp.join(dir, 'summary.csv'))
-        loss = df.final_val_loss.apply(np.nanmean)
+        loss = np.nanmean(df.final_val_loss.values)
 
         if loss < best_loss:
             # copy config file to parent directory
