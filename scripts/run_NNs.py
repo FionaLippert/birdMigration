@@ -5,13 +5,10 @@ from torch.utils.data import random_split, Subset
 from torch.optim import lr_scheduler
 from torch_geometric.data import DataLoader, DataListLoader
 from torch_geometric.utils import to_dense_adj
-from torch_geometric.nn import DataParallel
 from omegaconf import DictConfig, OmegaConf
-import itertools as it
 import pickle5 as pickle
 import os.path as osp
 import os
-import json
 import numpy as np
 import ruamel.yaml
 import pandas as pd
@@ -315,7 +312,8 @@ def setup_training(cfg: DictConfig, output_dir: str):
 
     # preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
     
     data_dir = osp.join(cfg.device.root, 'data')
@@ -363,17 +361,16 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
     Model = MODEL_MAPPING[cfg.model.name]
 
+    context = cfg.model.get('context', 1)
+    seq_len = context + cfg.model.test_horizon
+
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     model_dir = cfg.get('model_dir', output_dir)
-
     device = 'cuda' if (cfg.device.cuda and torch.cuda.is_available()) else 'cpu'
-
-    context = cfg.model.get('context', 0)
-    seq_len = context + cfg.model.test_horizon
-    seq_shift = context // 24
 
     if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
@@ -451,7 +448,7 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
     enc_att = hasattr(model, 'node_lstm') and cfg.model.get('use_encoder', False)
 
     for nidx, data in enumerate(test_loader):
-        nidx += seq_shift
+        #nidx += seq_shift
         data = data.to(device)
         y_hat = model(data).cpu().detach() * cfg.datasource.bird_scale
         y = data.y.cpu() * cfg.datasource.bird_scale
@@ -461,7 +458,7 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
             y = torch.pow(y, cfg.root_transform)
             y_hat = torch.pow(y_hat, cfg.root_transform)
 
-        _tidx = data.tidx[context:].cpu()
+        _tidx = data.tidx.cpu()
         local_night = data.local_night.cpu()
         missing = data.missing.cpu()
 
@@ -486,25 +483,28 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
             attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu()
 
+        # fill prediction columns with nans for context timesteps
+        fill_context = torch.ones(context) * float('nan')
+
         for ridx, name in radar_index.items():
-            results['gt'].append(y[ridx, context:])
-            results['prediction'].append(y_hat[ridx, :])
-            results['gt_km2'].append(y[ridx, context:] / areas[ridx])
+            results['gt'].append(y[ridx, :])
+            results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]))
+            results['gt_km2'].append(torch.cat([fill_context, y[ridx, :] / areas[ridx]]))
             results['prediction_km2'].append(y_hat[ridx, :] / areas[ridx])
-            results['night'].append(local_night[ridx, context:])
-            results['radar'].append([name] * y_hat.shape[1])
-            results['seqID'].append([nidx] * y_hat.shape[1])
+            results['night'].append(local_night[ridx, :])
+            results['radar'].append([name] * y.shape[1])
+            results['seqID'].append([nidx] * y.shape[1])
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
-            results['trial'].append([cfg.get('job_id', 0)] * y_hat.shape[1])
-            results['horizon'].append(np.arange(y_hat.shape[1]))
-            results['missing'].append(missing[ridx, context:])
+            results['trial'].append([cfg.get('job_id', 0)] * y.shape[1])
+            results['horizon'].append(np.arange(y.shape[1]))
+            results['missing'].append(missing[ridx, :])
 
             if 'Flux' in cfg.model.name:
-                results['flux'].append(fluxes[ridx].view(-1))
-                results['source/sink'].append(node_deltas[ridx].view(-1))
-                results['influx'].append(influxes[ridx].view(-1))
-                results['outflux'].append(outfluxes[ridx].view(-1))
+                results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
+                results['source/sink'].append(torch.cat([fill_context, node_deltas[ridx].view(-1)]))
+                results['influx'].append(torch.cat([fill_context, influxes[ridx].view(-1)]))
+                results['outflux'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]))
 
     if 'Flux' in cfg.model.name:
         with open(osp.join(output_dir, f'model_fluxes{ext}.pickle'), 'wb') as f:

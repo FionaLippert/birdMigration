@@ -401,7 +401,7 @@ class LocalMLP(torch.nn.Module):
     def __init__(self, n_env, coord_dim=2, **kwargs):
         super(LocalMLP, self).__init__()
 
-        self.horizon = kwargs.get('horizon', 40)
+        self.horizon = kwargs.get('horizon', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
         self.n_hidden = kwargs.get('n_hidden', 16)
         self.use_acc = kwargs.get('use_acc_vars', False)
@@ -430,7 +430,7 @@ class LocalMLP(torch.nn.Module):
 
         y_hat = []
 
-        for t in range(self.horizon + 1):
+        for t in range(self.horizon):
 
             x = self.step(data.coords, data.env[..., t], acc=data.acc[..., t])
 
@@ -1612,6 +1612,8 @@ class LocalLSTM(torch.nn.Module):
         super(LocalLSTM, self).__init__()
 
         self.horizon = kwargs.get('horizon', 40)
+        self.t_context = max(1, kwargs.get('context', 1))
+        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
         self.use_encoder = kwargs.get('use_encoder', True)
 
         # model components
@@ -1620,18 +1622,11 @@ class LocalLSTM(torch.nn.Module):
             self.encoder = RecurrentEncoder(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
 
-        self.horizon = kwargs.get('horizon', 40)
-        self.t_context = kwargs.get('context', 0)
-        self.teacher_forcing = kwargs.get('teacher_forcing', 0)
-
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
 
 
     def forward(self, data):
-
-        x = data.x[..., self.t_context].view(-1, 1)
-        y_hat = [x]
 
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
@@ -1645,7 +1640,10 @@ class LocalLSTM(torch.nn.Module):
                    _ in range(self.node_lstm.n_lstm_layers)]
             self.node_lstm.setup_states(h_t, c_t)
 
-        forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
+        x = data.x[..., self.t_context - 1].view(-1, 1)
+        y_hat = []
+
+        forecast_horizon = range(self.t_context, self.t_context + self.horizon)
 
         for t in forecast_horizon:
 
@@ -1671,7 +1669,7 @@ class FluxGraphLSTM(MessagePassing):
 
         # settings
         self.horizon = kwargs.get('horizon', 40)
-        self.t_context = kwargs.get('context', 0)
+        self.t_context = max(1, kwargs.get('context', 1))
         self.teacher_forcing = kwargs.get('teacher_forcing', 0)
         self.use_encoder = kwargs.get('use_encoder', True)
         self.use_boundary_model = kwargs.get('use_boundary_model', True)
@@ -1699,8 +1697,8 @@ class FluxGraphLSTM(MessagePassing):
         boundary_nodes = data.boundary.view(-1, 1)
         inner_nodes = torch.logical_not(data.boundary).view(-1, 1)
 
-        x = data.x[..., self.t_context].view(-1, 1)
-        y_hat = [x]
+        x = data.x[..., self.t_context - 1].view(-1, 1)
+        y_hat = []
 
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
@@ -1720,11 +1718,11 @@ class FluxGraphLSTM(MessagePassing):
         hidden = h_t[-1]
 
         # relevant info for later
-        self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon + 1), device=x.device)
-        self.node_deltas = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
-        self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon+1), device=x.device)
+        self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon), device=x.device)
+        self.node_deltas = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+        self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
 
-        forecast_horizon = range(self.t_context + 1, self.t_context + self.horizon + 1)
+        forecast_horizon = range(self.t_context, self.t_context + self.horizon)
 
         for t in forecast_horizon:
             
@@ -3886,9 +3884,9 @@ def train_flows(model, train_loader, optimizer, loss_func, device, boundaries, c
 
 def flux_penalty(model, data, weight):
 
-    inferred_fluxes = model.local_fluxes[..., 1:].squeeze()
+    inferred_fluxes = model.local_fluxes.squeeze()
     inferred_fluxes = inferred_fluxes - inferred_fluxes[data.reverse_edges]
-    observed_fluxes = data.fluxes[..., model.t_context:-1].squeeze()
+    observed_fluxes = data.fluxes[..., model.t_context:].squeeze()
 
     diff = observed_fluxes - inferred_fluxes
     diff = torch.square(observed_fluxes) * diff  # weight timesteps with larger fluxes more
@@ -4055,7 +4053,7 @@ def test(model, test_loader, loss_func, device, **kwargs):
             mask = mask[:, model.t_context:]
 
         loss_all.append(torch.tensor([loss_func(output[:, t], gt[:, t], mask[:, t]).detach()
-                                      for t in range(model.horizon + 1)]))
+                                      for t in range(model.horizon)]))
 
     return torch.stack(loss_all)
 

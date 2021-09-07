@@ -1,4 +1,3 @@
-from sklearn.ensemble import GradientBoostingRegressor
 import numpy as np
 
 
@@ -8,7 +7,7 @@ def prepare_data(dataset, timesteps, mask_daytime=False, use_acc_vars=False):
     y = []
     mask = []
     for seq in dataset:
-        for t in range(timesteps+1):
+        for t in range(timesteps):
             features = [seq.coords.detach().numpy(),
                                        seq.areas.view(-1,1).detach().numpy(),
                                        seq.env[..., t].detach().numpy()]
@@ -34,8 +33,8 @@ def prepare_data_gam(dataset, timesteps, mask_daytime=False):
     y = []
     mask = []
     for seq in dataset:
-        for t in range(timesteps+1):
-            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features)
+        for t in range(timesteps):
+            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features) where features are solarpos and solarpos_dt
             doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
             features = np.concatenate([env, doy], axis=-1)
 
@@ -52,7 +51,7 @@ def prepare_data_gam(dataset, timesteps, mask_daytime=False):
     return X, y, mask
 
 
-def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False, use_acc_vars=False):
+def prepare_data_nights_and_radars(dataset, context, horizon, mask_daytime=False, use_acc_vars=False):
 
     X = []
     y = []
@@ -61,7 +60,7 @@ def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False, use_a
         X_night = []
         y_night = []
         mask_night = []
-        for t in range(timesteps+1):
+        for t in range(context, context+horizon):
 
             features = [seq.coords.detach().numpy(),
                  seq.areas.view(-1, 1).detach().numpy(),
@@ -86,7 +85,7 @@ def prepare_data_nights_and_radars(dataset, timesteps, mask_daytime=False, use_a
     return X, y, mask
 
 
-def prepare_data_nights_and_radars_gam(dataset, timesteps, mask_daytime=False):
+def prepare_data_nights_and_radars_gam(dataset, context, horizon, mask_daytime=False):
 
     X = []
     y = []
@@ -95,7 +94,7 @@ def prepare_data_nights_and_radars_gam(dataset, timesteps, mask_daytime=False):
         X_night = []
         y_night = []
         mask_night = []
-        for t in range(timesteps+1):
+        for t in range(context, context+horizon):
             env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features)
             doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
             features = np.concatenate([env, doy], axis=-1)
@@ -115,21 +114,3 @@ def prepare_data_nights_and_radars_gam(dataset, timesteps, mask_daytime=False):
     mask = np.stack(mask, axis=0)  # shape (nights, timesteps, nodes)
 
     return X, y, mask
-
-
-def fit_GBT(X, y, **kwargs):
-    seed = kwargs.get('seed', 1234)
-    n_estimators = kwargs.get('n_estimators', 100)
-    lr = kwargs.get('lr', 0.05)
-    max_depth = kwargs.get('max_depth', 5)
-    tolerance = kwargs.get('tolerance', 1e-6)
-
-    gbt = GradientBoostingRegressor(random_state=seed, n_estimators=n_estimators, learning_rate=lr,
-                                    max_depth=max_depth, tol=tolerance, n_iter_no_change=10)
-    gbt.fit(X, y)
-    return gbt
-
-def predict_GBT(gbt, dataset, timesteps):
-    X, y = prepare_data(dataset, timesteps)
-    y_hat = gbt.predict(X)
-    return y, y_hat

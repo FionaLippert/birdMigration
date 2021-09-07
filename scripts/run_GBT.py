@@ -1,17 +1,28 @@
-from birds import gbt, dataloader, utils
+from birds import dataloader, utils
 import torch
 from torch.utils.data import random_split, Subset
 from omegaconf import DictConfig, OmegaConf
 import hydra
-import itertools as it
 import pickle5 as pickle
 import os.path as osp
 import os
-import json
 import numpy as np
 import ruamel.yaml
 import pandas as pd
-# data=json.loads(argv[1])
+from sklearn.ensemble import GradientBoostingRegressor
+
+
+def fit_GBT(X, y, **kwargs):
+    seed = kwargs.get('seed', 1234)
+    n_estimators = kwargs.get('n_estimators', 100)
+    lr = kwargs.get('lr', 0.05)
+    max_depth = kwargs.get('max_depth', 5)
+    tolerance = kwargs.get('tolerance', 1e-6)
+
+    gbt = GradientBoostingRegressor(random_state=seed, n_estimators=n_estimators, learning_rate=lr,
+                                    max_depth=max_depth, tol=tolerance, n_iter_no_change=10)
+    gbt.fit(X, y)
+    return gbt
 
 
 def train(cfg: DictConfig, output_dir: str, log):
@@ -22,7 +33,8 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     data_root = osp.join(cfg.device.root, 'data')
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     print('normalize features')
@@ -54,10 +66,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of validation sequences = {n_val}')
 
     train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
-    X_train, y_train, mask_train = gbt.prepare_data(train_data, timesteps=seq_len, mask_daytime=False,
+    X_train, y_train, mask_train = dataloader.prepare_training_data_gbt(train_data, timesteps=seq_len, mask_daytime=False,
                                                     use_acc_vars=cfg.model.use_acc_vars)
 
-    X_val, y_val, mask_val = gbt.prepare_data(val_data, timesteps=seq_len, mask_daytime=False,
+    X_val, y_val, mask_val = dataloader.prepare_training_data_gbt(val_data, timesteps=seq_len, mask_daytime=False,
                                               use_acc_vars=cfg.model.use_acc_vars)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -74,7 +86,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
 
     print(f'train model')
-    model = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
+    model = fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
 
     with open(osp.join(output_dir, f'model.pkl'), 'wb') as f:
         pickle.dump(model, f, pickle.HIGHEST_PROTOCOL)
@@ -100,7 +112,8 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
 
     data_root = osp.join(cfg.device.root, 'data')
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     print('normalize features')
@@ -152,14 +165,14 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         val_data = Subset(data, cv_folds[f].tolist())
         train_idx = np.concatenate([cv_folds[i] for i in range(n_folds) if i!=f]).tolist()
         train_data = Subset(data, train_idx) # everything else
-        X_train, y_train, mask_train = gbt.prepare_data(train_data, timesteps=seq_len, mask_daytime=False,
+        X_train, y_train, mask_train = dataloader.get_training_data_gbt(train_data, timesteps=seq_len, mask_daytime=False,
                                                         use_acc_vars=cfg.model.use_acc_vars)
 
-        X_val, y_val, mask_val = gbt.prepare_data(val_data, timesteps=seq_len, mask_daytime=False,
+        X_val, y_val, mask_val = dataloader.get_training_data_gbt(val_data, timesteps=seq_len, mask_daytime=False,
                                                   use_acc_vars=cfg.model.use_acc_vars)
 
         print(f'train model')
-        model = gbt.fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
+        model = fit_GBT(X_train[mask_train], y_train[mask_train], **cfg.model, seed=seed)
 
         with open(osp.join(subdir, f'model.pkl'), 'wb') as file:
             pickle.dump(model, file, pickle.HIGHEST_PROTOCOL)
@@ -189,11 +202,12 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'GBT'
 
     data_root = osp.join(cfg.device.root, 'data')
-    seq_len = cfg.model.test_horizon
+    seq_len = cfg.model.context + cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
 
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     # load normalizer
@@ -219,9 +233,11 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
-    X_test, y_test, mask_test = gbt.prepare_data_nights_and_radars(test_data,
-                                                                   timesteps=cfg.model.test_horizon, mask_daytime=False,
-                                                                   use_acc_vars=cfg.model.use_acc_vars)
+    X_test, y_test, mask_test = dataloader.get_test_data_gbt(test_data,
+                                                           context=cfg.model.context,
+                                                           horizon=cfg.model.test_horizon,
+                                                           mask_daytime=False,
+                                                           use_acc_vars=cfg.model.use_acc_vars)
 
 
     # load models and predict
@@ -240,10 +256,14 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         if cfg.root_transform > 0:
             y = np.power(y, cfg.root_transform)
 
+        fill_context = np.ones(cfg.model.context) * np.nan
+
         for ridx, name in radar_index.items():
             y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
+            y_hat = np.concatenate([fill_context, y_hat])
+
             results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
             results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
             results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
