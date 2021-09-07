@@ -12,8 +12,8 @@ model_seed: ${seed}
 root_transform: 0
 missing_data_threshold: 0.1
 t_unit: 1H
-use_nights: false
-data_perc: 0.5
+fixed_t0: false
+data_perc: 1.0
 exclude: []
 verbose: True
 debugging: False

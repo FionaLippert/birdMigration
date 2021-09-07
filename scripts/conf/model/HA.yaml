@@ -1,7 +1,8 @@
 # @package _group_
 name: HA
-horizon: 24
+horizon: 1
 test_horizon: 64
+context: 24
 edge_type: none
 birds_per_km2: true
 n_dummy_radars: 0

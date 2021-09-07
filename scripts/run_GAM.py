@@ -1,30 +1,25 @@
-from birds import gbt, dataloader, utils
+from birds import dataloader
 import torch
 from omegaconf import DictConfig, OmegaConf
 import hydra
-import itertools as it
 import pickle5 as pickle
 import os.path as osp
-import os
-import json
 import numpy as np
-import ruamel.yaml
 import pandas as pd
+import ruamel.yaml
 from pygam import PoissonGAM, te
-# data=json.loads(argv[1])
-from matplotlib import pyplot as plt
 
 
 #@hydra.main(config_path="conf", config_name="config")
 def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name == 'GAM'
 
-    data_root = osp.join(cfg.root, 'data')
+    data_root = osp.join(cfg.device.root, 'data')
     seq_len = cfg.model.horizon
 
-    data_root = osp.join(cfg.root, 'data')
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     print('normalize features')
@@ -53,7 +48,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     all_masks = []
     all_mappings = []
     for idx, data in enumerate(data_list):
-        X_train, y_train, mask_train = gbt.prepare_data_gam(data, timesteps=seq_len, mask_daytime=False)
+        X_train, y_train, mask_train = dataloader.get_training_data_gam(data, timesteps=seq_len, mask_daytime=False)
         all_X.append(X_train)
         all_y.append(y_train)
         all_masks.append(mask_train)
@@ -89,12 +84,13 @@ def train(cfg: DictConfig, output_dir: str, log):
 def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'GAM'
 
-    data_root = osp.join(cfg.root, 'data')
-    seq_len = cfg.model.test_horizon
+    data_root = osp.join(cfg.device.root, 'data')
+    seq_len = cfg.model.context + cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
 
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
-    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root_transform={cfg.root_transform}_fixedT0={cfg.use_nights}_' \
+    processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
+                        f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
     # load normalizer
@@ -118,8 +114,10 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     areas = test_data.info['areas']
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
-    X_test, y_test, mask_test = gbt.prepare_data_nights_and_radars_gam(test_data,
-                                                                       timesteps=cfg.model.test_horizon, mask_daytime=False)
+    X_test, y_test, mask_test = dataloader.get_test_data_gam(test_data,
+                                                           context=cfg.model.context,
+                                                           horizon=cfg.model.test_horizon,
+                                                           mask_daytime=False)
 
 
     # load models and predict
@@ -135,6 +133,8 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         if cfg.root_transform > 0:
             y = np.power(y, cfg.root_transform)
 
+        fill_context = np.ones(cfg.model.context) * np.nan
+
         for ridx, name in radar_index.items():
             if name in ['nlhrw', 'nldbl']: name = 'nldbl-nlhrw'
             with open(osp.join(model_dir, f'model_{name}.pkl'), 'rb') as f:
@@ -142,6 +142,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
             y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
+            y_hat = np.concatenate([fill_context, y_hat])
 
             results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
             results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
