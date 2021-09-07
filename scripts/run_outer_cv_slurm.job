@@ -24,7 +24,9 @@ WDIR=$1 # working directory (entry point to data, scripts, models etc.)
 OUTPUTDIR=$2 # directory to which grid search results will be written
 CONFIGPATH=$3 # hydra config path (with best settings from grid search)
 TEST_YEAR=$4 # year to hold out in cross-validation
-REPEATS=$5 # number of training/evaluation runs
+OVERRIDES=$5 # slurm config overrides
+
+echo $OVERRIDES
 
 mkdir -p $OUTPUTDIR
 
@@ -42,4 +44,5 @@ srun python run_2.py -cp $CONFIGPATH \
 	datasource.test_year=$TEST_YEAR \
 	datasource.val_train_split=0 \
 	job_id=$SLURM_ARRAY_TASK_ID \
-	output_dir=$OUTPUTDIR
+	output_dir=$OUTPUTDIR \
+	$OVERRIDES

@@ -1,5 +1,6 @@
 from omegaconf import DictConfig, OmegaConf
 import hydra
+from hydra.core.hydra_config import HydraConfig
 import itertools as it
 import os.path as osp
 import os
@@ -15,13 +16,17 @@ def run(cfg: DictConfig):
 
     if cfg.verbose: print(f'hydra working directory: {os.getcwd()}')
 
+    overrides = HydraConfig.get().overrides.task
+    overrides = [o for o in overrides if (not "task" in o and not "model=" in o)]
+    overrides = " ".join(overrides)
+
     target_dir = osp.join(cfg.device.root, cfg.output_dir, f'nested_cv_{cfg.model.name}')
     os.makedirs(target_dir, exist_ok=True)
 
     if cfg.task.name == 'innerCV':
         run_inner_cv(cfg, target_dir)
     elif cfg.task.name == 'outerCV':
-        run_outer_cv(cfg, target_dir)
+        run_outer_cv(cfg, target_dir, overrides)
 
 def run_inner_cv(cfg: DictConfig, target_dir):
 
@@ -33,7 +38,7 @@ def run_inner_cv(cfg: DictConfig, target_dir):
         hp_grid_search(cfg, year, n_comb, hp_file, output_dir)
 
 
-def run_outer_cv(cfg: DictConfig, target_dir):
+def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
 
     for year in cfg.datasource.years:
         # determine best hyperparameter setting
@@ -42,12 +47,14 @@ def run_outer_cv(cfg: DictConfig, target_dir):
 
         # use this setting and train on all data except for one year
         output_dir = osp.join(target_dir, f'test_{year}', 'final_evaluation')
-        final_train_eval(cfg, year, output_dir)
+        final_train_eval(cfg, year, output_dir, overrides)
 
 
-def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=10):
+def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, overrides: str, timeout=10):
 
-    if cfg.verbose: print(f"Start train/eval for year {test_year}")
+    if cfg.verbose: 
+        print(f"Start train/eval for year {test_year}")
+        print(f"Use overrides: {overrides}")
 
     config_path = osp.dirname(output_dir)
     repeats = cfg.task.repeats
@@ -55,11 +62,11 @@ def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, timeout=1
     if cfg.device.slurm:
         job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
         proc = Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.device.root, output_dir, config_path,
-                      str(test_year)], stdout=PIPE, stderr=PIPE)
+                      str(test_year), overrides], stdout=PIPE, stderr=PIPE)
     else:
         job_file = osp.join(cfg.device.root, cfg.task.local_job)
         proc = Popen([f'./{job_file}', cfg.device.root, output_dir, config_path,
-                      str(test_year), repeats], stdout=PIPE, stderr=PIPE)
+                      str(test_year), overrides, repeats], stdout=PIPE, stderr=PIPE)
     stdout, stderr = proc.communicate()
     start_time = datetime.now()
 

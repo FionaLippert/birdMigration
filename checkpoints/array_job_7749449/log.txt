@@ -1,8 +1,0 @@
-validation loss = 0.00042698049219325185
-Traceback (most recent call last):
-  File "/home/flippert/birdMigration/scripts/run_2.py", line 18, in run
-    run_NNs_2.test(cfg, cfg.output_dir, log)
-  File "/home/flippert/birdMigration/scripts/run_NNs_2.py", line 300, in test
-    y_hat = model(data).cpu().detach() * cfg.datasource.bird_scale
-UnboundLocalError: local variable 'model' referenced before assignment
-
