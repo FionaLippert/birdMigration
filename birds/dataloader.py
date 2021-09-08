@@ -55,8 +55,8 @@ def reshape_t(data, timesteps, index=None):
 
     # reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1)]
     if index is None:
-        index = np.arange(0, data.shape[-1] - timesteps - 1)
-    reshaped = [data[..., t:t + timesteps + 1] for t in index]
+        index = np.arange(0, data.shape[-1] - timesteps)
+    reshaped = [data[..., t:t + timesteps] for t in index]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
@@ -65,8 +65,8 @@ def timeslice(data, start_night, mask, timesteps):
     # remove hours during the day
 
     data_night = data_night[..., mask[start_night:]]
-    if data_night.shape[-1] > timesteps:
-        data_night = data_night[..., :timesteps+1]
+    if data_night.shape[-1] >= timesteps:
+        data_night = data_night[..., :timesteps]
     else:
         data_night = np.empty(0)
     return data_night
@@ -156,7 +156,7 @@ class RadarData(InMemoryDataset):
         self.root = kwargs.get('data_root')
         self.preprocessed_dirname = preprocessed_dirname
         self.processed_dirname = processed_dirname
-        self.sub_dir = osp.join(self.root, kwargs.get('sub_dir', ''))
+        self.sub_dir = kwargs.get('sub_dir', '')
         self.season = kwargs.get('season')
         self.year = str(year)
         self.timesteps = timesteps
@@ -205,6 +205,8 @@ class RadarData(InMemoryDataset):
         with open(osp.join(self.processed_dir, self.info_file_name), 'rb') as f:
             self.info = pickle.load(f)
 
+        print(f'processed data can be found here: {self.processed_dir}')
+
     @property
     def raw_file_names(self):
         return []
@@ -220,8 +222,8 @@ class RadarData(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        return osp.join(self.sub_dir, 'processed', self.processed_dirname,
-                        self.data_source, self.season, self.year)
+        return osp.join(self.root, 'processed', self.processed_dirname,
+                        self.data_source, self.season, self.year, self.sub_dir)
 
     @property
     def processed_file_names(self):
@@ -236,7 +238,6 @@ class RadarData(InMemoryDataset):
 
 
     def process(self):
-        print(self.preprocessed_dir)
         if not osp.isdir(self.preprocessed_dir):
             print('Preprocessed data not available. Please run preprocessing script first.')
 
@@ -440,10 +441,10 @@ class RadarData(InMemoryDataset):
         if self.use_nights:
             seq_index = None
         else:
-            n_seq = int(self.data_perc * (mask.shape[-1] - self.timesteps - 1))
+            n_seq = int(self.data_perc * (mask.shape[-1] - self.timesteps))
             print(f'data_perc = {self.data_perc}')
             print(f'n_seq = {n_seq}')
-            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps - 1)[:n_seq]
+            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps)[:n_seq]
 
         for k, v in data.items():
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
