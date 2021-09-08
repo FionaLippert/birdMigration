@@ -1,5 +1,6 @@
 # @package _group_
 n_hidden:
+  - 64
   - 128
   - 256
   - 512

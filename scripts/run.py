@@ -35,10 +35,10 @@ def run(cfg: DictConfig):
             if 'cv' in action: run_NNs.run_cross_validation(cfg, out, log)
             if 'train' in action: run_NNs.run_training(cfg, out, log)
             if 'test' in action:
-                cfg['use_nights'] = True
+                cfg['fixed_t0'] = True
+                run_NNs.run_testing(cfg, out, log, ext='_fixedT0')
+                cfg['fixed_t0'] = False
                 run_NNs.run_testing(cfg, out, log)
-                cfg['use_nights'] = False
-                run_NNs.run_testing(cfg, out, log, ext='_no_nights')
     except Exception:
         print(f'Error occurred! See {osp.abspath(log_file)} for more details.')
         print(traceback.format_exc(), file=log)

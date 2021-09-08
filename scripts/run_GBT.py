@@ -202,7 +202,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'GBT'
 
     data_root = osp.join(cfg.device.root, 'data')
-    seq_len = cfg.model.context + cfg.model.test_horizon
+    seq_len = cfg.model.test_context + cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
 
     preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
@@ -234,7 +234,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     X_test, y_test, mask_test = dataloader.get_test_data_gbt(test_data,
-                                                           context=cfg.model.context,
+                                                           context=cfg.model.test_context,
                                                            horizon=cfg.model.test_horizon,
                                                            mask_daytime=False,
                                                            use_acc_vars=cfg.model.use_acc_vars)
@@ -256,7 +256,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
         if cfg.root_transform > 0:
             y = np.power(y, cfg.root_transform)
 
-        fill_context = np.ones(cfg.model.context) * np.nan
+        fill_context = np.ones(cfg.model.test_context) * np.nan
 
         for ridx, name in radar_index.items():
             y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
