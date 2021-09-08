@@ -66,10 +66,10 @@ def train(cfg: DictConfig, output_dir: str, log):
     print(f'number of validation sequences = {n_val}')
 
     train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
-    X_train, y_train, mask_train = dataloader.prepare_training_data_gbt(train_data, timesteps=seq_len, mask_daytime=False,
+    X_train, y_train, mask_train = dataloader.get_training_data_gbt(train_data, timesteps=seq_len, mask_daytime=False,
                                                     use_acc_vars=cfg.model.use_acc_vars)
 
-    X_val, y_val, mask_val = dataloader.prepare_training_data_gbt(val_data, timesteps=seq_len, mask_daytime=False,
+    X_val, y_val, mask_val = dataloader.get_training_data_gbt(val_data, timesteps=seq_len, mask_daytime=False,
                                               use_acc_vars=cfg.model.use_acc_vars)
 
     with open(osp.join(output_dir, 'normalization.pkl'), 'wb') as f:
@@ -249,6 +249,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
 
     for nidx, data in enumerate(test_data):
         y = data.y * cfg.datasource.bird_scale
+        print(y.shape)
         _tidx = data.tidx
         local_night = data.local_night
         missing = data.missing
@@ -262,12 +263,13 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
             y_hat = model.predict(X_test[nidx, :, ridx]) * cfg.datasource.bird_scale
             if cfg.root_transform > 0:
                 y_hat = np.power(y_hat, cfg.root_transform)
+            print(y_hat.shape)
             y_hat = np.concatenate([fill_context, y_hat])
-
-            results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
-            results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
-            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
-            results['prediction'].append(y_hat * areas[ridx] if cfg.birds_per_km2 else y_hat)
+            print(y_hat.shape)
+            results['gt_km2'].append(y[ridx, :] if cfg.model.birds_per_km2 else y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(y_hat if cfg.model.birds_per_km2 else y_hat / areas[ridx])
+            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.model.birds_per_km2 else y[ridx, :])
+            results['prediction'].append(y_hat * areas[ridx] if cfg.model.birds_per_km2 else y_hat)
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])
