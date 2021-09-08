@@ -156,7 +156,7 @@ class RadarData(InMemoryDataset):
         self.root = kwargs.get('data_root')
         self.preprocessed_dirname = preprocessed_dirname
         self.processed_dirname = processed_dirname
-        self.sub_dir = osp.join(self.root, kwargs.get('sub_dir', ''))
+        self.sub_dir = kwargs.get('sub_dir', '')
         self.season = kwargs.get('season')
         self.year = str(year)
         self.timesteps = timesteps
@@ -205,6 +205,8 @@ class RadarData(InMemoryDataset):
         with open(osp.join(self.processed_dir, self.info_file_name), 'rb') as f:
             self.info = pickle.load(f)
 
+        print(f'processed data can be found here: {self.processed_dir}')
+
     @property
     def raw_file_names(self):
         return []
@@ -220,8 +222,8 @@ class RadarData(InMemoryDataset):
 
     @property
     def processed_dir(self):
-        return osp.join(self.sub_dir, 'processed', self.processed_dirname,
-                        self.data_source, self.season, self.year)
+        return osp.join(self.root, 'processed', self.processed_dirname,
+                        self.data_source, self.season, self.year, self.sub_dir)
 
     @property
     def processed_file_names(self):
@@ -236,7 +238,6 @@ class RadarData(InMemoryDataset):
 
 
     def process(self):
-        print(self.preprocessed_dir)
         if not osp.isdir(self.preprocessed_dir):
             print('Preprocessed data not available. Please run preprocessing script first.')
 
