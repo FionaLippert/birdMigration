@@ -55,8 +55,8 @@ def reshape_t(data, timesteps, index=None):
 
     # reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1)]
     if index is None:
-        index = np.arange(0, data.shape[-1] - timesteps - 1)
-    reshaped = [data[..., t:t + timesteps + 1] for t in index]
+        index = np.arange(0, data.shape[-1] - timesteps)
+    reshaped = [data[..., t:t + timesteps] for t in index]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
@@ -65,8 +65,8 @@ def timeslice(data, start_night, mask, timesteps):
     # remove hours during the day
 
     data_night = data_night[..., mask[start_night:]]
-    if data_night.shape[-1] > timesteps:
-        data_night = data_night[..., :timesteps+1]
+    if data_night.shape[-1] >= timesteps:
+        data_night = data_night[..., :timesteps]
     else:
         data_night = np.empty(0)
     return data_night
@@ -440,10 +440,10 @@ class RadarData(InMemoryDataset):
         if self.use_nights:
             seq_index = None
         else:
-            n_seq = int(self.data_perc * (mask.shape[-1] - self.timesteps - 1))
+            n_seq = int(self.data_perc * (mask.shape[-1] - self.timesteps))
             print(f'data_perc = {self.data_perc}')
             print(f'n_seq = {n_seq}')
-            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps - 1)[:n_seq]
+            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps)[:n_seq]
 
         for k, v in data.items():
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
