@@ -1,7 +1,7 @@
 # @package _group_
 name: LocalMLP
-n_hidden: 128
-n_fc_layers: 2
+n_hidden: 256
+n_fc_layers: 3
 dropout_p: 0.25
 epochs: 300
 lr: 0.0001
@@ -13,7 +13,7 @@ test_context: 24
 force_zeros: false
 use_acc_vars: false
 root_transformed_loss: false
-batch_size: 8
+batch_size: 256
 edge_type: none
 birds_per_km2: true
 n_dummy_radars: 0
