@@ -14,7 +14,6 @@
 # Note: use --partition=gpu_short for debugging
 # Note: use --gres=gpu:titanv:1 to get a titan gpu
 
-
 # Activate environment
 source activate birds
 

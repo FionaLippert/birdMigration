@@ -13,7 +13,7 @@ test_context: 24
 force_zeros: false
 use_acc_vars: false
 root_transformed_loss: false
-batch_size: 256
+batch_size: 128
 edge_type: none
 birds_per_km2: true
 n_dummy_radars: 0
