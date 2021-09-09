@@ -1488,7 +1488,7 @@ class EdgeFluxMLP(torch.nn.Module):
 
         #print(f'edge flux n_in = {n_in}')
         self.n_hidden = kwargs.get('n_hidden', 64)
-        self.n_fc_layers = kwargs.get('n_fc_layers', 64)
+        self.n_fc_layers = kwargs.get('n_fc_layers', 1)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
         self.input2hidden = torch.nn.Linear(n_in, self.n_hidden, bias=False)
