@@ -487,12 +487,13 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
         # fill prediction columns with nans for context timesteps
         fill_context = torch.ones(context) * float('nan')
+        #print(fill_context.shape, y.shape, torch.cat([fill_context, y_hat[0, :]]).shape)
 
         for ridx, name in radar_index.items():
             results['gt'].append(y[ridx, :])
             results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]))
-            results['gt_km2'].append(torch.cat([fill_context, y[ridx, :] / areas[ridx]]))
-            results['prediction_km2'].append(y_hat[ridx, :] / areas[ridx])
+            results['gt_km2'].append(y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(torch.cat([fill_context, y_hat[ridx, :] / areas[ridx]]))
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])

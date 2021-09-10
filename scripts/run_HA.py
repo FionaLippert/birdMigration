@@ -75,7 +75,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     assert cfg.model.name == 'HA'
 
     data_root = osp.join(cfg.device.root, 'data')
-    seq_len = cfg.model.context + cfg.model.test_horizon
+    seq_len = cfg.model.test_context + cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
 
     preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
@@ -105,7 +105,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     _, y_test, mask_test = dataloader.get_test_data_gam(test_data,
-                                                      context=cfg.model.context,
+                                                      context=cfg.model.test_context,
                                                       horizon=cfg.model.test_horizon,
                                                       mask_daytime=True)
 
@@ -133,7 +133,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
                 y_hat = np.power(y_hat, cfg.root_transform)
 
             y_hat = np.ones(y.shape[1]) * y_hat * local_night[ridx, :].detach().numpy()
-            y_hat[:cfg.model.context] = np.nan
+            y_hat[:cfg.model.test_context] = np.nan
 
             results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
             results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
