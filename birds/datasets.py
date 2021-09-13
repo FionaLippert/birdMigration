@@ -106,8 +106,12 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
         print('loaded buffer data')
 
-        birds_km2 = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None] # rescale to birds per km^2
-        buffer_data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale to birds per voronoi cell
+        # rescale to birds per km^2
+        birds_km2 = data / voronoi_radars.area_km2.to_numpy()[:, None]
+        # rescale to birds per km^2
+        birds_km2_from_buffer = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None]
+        # rescale to birds per voronoi cell
+        birds_from_buffer = birds_km2_from_buffer * voronoi_radars.area_km2.to_numpy()[:, None]
 
     # time range for solar positions to be able to infer dusk and dawn
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
@@ -152,20 +156,21 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         df['birds'] = data[ridx] if row.observed else [np.nan] * len(t_range)
         df['birds_km2'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
 
-        cols = ['birds', 'birds_km2', 'bird_u', 'bird_v']
+        cols = ['birds', 'birds_km2', 'birds_from_buffer', 'birds_km2_from_buffer', 'bird_u', 'bird_v']
 
         df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
         df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
 
         if data_source == 'abm':
-            df['birds_from_buffer'] = buffer_data[ridx] if row.observed else [np.nan] * len(t_range)
-            cols.append('birds_from_buffer')
+            df['birds_from_buffer'] = birds_from_buffer[ridx] if row.observed else [np.nan] * len(t_range)
+            df['birds_km2_from_buffer'] = birds_km2_from_buffer[ridx] if row.observed else [np.nan] * len(t_range)
         else:
             df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
+            df['birds_km2_from_buffer'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
 
-            cols.extend(['birds_from_buffer', 'bird_speed', 'bird_direction'])
+            cols.extend(['bird_speed', 'bird_direction'])
 
 
         # environmental variables for radar ridx
@@ -216,23 +221,24 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         radar_df = pd.DataFrame(df)
         radar_df['missing'] = 0
 
-        for col in cols:
-            # radar quantities being exactly 0 during the night are missing,
-            # radar quantities during the day are set to 0
-            print(f'check missing data for column {col}')
-            radar_df[col] = radar_df.apply(lambda row: np.nan if (row.night and not row[col])
-                                                        else (0 if not row.night else row[col]), axis=1)
+        if data_source == 'radar':
+            for col in cols:
+                # radar quantities being exactly 0 during the night are missing,
+                # radar quantities during the day are set to 0
+                print(f'check missing data for column {col}')
+                radar_df[col] = radar_df.apply(lambda row: np.nan if (row.night and not row[col])
+                                                            else (0 if not row.night else row[col]), axis=1)
 
-            # remember missing radar observations
-            radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
+                # remember missing radar observations
+                radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
 
-            # fill missing bird measurements by interpolation
-            if col == 'bird_direction':
-                # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
-                radar_df[col].interpolate(method='nearest', inplace=True)
-            else:
-                # for all other quantities simply interpolate linearly
-                radar_df[col].interpolate(method='linear', inplace=True)
+                # fill missing bird measurements by interpolation
+                if col == 'bird_direction':
+                    # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
+                    radar_df[col].interpolate(method='nearest', inplace=True)
+                else:
+                    # for all other quantities simply interpolate linearly
+                    radar_df[col].interpolate(method='linear', inplace=True)
 
         dfs.append(radar_df)
         print(f'found {radar_df.missing.sum()} misssing time points')

@@ -275,12 +275,11 @@ class RadarData(InMemoryDataset):
 
 
         if self.edge_type == 'voronoi' and not self.birds_per_km2:
-            if self.use_buffers:
-                input_col = 'birds_from_buffer'
-            else:
-                input_col = 'birds'
+            input_col = 'birds'
         else:
             input_col = 'birds_km2'
+        if self.use_buffers:
+            input_col += '_from_buffer'
 
         # uv_cols = ['bird_u', 'bird_v', 'bird_direction', 'bird_speed']
         # uv_cols = [col for col in uv_cols if col in dynamic_feature_df.columns]
@@ -328,7 +327,7 @@ class RadarData(InMemoryDataset):
 
         print(f'bird scale = {self.bird_scale}')
         dynamic_feature_df[input_col] = dynamic_feature_df[input_col] / self.bird_scale
-        if input_col != 'birds_km2':
+        if self.data_source == 'radar' and input_col != 'birds_km2':
             dynamic_feature_df['birds_km2'] = dynamic_feature_df['birds_km2'] / self.bird_scale
 
         uv_scale = self.normalization.absmax(['bird_u', 'bird_v']).max()
@@ -344,22 +343,22 @@ class RadarData(InMemoryDataset):
         voronoi[coord_cols] = voronoi[coord_cols] / xy_scale
         coords = voronoi[coord_cols].to_numpy()
 
-        areas = voronoi[['area_km2']].apply(lambda col: col / col.max(), axis=0).to_numpy()
-        if self.edge_type != 'voronoi':
-            areas = np.ones(areas.shape)
-
-        # get distances, angles and face lengths between radars
-        if self.edge_type == 'voronoi':
-            distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
-            angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
-            delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
-            delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
-
         # check which radars are observed and which ones are dummy radars
         observed_idx = voronoi.observed.to_numpy()
 
-        if self.edge_type == 'voronoi':
+        areas = voronoi[['area_km2']].apply(lambda col: col / col.max(), axis=0).to_numpy()
+        if self.edge_type != 'voronoi':
+            print('No graph structure used')
+            areas = np.ones(areas.shape)
+            edge_attr = torch.zeros(0)
+        else:
             print('Use Voronoi tessellation')
+            # get distances, angles and face lengths between radars
+            distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
+            #angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
+            delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
+            delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
+
             face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
             edge_attr = torch.stack([
                 torch.tensor(distances, dtype=torch.float),
@@ -367,9 +366,6 @@ class RadarData(InMemoryDataset):
                 torch.tensor(delta_y, dtype=torch.float),
                 torch.tensor(face_lengths, dtype=torch.float)
             ], dim=1)
-        else:
-            print('No graph structure used')
-            edge_attr = torch.zeros(0)
 
 
         # reorganize data
