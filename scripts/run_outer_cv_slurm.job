@@ -1,9 +1,9 @@
 #!/bin/bash
 
-#SBATCH --partition=gpu_short
+#SBATCH --partition=gpu_shared
 #SBATCH --gres=gpu:1
 #SBATCH --job-name=outerCV
-#SBATCH --time=1:00:00
+#SBATCH --time=120:00:00
 #SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
 #SBATCH --mail-user=f.lippert@uva.nl
