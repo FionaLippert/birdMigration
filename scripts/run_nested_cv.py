@@ -9,7 +9,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from shutil import copy
-
+import re
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -54,6 +54,8 @@ def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
 
         # use this setting and train on all data except for one year
         output_dir = cfg.get('experiment', 'final_evaluation')
+        # remove all '+' in overrides string
+        overrides = re.sub('[+]', '', overrides)
         output_path = osp.join(target_dir, f'test_{year}', output_dir)
         final_train_eval(cfg, year, output_path, overrides)
 
