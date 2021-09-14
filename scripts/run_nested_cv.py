@@ -107,17 +107,20 @@ def hp_grid_search(cfg: DictConfig, test_year: int, n_comb: int, hp_file: str, o
     # including settings overwritten from command line
     config_path = osp.join(os.getcwd(), '.hydra')
 
+    # option for running only parts of grid search
+    n_start = cfg.get('hp_start', 1)
+
     # run inner cross-validation loop for all different hyperparameter settings
     if cfg.device.slurm:
         job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
-        proc = Popen(['sbatch', f'--array=1-{n_comb}', job_file, cfg.device.root, output_dir, config_path,
+        proc = Popen(['sbatch', f'--array={n_start}-{n_comb}', job_file, cfg.device.root, output_dir, config_path,
                       hp_file, str(test_year)], stdout=PIPE, stderr=PIPE)
     else:
         job_file = osp.join(cfg.device.root, cfg.task.local_job)
         os.environ['MKL_THREADING_LAYER'] = 'GNU'
         os.environ['HYDRA_FULL_ERROR'] = '1'
         proc = Popen([job_file, cfg.device.root, output_dir, config_path,
-                      hp_file, str(test_year), str(n_comb)], stdout=PIPE, stderr=PIPE)
+                      hp_file, str(test_year), str(n_start), str(n_comb)], stdout=PIPE, stderr=PIPE)
 
     stdout, stderr = proc.communicate()
     start_time = datetime.now()

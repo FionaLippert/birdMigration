@@ -71,7 +71,7 @@ def train(cfg: DictConfig, output_dir: str, log):
 
     log.flush()
 
-def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
+def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
     assert cfg.model.name == 'HA'
 
     data_root = osp.join(cfg.device.root, 'data')
@@ -154,9 +154,9 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
     results['residual'] = results['gt'] - results['prediction']
     df = pd.DataFrame(results)
-    df.to_csv(osp.join(output_dir, 'results.csv'))
+    df.to_csv(osp.join(output_dir, f'results{ext}.csv'))
 
-    print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
+    print(f'successfully saved results to {osp.join(output_dir, f"results{ext}.csv")}', file=log)
     log.flush()
 
 

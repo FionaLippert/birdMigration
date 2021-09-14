@@ -198,7 +198,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     log.flush()
 
 
-def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
+def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
     assert cfg.model.name == 'GBT'
 
     data_root = osp.join(cfg.device.root, 'data')
@@ -277,15 +277,18 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None):
             results['horizon'].append(np.arange(y.shape[1]))
             results['missing'].append(missing[ridx, :])
 
+    with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
+        pickle.dump(radar_index, f, pickle.HIGHEST_PROTOCOL)
+
     # create dataframe containing all results
     for k, v in results.items():
         results[k] = np.concatenate(v)
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
     results['residual'] = results['gt'] - results['prediction']
     df = pd.DataFrame(results)
-    df.to_csv(osp.join(output_dir, 'results.csv'))
+    df.to_csv(osp.join(output_dir, f'results{ext}.csv'))
 
-    print(f'successfully saved results to {osp.join(output_dir, "results.csv")}', file=log)
+    print(f'successfully saved results to {osp.join(output_dir, f"results{ext}.csv")}', file=log)
     log.flush()
 
 

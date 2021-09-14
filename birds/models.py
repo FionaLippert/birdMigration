@@ -1628,6 +1628,9 @@ class LocalLSTM(torch.nn.Module):
 
     def forward(self, data):
 
+        x = data.x[..., self.t_context - 1].view(-1, 1)
+        y_hat = []
+
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             enc_states, h_t, c_t = self.encoder(data)
@@ -1639,9 +1642,6 @@ class LocalLSTM(torch.nn.Module):
             c_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
                    _ in range(self.node_lstm.n_lstm_layers)]
             self.node_lstm.setup_states(h_t, c_t)
-
-        x = data.x[..., self.t_context - 1].view(-1, 1)
-        y_hat = []
 
         forecast_horizon = range(self.t_context, self.t_context + self.horizon)
 
