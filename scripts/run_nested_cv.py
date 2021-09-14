@@ -9,7 +9,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from shutil import copy
-
+import re
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -48,12 +48,14 @@ def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
         else:
             print('Directory "hp_grid_search" not found. Use standard config for training.')
             base_dir = osp.join(target_dir, f'test_{year}')
-            osp.makedirs(base_dir, exist_ok=True)
+            os.makedirs(base_dir, exist_ok=True)
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=cfg, f=f)
 
         # use this setting and train on all data except for one year
         output_dir = cfg.get('experiment', 'final_evaluation')
+        # remove all '+' in overrides string
+        overrides = re.sub('[+]', '', overrides)
         output_path = osp.join(target_dir, f'test_{year}', output_dir)
         final_train_eval(cfg, year, output_path, overrides)
 
