@@ -17,11 +17,11 @@ echo "Start job"
 for i in $(eval echo "{1..$REPEATS}")
 do
   python run.py -cp $CONFIGPATH \
-    sub_dir=final_$i \
+    sub_dir=trial_$i \
     device.root=$WDIR \
     action=train+test \
     datasource.test_year=$TEST_YEAR \
-    datasource.val_train_split=0 \
+    datasource.val_train_split=0.01 \
     job_id=$i \
     output_dir=$OUTPUTDIR
 done

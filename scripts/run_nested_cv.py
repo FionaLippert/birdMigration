@@ -43,11 +43,19 @@ def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
     for year in cfg.datasource.years:
         # determine best hyperparameter setting
         input_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
-        determine_best_hp(input_dir)
+        if osp.isdir(input_dir):
+            determine_best_hp(input_dir)
+        else:
+            print('Directory "hp_grid_search" not found. Use standard config for training.')
+            base_dir = osp.join(target_dir, f'test_{year}')
+            osp.makedirs(base_dir, exist_ok=True)
+            with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
+                OmegaConf.save(config=cfg, f=f)
 
         # use this setting and train on all data except for one year
-        output_dir = osp.join(target_dir, f'test_{year}', 'final_evaluation')
-        final_train_eval(cfg, year, output_dir, overrides)
+        output_dir = cfg.get('experiment', 'final_evaluation')
+        output_path = osp.join(target_dir, f'test_{year}', output_dir)
+        final_train_eval(cfg, year, output_path, overrides)
 
 
 def final_train_eval(cfg: DictConfig, test_year: int, output_dir: str, overrides: str, timeout=10):
