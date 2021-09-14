@@ -48,7 +48,7 @@ def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
         else:
             print('Directory "hp_grid_search" not found. Use standard config for training.')
             base_dir = osp.join(target_dir, f'test_{year}')
-            osp.makedirs(base_dir, exist_ok=True)
+            os.makedirs(base_dir, exist_ok=True)
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=cfg, f=f)
 
