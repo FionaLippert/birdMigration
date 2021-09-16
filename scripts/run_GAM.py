@@ -56,6 +56,8 @@ def train(cfg: DictConfig, output_dir: str, log):
         m = {name: jdx for jdx, name in enumerate(radars)}
         all_mappings.append(m)
 
+    print(all_mappings)
+
     for r in all_mappings[0].keys():
         X_r = []
         y_r = []
