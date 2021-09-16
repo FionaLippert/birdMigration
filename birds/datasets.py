@@ -20,13 +20,16 @@ def static_features(data_dir, year, **kwargs):
     season = kwargs.get('season', 'fall')
     radar_dir = osp.join(data_dir, 'radar', season, year)
     radars = datahandling.load_radars(radar_dir)
+    print(year, radars)
 
     # check for radars to exclude
     exclude = kwargs.get('exclude', [])
     for r1, r2 in RADAR_REPLACEMENTS.items():
         # if two radars are available for the same location, use the first one
         if (r1 in radars.values()) and (r2 in radars.values()):
+            print('both radars are available')
             exclude.append(r2)
+    print(f'excluded: {exclude}')
 
     radars = {k: v for k, v in radars.items() if not v in exclude}
 
