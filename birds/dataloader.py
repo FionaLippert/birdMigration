@@ -311,7 +311,7 @@ class RadarData(InMemoryDataset):
                                             lambda x: np.power(x, 1/self.root_transform))
 
         # normalize dynamic features
-        cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2',
+        cidx = ~dynamic_feature_df.columns.isin([input_col, 'birds_km2', 'birds_km2_from_buffer',
                                                  'bird_speed', 'bird_direction',
                                                  'bird_u', 'bird_v', 'u', 'v',
                                                  'radar', 'night', 'boundary',
