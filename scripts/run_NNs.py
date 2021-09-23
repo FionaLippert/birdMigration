@@ -20,7 +20,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'AttentionGraphLSTM': AttentionGraphLSTM}
 
 
-def train(cfg: DictConfig, output_dir: str, log):
+def training(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
@@ -358,7 +358,7 @@ def setup_training(cfg: DictConfig, output_dir: str):
     return data
 
 
-def test(cfg: DictConfig, output_dir: str, log, ext=''):
+def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     assert cfg.model.name in MODEL_MAPPING
 
     Model = MODEL_MAPPING[cfg.model.name]
@@ -545,9 +545,9 @@ def run(cfg: DictConfig, output_dir: str, log):
     if 'search' in cfg.task.name:
         cross_validation(cfg, output_dir, log)
     if 'train' in cfg.task.name:
-        train(cfg, output_dir, log)
+        training(cfg, output_dir, log)
     if 'eval' in cfg.task.name:
         cfg['fixed_t0'] = True
-        test(cfg, output_dir, log, ext='_fixedT0')
+        testing(cfg, output_dir, log, ext='_fixedT0')
         cfg['fixed_t0'] = False
-        test(cfg, output_dir, log)
+        testing(cfg, output_dir, log)
