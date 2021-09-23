@@ -40,7 +40,6 @@ cd $WDIR/scripts
 srun python run.py -cp $CONFIGPATH \
   +sub_dir=setting_$SLURM_ARRAY_TASK_ID \
   device.root=$TMPDIR \
-  task=hp_search \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	output_dir=$OUTPUTDIR \
