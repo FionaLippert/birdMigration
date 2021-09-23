@@ -1540,8 +1540,8 @@ class NodeLSTM(torch.nn.Module):
         self.input2hidden = torch.nn.Linear(self.n_in, self.n_hidden, bias=False)
 
         if self.use_encoder:
-            self.fc_attention = torch.nn.Linear(self.n_hidden * 2, self.n_hidden)
-            self.v_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
+            # self.fc_attention = torch.nn.Linear(self.n_hidden * 2, self.n_hidden)
+            # self.v_attention = torch.nn.Linear(self.n_hidden, 1, bias=False)
             self.lstm_in = torch.nn.LSTMCell(self.n_hidden * 2, self.n_hidden)
         else:
             self.lstm_in = torch.nn.LSTMCell(self.n_hidden, self.n_hidden)
@@ -1558,18 +1558,18 @@ class NodeLSTM(torch.nn.Module):
     def reset_parameters(self):
 
         init_weights(self.input2hidden)
-        if self.use_encoder:
-            init_weights(self.fc_attention)
-            init_weights(self.v_attention)
+        # if self.use_encoder:
+        #     init_weights(self.fc_attention)
+        #     init_weights(self.v_attention)
         init_weights(self.lstm_in)
         self.lstm_layers.apply(init_weights)
         self.hidden2output.apply(init_weights)
 
-    def setup_states(self, h, c, enc_states=None):
+    def setup_states(self, h, c, enc_state=None):
         self.h = h
         self.c = c
         self.alphas = []
-        self.enc_states = enc_states
+        self.enc_state = h #enc_state
 
     def get_alphas(self):
         alphas = torch.stack(self.alphas)
@@ -1584,15 +1584,17 @@ class NodeLSTM(torch.nn.Module):
 
         if self.use_encoder:
             # use attention mechanism to extract information from encoder states
-            hidden = self.h[-1].unsqueeze(1).repeat(1, self.enc_states.size(1), 1)
-            energy = torch.tanh(self.fc_attention(torch.cat([self.enc_states, hidden], dim=2)))
-            scores = self.v_attention(energy).squeeze()
-            alpha = F.softmax(scores, dim=1)
-            context = torch.matmul(alpha.unsqueeze(1), self.enc_states).squeeze() # shape (radars x hidden)
-            inputs = torch.cat([inputs, context], dim=1)
+            # hidden = self.h[-1].unsqueeze(1).repeat(1, self.enc_states.size(1), 1)
+            # energy = torch.tanh(self.fc_attention(torch.cat([self.enc_states, hidden], dim=2)))
+            # scores = self.v_attention(energy).squeeze()
+            # alpha = F.softmax(scores, dim=1)
+            # context = torch.matmul(alpha.unsqueeze(1), self.enc_states).squeeze() # shape (radars x hidden)
+            # inputs = torch.cat([inputs, context], dim=1)
 
-            if not self.training:
-                self.alphas.append(alpha)
+            # if not self.training:
+            #     self.alphas.append(alpha)
+
+            inputs = torch.cat([inputs, self.enc_state], dim=1)
 
         # lstm layers
         self.h[0], self.c[0] = self.lstm_in(inputs, (self.h[0], self.c[0]))
@@ -1633,8 +1635,8 @@ class LocalLSTM(torch.nn.Module):
 
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
-            enc_states, h_t, c_t = self.encoder(data)
-            self.node_lstm.setup_states(h_t, c_t, enc_states)
+            h_t, c_t = self.encoder(data)
+            self.node_lstm.setup_states(h_t, c_t) #, enc_states)
         else:
             # start from scratch
             h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
@@ -1702,8 +1704,8 @@ class FluxGraphLSTM(MessagePassing):
 
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
-            enc_states, h_t, c_t = self.encoder(data)
-            self.node_lstm.setup_states(h_t, c_t, enc_states)
+            h_t, c_t = self.encoder(data)
+            self.node_lstm.setup_states(h_t, c_t)
         else:
             # start from scratch
             h_t = [torch.zeros(data.x.size(0), self.node_lstm.n_hidden, device=x.device) for
@@ -3384,7 +3386,7 @@ class RecurrentEncoder(torch.nn.Module):
         h_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for _ in range(self.n_lstm_layers)]
         c_t = [torch.zeros(data.x.size(0), self.n_hidden, device=data.x.device) for _ in range(self.n_lstm_layers)]
 
-        states = []
+        #states = []
 
         for t in range(self.t_context):
             x = data.x[:, t]
@@ -3392,10 +3394,10 @@ class RecurrentEncoder(torch.nn.Module):
                 h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t, data.bird_uv[..., t])
             else:
                 h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t)
-            states.append(h_t[-1])
+            #states.append(h_t[-1])
 
-        states = torch.stack(states, dim=1)
-        return states, h_t, c_t
+        #states = torch.stack(states, dim=1)
+        return h_t, c_t
 
 
     def update(self, x, coords, env, h_t, c_t, bird_uv=None):
