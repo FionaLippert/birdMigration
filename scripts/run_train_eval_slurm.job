@@ -40,7 +40,6 @@ cd $WDIR/scripts
 srun python run.py -cp $CONFIGPATH \
   sub_dir=trial_$SLURM_ARRAY_TASK_ID \
   device.root=$TMPDIR \
-	task=train_eval \
 	datasource.test_year=$TEST_YEAR \
 	datasource.val_train_split=0.01 \
 	job_id=$SLURM_ARRAY_TASK_ID \

@@ -19,7 +19,6 @@ do
   python run.py -cp $CONFIGPATH \
     sub_dir=trial_$i \
     device.root=$WDIR \
-    task=train_eval \
     datasource.test_year=$TEST_YEAR \
     datasource.val_train_split=0.01 \
     job_id=$i \
