@@ -2,7 +2,7 @@
 
 #SBATCH --partition=gpu_shared
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=outerCV
+#SBATCH --job-name=innerCV
 #SBATCH --time=120:00:00
 #SBATCH --output=slurm_output_%A_%a.out
 #SBATCH --mail-type=BEGIN,END
@@ -22,13 +22,13 @@ module load NCCL/2.7.8-gcccuda-2020a
 # read command line arguments
 WDIR=$1 # working directory (entry point to data, scripts, models etc.)
 OUTPUTDIR=$2 # directory to which grid search results will be written
-CONFIGPATH=$3 # hydra config path (with best settings from grid search)
-TEST_YEAR=$4 # year to hold out in cross-validation
-OVERRIDES=$5 # slurm config overrides
-
-echo $OVERRIDES
+CONFIGPATH=$3 # hydra config path
+HPARAM_FILE=$4 # path to hyperparameter file
+TEST_YEAR=$5 # year to hold out in cross-validation
 
 mkdir -p $OUTPUTDIR
+rsync $HPARAM_FILE $OUTPUTDIR/
+
 
 #Copy all necessary input files to scratch
 mkdir "$TMPDIR"/data
@@ -36,13 +36,14 @@ cp -r $WDIR/data/preprocessed "$TMPDIR"/data
 
 cd $WDIR/scripts
 
-# run training and testing using best hyperparameter setting
+# run array jobs for all hyperparameter settings
 srun python run.py -cp $CONFIGPATH \
-  sub_dir=trial_$SLURM_ARRAY_TASK_ID \
+  +sub_dir=setting_$SLURM_ARRAY_TASK_ID \
   device.root=$TMPDIR \
-	action=train+test \
+  task=hp_search \
 	datasource.test_year=$TEST_YEAR \
-	datasource.val_train_split=0.01 \
 	job_id=$SLURM_ARRAY_TASK_ID \
 	output_dir=$OUTPUTDIR \
-	$OVERRIDES
+	$(head -$SLURM_ARRAY_TASK_ID $HPARAM_FILE | tail -1)
+
+

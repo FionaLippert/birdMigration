@@ -1,9 +1,9 @@
 # main config file
 output_dir: results
-action: train+test
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
+  - task: train_eval
   - device: cluster
 job_id: 0
 season: fall

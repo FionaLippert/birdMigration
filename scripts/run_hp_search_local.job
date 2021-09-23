@@ -24,7 +24,7 @@ do
   python run.py -cp $CONFIGPATH \
   +sub_dir=setting_$i \
   device.root=$WDIR \
-	action=cv \
+  task=hp_search \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$i \
 	output_dir=$OUTPUTDIR \

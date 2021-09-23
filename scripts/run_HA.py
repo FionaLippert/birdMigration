@@ -161,9 +161,12 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
 
 
 def run(cfg: DictConfig, output_dir: str, log):
-    if cfg.action.name == 'training':
+    if 'train' in cfg.task.name:
         train(cfg, output_dir, log)
-    elif cfg.action.name == 'testing':
+    if 'eval' in cfg.task.name:
+        cfg['fixed_t0'] = True
+        test(cfg, output_dir, log, ext='_fixedT0')
+        cfg['fixed_t0'] = False
         test(cfg, output_dir, log)
 
 

@@ -20,7 +20,7 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'AttentionGraphLSTM': AttentionGraphLSTM}
 
 
-def run_training(cfg: DictConfig, output_dir: str, log):
+def train(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
@@ -161,9 +161,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
 
     log.flush()
 
-def run_cross_validation(cfg: DictConfig, output_dir: str, log):
+def cross_validation(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
-    assert cfg.task.name == 'innerCV'
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
 
@@ -359,7 +358,7 @@ def setup_training(cfg: DictConfig, output_dir: str):
     return data
 
 
-def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
+def test(cfg: DictConfig, output_dir: str, log, ext=''):
     assert cfg.model.name in MODEL_MAPPING
 
     Model = MODEL_MAPPING[cfg.model.name]
@@ -543,9 +542,12 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
 
 def run(cfg: DictConfig, output_dir: str, log):
-    if 'cv' in cfg.action.name:
-        run_cross_validation(cfg, output_dir, log)
-    if 'train' in cfg.action.name:
-        run_training(cfg, output_dir, log)
-    if 'test' in cfg.action.name:
-        run_testing(cfg, output_dir, log)
+    if 'search' in cfg.task.name:
+        cross_validation(cfg, output_dir, log)
+    if 'train' in cfg.task.name:
+        train(cfg, output_dir, log)
+    if 'eval' in cfg.task.name:
+        cfg['fixed_t0'] = True
+        test(cfg, output_dir, log, ext='_fixedT0')
+        cfg['fixed_t0'] = False
+        test(cfg, output_dir, log)
