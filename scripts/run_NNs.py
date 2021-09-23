@@ -258,9 +258,12 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
                 best_val_loss = val_loss
                 best_epochs[f] = epoch
 
-            if cfg.model.early_stopping and ((epoch + 1) % cfg.model.avg_window) == 0:
+            if cfg.model.early_stopping and (epoch % cfg.model.avg_window) == 0:
                 # every X epochs, check for convergence of validation loss
-                l = val_curves[f, (epoch - (cfg.model.avg_window - 1)): (epoch + 1)].mean()
+                if epoch == 0:
+                    l = val_curves[f, 0]
+                else:
+                    l = val_curves[f, (epoch - cfg.model.avg_window): epoch].mean()
                 if (avg_loss - l) > cfg.model.stopping_criterion:
                     # loss decayed significantly, continue training
                     avg_loss = l
