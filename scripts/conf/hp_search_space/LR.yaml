@@ -1,5 +1,12 @@
 # @package _group_
 lr:
-  - 1e-4
-    #- 5e-5
+  - 1e-7
+lr_decay: 
+  - 1
+lr_gamma:
+  - 1.4
+epochs:
+  - 40
+teacher_forcing_gamma:
+  - 1.0
 

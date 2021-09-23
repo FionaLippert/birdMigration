@@ -542,6 +542,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
 
 def run(cfg: DictConfig, output_dir: str, log):
+    print(f'cfg.task: {cfg.task}')
     if 'search' in cfg.task.name:
         cross_validation(cfg, output_dir, log)
     if 'train' in cfg.task.name:
