@@ -21,6 +21,7 @@ def run(cfg: DictConfig):
     overrides = " ".join(overrides)
 
     target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.model.name)
+    print(f'target_dir = {target_dir}')
     os.makedirs(target_dir, exist_ok=True)
 
     if cfg.datasource.test_year == 'all':
@@ -89,6 +90,7 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
             print('Directory "hp_grid_search" not found. Use standard config for training.')
             base_dir = osp.join(target_dir, f'test_{year}')
             os.makedirs(base_dir, exist_ok=True)
+            print(f'base_dir = {base_dir}')
 
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=cfg, f=f)
@@ -103,7 +105,8 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
             print(f"Start train/eval for year {year}")
             print(f"Use overrides: {overrides}")
 
-        config_path = osp.dirname(output_dir)
+        config_path = osp.dirname(output_path)
+        print(f'config_path = {config_path}')
         repeats = cfg.task.repeats
 
         if cfg.device.slurm:
