@@ -1569,7 +1569,7 @@ class NodeLSTM(torch.nn.Module):
         self.h = h
         self.c = c
         self.alphas = []
-        self.enc_state = h #enc_state
+        self.enc_state = h[-1] #enc_state
 
     def get_alphas(self):
         alphas = torch.stack(self.alphas)
