@@ -120,7 +120,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
                                                            context=cfg.model.test_context,
                                                            horizon=cfg.model.test_horizon,
                                                            mask_daytime=False)
-
+    
 
     # load models and predict
     results = dict(gt_km2=[], prediction_km2=[], gt=[], prediction=[], night=[], radar=[], seqID=[],
@@ -146,10 +146,10 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
                 y_hat = np.power(y_hat, cfg.root_transform)
             y_hat = np.concatenate([fill_context, y_hat])
 
-            results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
-            results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
-            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
-            results['prediction'].append(y_hat * areas[ridx] if cfg.birds_per_km2 else y_hat)
+            results['gt_km2'].append(y[ridx, :] if cfg.model.birds_per_km2 else y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(y_hat if cfg.model.birds_per_km2 else y_hat / areas[ridx])
+            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.model.birds_per_km2 else y[ridx, :])
+            results['prediction'].append(y_hat * areas[ridx] if cfg.model.birds_per_km2 else y_hat)
             results['constant_prediction'].append([y[ridx, 0]] * y.shape[1])
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
