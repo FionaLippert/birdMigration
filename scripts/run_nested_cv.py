@@ -34,8 +34,9 @@ def run_inner_cv(cfg: DictConfig, target_dir):
 
     for year in cfg.datasource.years:
         # run inner cv for all hyperparameter settings
-        output_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
-        hp_grid_search(cfg, year, n_comb, hp_file, output_dir)
+        output_dir = cfg.get('experiment', 'hp_grid_search')
+        output_path = osp.join(target_dir, f'test_{year}', output_dir)
+        hp_grid_search(cfg, year, n_comb, hp_file, output_path)
 
 
 def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
@@ -49,6 +50,7 @@ def run_outer_cv(cfg: DictConfig, target_dir, overrides=''):
             print('Directory "hp_grid_search" not found. Use standard config for training.')
             base_dir = osp.join(target_dir, f'test_{year}')
             os.makedirs(base_dir, exist_ok=True)
+
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=cfg, f=f)
 

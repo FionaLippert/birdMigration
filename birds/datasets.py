@@ -15,12 +15,7 @@ from birds import spatial, datahandling, era5interface, abm
 
 RADAR_REPLACEMENTS = {'nldbl': 'nlhrw'}
 
-def static_features(data_dir, year, **kwargs):
-
-    season = kwargs.get('season', 'fall')
-    radar_dir = osp.join(data_dir, 'radar', season, year)
-    radars = datahandling.load_radars(radar_dir)
-    print(year, radars)
+def static_features(radars, **kwargs):
 
     # check for radars to exclude
     exclude = kwargs.get('exclude', [])
@@ -41,15 +36,10 @@ def static_features(data_dir, year, **kwargs):
 
     print('create radar buffer dataframe')
     # 25 km buffers around radars
-
-
     radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
                                      'observed' : voronoi.observed},
                                      geometry=space.pts_local.buffer(25_000),
                                      crs=space.crs_local)
-    print(space.pts_local.crs)
-    print(radar_buffers.crs)
-    #radar_buffers.set_crs(space.crs_local)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
     radar_buffers['area_km2'] = radar_buffers.area / 10**6
@@ -60,7 +50,7 @@ def static_features(data_dir, year, **kwargs):
 
     print('done with static preprocessing')
 
-    return voronoi, radar_buffers, G #, G_max_dist
+    return voronoi, radar_buffers, G
 
 def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs):
 
@@ -259,10 +249,13 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
 
     # load static features
     if data_source == 'abm' and not year in radar_years:
-        radar_year = radar_years[-1]
+        #radar_year = radar_years[-1]
     else:
-        radar_year = year
-    voronoi, radar_buffers, G = static_features(data_dir, radar_year, **kwargs)
+        season = kwargs.get('season', 'fall')
+        radar_dir = osp.join(data_dir, 'radar', season, year)
+        radars = datahandling.load_radars(radar_dir)
+
+    voronoi, radar_buffers, G = static_features(radars, **kwargs)
 
     # save to disk
     voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))

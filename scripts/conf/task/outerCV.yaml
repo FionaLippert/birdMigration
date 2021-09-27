@@ -1,5 +1,0 @@
-# @package _group_
-name: outerCV
-slurm_job: scripts/run_outer_cv_slurm.job
-local_job: scripts/run_outer_cv_local.job
-repeats: 1

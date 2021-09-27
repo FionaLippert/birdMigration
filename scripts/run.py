@@ -18,39 +18,15 @@ def run(cfg: DictConfig):
     print(f'log file: {osp.abspath(log_file)}')
     log = open(log_file, 'w+')
 
-    action = cfg.action
-
     try:
         if cfg.model.name == 'GBT':
-            if 'cv' in action: run_GBT.cross_validation(cfg, out, log)
-            if 'train' in action: run_GBT.train(cfg, out, log)
-            if 'test' in action:
-                cfg['fixed_t0'] = True
-                run_GBT.test(cfg, out, log, ext='_fixedT0')
-                cfg['fixed_t0'] = False
-                run_GBT.test(cfg, out, log)
+            run_GBT.run(cfg, out, log)
         elif cfg.model.name == 'GAM':
-            if 'train' in action: run_GAM.train(cfg, out, log)
-            if 'test' in action:
-                cfg['fixed_t0'] = True
-                run_GAM.test(cfg, out, log, ext='_fixedT0')
-                cfg['fixed_t0'] = False
-                run_GAM.test(cfg, out, log)
+            run_GAM.run(cfg, out, log)
         elif cfg.model.name == 'HA':
-            if 'train' in action: run_HA.train(cfg, out, log)
-            if 'test' in action:
-                cfg['fixed_t0'] = True
-                run_HA.test(cfg, out, log, ext='_fixedT0')
-                cfg['fixed_t0'] = False
-                run_HA.test(cfg, out, log)
+            run_HA.run(cfg, out, log)
         else:
-            if 'cv' in action: run_NNs.run_cross_validation(cfg, out, log)
-            if 'train' in action: run_NNs.run_training(cfg, out, log)
-            if 'test' in action:
-                cfg['fixed_t0'] = True
-                run_NNs.run_testing(cfg, out, log, ext='_fixedT0')
-                cfg['fixed_t0'] = False
-                run_NNs.run_testing(cfg, out, log)
+            run_NNs.run(cfg, out, log)
     except Exception:
         print(f'Error occurred! See {osp.abspath(log_file)} for more details.')
         print(traceback.format_exc(), file=log)

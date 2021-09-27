@@ -22,9 +22,8 @@ echo $CONFIGPATH
 for i in $(eval echo "{$N_START..$N_SETTINGS}")
 do
   python run.py -cp $CONFIGPATH \
-  +sub_dir=setting_$i \
+  sub_dir=setting_$i \
   device.root=$WDIR \
-	action=cv \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$i \
 	output_dir=$OUTPUTDIR \

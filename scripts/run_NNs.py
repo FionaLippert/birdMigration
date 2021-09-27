@@ -16,11 +16,10 @@ import pandas as pd
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
-                 'FluxGraphLSTM': FluxGraphLSTM,
-                 'AttentionGraphLSTM': AttentionGraphLSTM}
+                 'FluxGraphLSTM': FluxGraphLSTM}
 
 
-def run_training(cfg: DictConfig, output_dir: str, log):
+def training(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
@@ -126,8 +125,11 @@ def run_training(cfg: DictConfig, output_dir: str, log):
             best_val_loss = val_loss
 
         if cfg.model.early_stopping and (epoch + 1) % cfg.model.avg_window == 0:
-            # every 5 epochs, check for convergence of validation loss
-            l = val_curve[0, (epoch - (cfg.model.avg_window - 1)) : (epoch + 1)].mean()
+            # every X epochs, check for convergence of validation loss
+            if epoch == 0:
+                l = val_curve[0, 0]
+            else:
+                l = val_curve[0, (epoch - (cfg.model.avg_window - 1)) : (epoch + 1)].mean()
             if (avg_loss - l) > cfg.model.stopping_criterion:
                 # loss decayed significantly, continue training
                 avg_loss = l
@@ -161,9 +163,8 @@ def run_training(cfg: DictConfig, output_dir: str, log):
 
     log.flush()
 
-def run_cross_validation(cfg: DictConfig, output_dir: str, log):
+def cross_validation(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
-    assert cfg.task.name == 'innerCV'
 
     if cfg.debugging: torch.autograd.set_detect_anomaly(True)
 
@@ -258,9 +259,12 @@ def run_cross_validation(cfg: DictConfig, output_dir: str, log):
                 best_val_loss = val_loss
                 best_epochs[f] = epoch
 
-            if cfg.model.early_stopping and ((epoch + 1) % cfg.model.avg_window) == 0:
+            if cfg.model.early_stopping and (epoch % cfg.model.avg_window) == 0:
                 # every X epochs, check for convergence of validation loss
-                l = val_curves[f, (epoch - (cfg.model.avg_window - 1)): (epoch + 1)].mean()
+                if epoch == 0:
+                    l = val_curves[f, 0]
+                else:
+                    l = val_curves[f, (epoch - cfg.model.avg_window): epoch].mean()
                 if (avg_loss - l) > cfg.model.stopping_criterion:
                     # loss decayed significantly, continue training
                     avg_loss = l
@@ -356,7 +360,7 @@ def setup_training(cfg: DictConfig, output_dir: str):
     return data
 
 
-def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
+def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     assert cfg.model.name in MODEL_MAPPING
 
     Model = MODEL_MAPPING[cfg.model.name]
@@ -540,9 +544,13 @@ def run_testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
 
 def run(cfg: DictConfig, output_dir: str, log):
-    if 'cv' in cfg.action.name:
-        run_cross_validation(cfg, output_dir, log)
-    if 'train' in cfg.action.name:
-        run_training(cfg, output_dir, log)
-    if 'test' in cfg.action.name:
-        run_testing(cfg, output_dir, log)
+    print(f'cfg.task: {cfg.task}')
+    if 'search' in cfg.task.name:
+        cross_validation(cfg, output_dir, log)
+    if 'train' in cfg.task.name:
+        training(cfg, output_dir, log)
+    if 'eval' in cfg.task.name:
+        cfg['fixed_t0'] = True
+        testing(cfg, output_dir, log, ext='_fixedT0')
+        cfg['fixed_t0'] = False
+        testing(cfg, output_dir, log)
