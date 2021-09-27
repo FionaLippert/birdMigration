@@ -23,7 +23,7 @@ def run(cfg: DictConfig):
             datasets.prepare_features(target_dir, osp.join(data_root, 'raw'), str(year), cfg.datasource.name,
                              random_seed=cfg.seed, edge_type=cfg.model.edge_type,
                              n_dummy_radars=cfg.model.n_dummy_radars, **cfg,
-                             process_dynamic=True)
+                             process_dynamic=True, buffer_x=4, buffer_y=4)
         else:
             print(f'year {year}: nothing to be done')
 
