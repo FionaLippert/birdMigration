@@ -16,8 +16,7 @@ import pandas as pd
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
-                 'FluxGraphLSTM': FluxGraphLSTM,
-                 'AttentionGraphLSTM': AttentionGraphLSTM}
+                 'FluxGraphLSTM': FluxGraphLSTM}
 
 
 def training(cfg: DictConfig, output_dir: str, log):
@@ -126,8 +125,11 @@ def training(cfg: DictConfig, output_dir: str, log):
             best_val_loss = val_loss
 
         if cfg.model.early_stopping and (epoch + 1) % cfg.model.avg_window == 0:
-            # every 5 epochs, check for convergence of validation loss
-            l = val_curve[0, (epoch - (cfg.model.avg_window - 1)) : (epoch + 1)].mean()
+            # every X epochs, check for convergence of validation loss
+            if epoch == 0:
+                l = val_curve[0, 0]
+            else:
+                l = val_curve[0, (epoch - (cfg.model.avg_window - 1)) : (epoch + 1)].mean()
             if (avg_loss - l) > cfg.model.stopping_criterion:
                 # loss decayed significantly, continue training
                 avg_loss = l
