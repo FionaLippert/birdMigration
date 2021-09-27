@@ -1,5 +1,6 @@
 # main config file
 output_dir: results
+sub_dir: ???
 defaults:
   - datasource: radar
   - model: BirdFluxGraphLSTM
