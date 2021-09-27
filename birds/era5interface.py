@@ -5,6 +5,7 @@ import xarray as xr
 import rioxarray
 import numpy as np
 from shapely import geometry
+import geopandas as gpd
 
 from birds import datahandling
 from birds.spatial import Spatial
@@ -150,15 +151,18 @@ if __name__ == '__main__':
 #         for season in ['spring', 'fall']:
 #             file_path = loader.download_season(year, season, osp.join(base_dir, season, year), f'wind_850.nc')
 
+    years = ['2015', '2016', '2017']
+    seasons = ['fall']
 
-
-    root = '/home/fiona/birdMigration/data/raw'
-    radar_path = osp.join(root, 'radar', 'fall', '2015')
-    radars = datahandling.load_radars(radar_path)
+    data_dir = '/home/fiona/birdMigration/data/raw'
+    #radar_path = osp.join(root, 'radar', 'fall', '2015')
+    #radars = datahandling.load_radars(radar_path)
+    df = gpd.read_file(osp.join(data_dir, 'abm', 'all_radars.shp'))
+    radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
     dl = ERA5Loader(radars)
 
-    for year in ['2014', '2020']: #['2015', '2016']: #'2015', '2016', '2017', '2018']:
-        for season in ['fall']: #['spring', 'fall']:
-            output_dir = osp.join(root, 'env', season, year)
+    for year in years:
+        for season in seasons:
+            output_dir = osp.join(data_dir, 'env', season, year)
             os.makedirs(output_dir, exist_ok=True)
-            dl.download_season(season, year, output_dir)
+            dl.download_season(season, year, output_dir, pl=850, buffer_x=4, buffer_y=4, surface_data=True)
