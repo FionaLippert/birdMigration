@@ -248,10 +248,11 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
     process_dynamic = kwargs.get('process_dynamic', True)
 
     # load static features
-    if data_source == 'abm' and not year in radar_years:
+    if data_source == 'abm': # and not year in radar_years:
         #radar_year = radar_years[-1]
         df = gpd.read_file(osp.join(data_dir, 'abm', 'all_radars.shp'))
         radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
+        print(radars)
     else:
         season = kwargs.get('season', 'fall')
         radar_dir = osp.join(data_dir, 'radar', season, year)
@@ -270,10 +271,10 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
 
     if process_dynamic:
         # load era5 data if not available
-        env_dir = osp.join(data_dir, 'env', season, year)
-        if not osp.isdir(env_dir):
-            dl = era5interface.ERA5Loader(radars)
-            dl.download_season(season, year, env_dir, **kwargs)
+        #env_dir = osp.join(data_dir, 'env', season, year)
+        #if not osp.isdir(env_dir):
+        #    dl = era5interface.ERA5Loader(radars)
+        #    dl.download_season(season, year, env_dir, **kwargs)
 
         # load dynamic features
         dynamic_feature_df = dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs)
