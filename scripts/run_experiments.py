@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from shutil import copy
 import re
+import ruamel.yaml
 
 @hydra.main(config_path="conf", config_name="config")
 def run(cfg: DictConfig):
@@ -83,12 +84,22 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
 
     for year in test_years:
         # determine best hyperparameter setting
-        input_dir = osp.join(target_dir, f'test_{year}', 'hp_grid_search')
+        base_dir = osp.join(target_dir, f'test_{year}')
+        input_dir = osp.join(base_dir, 'hp_grid_search')
         if osp.isdir(input_dir):
             determine_best_hp(input_dir)
+
+            yaml = ruamel.yaml.YAML()
+            fp = osp.join(base_dir, 'config.yaml')
+            with open(fp, 'r') as f:
+                best_hp_config = yaml.load(f)
+            best_hp_config['task'] = cfg.task
+            
+            with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
+                OmegaConf.save(config=best_hp_config, f=f)
+
         else:
             print('Directory "hp_grid_search" not found. Use standard config for training.')
-            base_dir = osp.join(target_dir, f'test_{year}')
             os.makedirs(base_dir, exist_ok=True)
             print(f'base_dir = {base_dir}')
 

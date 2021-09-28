@@ -13,16 +13,7 @@ def run(cfg: DictConfig):
     print('preprocess data for years', years)
     data_root = osp.join(cfg.device.root, 'data')
 
-    if cfg.get('download_era5', False):
-        df = gpd.read_file(osp.join(data_root, 'raw', 'abm', 'all_radars.shp'))
-        radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
-        dl = era5interface.ERA5Loader(radars)
-        
     for year in years:
-        if cfg.get('download_era5', False):
-            env_dir = osp.join(data_root, 'raw', 'env', cfg.season, year)
-            dl.download_season(cfg.season, year, env_dir, buffer_x=4, buffer_y=4, surface_data=True)
-
         target_dir = osp.join(data_root, 'preprocessed',
                               f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}',
                               cfg.datasource.name, cfg.season, str(year))
