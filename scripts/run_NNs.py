@@ -79,9 +79,16 @@ def training(cfg: DictConfig, output_dir: str, log):
 
     print('initialized model', file=log)
 
-    states_path = cfg.model.get('load_states_from', '')
-    if osp.isfile(states_path):
-        model.load_state_dict(torch.load(states_path))
+    pretrained = False
+    ext = ''
+    if cfg.get('use_pretrained_model', False):
+        states_path = osp.join(output_dir, 'model.pkl')
+        if osp.isfile(states_path):
+            model.load_state_dict(torch.load(states_path))
+            print('successfully loaded pretrained model')
+            pretrained = True
+            ext = '_pretrained'
+
 
     model = model.to(device)
     params = model.parameters()
@@ -121,7 +128,7 @@ def training(cfg: DictConfig, output_dir: str, log):
 
         if val_loss <= best_val_loss:
             if cfg.verbose: print('best model so far; save to disk ...')
-            torch.save(model.state_dict(), osp.join(output_dir, f'best_model.pkl'))
+            torch.save(model.state_dict(), osp.join(output_dir, f'best_model{ext}.pkl'))
             best_val_loss = val_loss
 
         if cfg.model.early_stopping and (epoch + 1) % cfg.model.avg_window == 0:
@@ -133,7 +140,7 @@ def training(cfg: DictConfig, output_dir: str, log):
             if (avg_loss - l) > cfg.model.stopping_criterion:
                 # loss decayed significantly, continue training
                 avg_loss = l
-                torch.save(model.state_dict(), osp.join(output_dir, 'model.pkl'))
+                torch.save(model.state_dict(), osp.join(output_dir, f'model{ext}.pkl'))
                 saved = True
             else:
                 # loss converged sufficiently, stop training
@@ -143,16 +150,16 @@ def training(cfg: DictConfig, output_dir: str, log):
         scheduler.step()
 
     if not cfg.model.early_stopping or not saved:
-        torch.save(model.state_dict(), osp.join(output_dir, 'model.pkl'))
+        torch.save(model.state_dict(), osp.join(output_dir, f'model{ext}.pkl'))
 
     print(f'validation loss = {best_val_loss}', file=log)
     log.flush()
 
     # save training and validation curves
-    np.save(osp.join(output_dir, 'training_curves.npy'), training_curve)
-    np.save(osp.join(output_dir, 'validation_curves.npy'), val_curve)
-    np.save(osp.join(output_dir, 'learning_rates.npy'), all_lr)
-    np.save(osp.join(output_dir, 'teacher_forcing.npy'), all_tf)
+    np.save(osp.join(output_dir, f'training_curves{ext}.npy'), training_curve)
+    np.save(osp.join(output_dir, f'validation_curves{ext}.npy'), val_curve)
+    np.save(osp.join(output_dir, f'learning_rates{ext}.npy'), all_lr)
+    np.save(osp.join(output_dir, f'teacher_forcing{ext}.npy'), all_tf)
 
     # plotting
     utils.plot_training_curves(training_curve, val_curve, output_dir, log=True)
@@ -388,6 +395,12 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         n_edge_attr = 3
         input_col = 'birds_km2'
 
+    if cfg.get('use_pretrained_model', False):
+        model_ext = '_pretrained'
+    else:
+        model_ext = ''
+    ext = f'{ext}{model_ext}'
+
     # load training config
     yaml = ruamel.yaml.YAML()
     fp = osp.join(model_dir, 'config.yaml')
@@ -432,7 +445,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=model_cfg['seed'], **model_cfg['model'])
-    model.load_state_dict(torch.load(osp.join(model_dir, f'model.pkl')))
+    model.load_state_dict(torch.load(osp.join(model_dir, f'model{model_ext}.pkl')))
 
     # adjust model settings for testing
     model.horizon = cfg.model.test_horizon
@@ -451,7 +464,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     radar_mtr = {}
     attention_weights = {}
 
-    enc_att = hasattr(model, 'node_lstm') and cfg.model.get('use_encoder', False)
+    #enc_att = hasattr(model, 'node_lstm') and cfg.model.get('use_encoder', False)
 
     for nidx, data in enumerate(test_loader):
         #nidx += seq_shift
@@ -468,8 +481,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         local_night = data.local_night.cpu()
         missing = data.missing.cpu()
 
-        if enc_att:
-            attention_weights[nidx] = torch.stack(model.node_lstm.alphas, dim=-1).detach().cpu()
+        #if enc_att:
+        #    attention_weights[nidx] = torch.stack(model.node_lstm.alphas, dim=-1).detach().cpu()
 
         if 'Flux' in cfg.model.name:
             # fluxes along edges
@@ -485,9 +498,9 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
             node_deltas = model.node_deltas.detach().cpu()
 
-        elif cfg.model.name == 'AttentionGraphLSTM':
-            attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
-                                data.num_nodes, data.num_nodes, -1).detach().cpu()
+        #elif cfg.model.name == 'AttentionGraphLSTM':
+        #    attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
+        #                        data.num_nodes, data.num_nodes, -1).detach().cpu()
 
         # fill prediction columns with nans for context timesteps
         fill_context = torch.ones(context) * float('nan')
@@ -520,9 +533,9 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:
             pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
-    if enc_att or cfg.model.name == 'AttentionGraphLSTM':
-        with open(osp.join(output_dir, f'attention_weights{ext}.pickle'), 'wb') as f:
-            pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
+    #if enc_att or cfg.model.name == 'AttentionGraphLSTM':
+    #    with open(osp.join(output_dir, f'attention_weights{ext}.pickle'), 'wb') as f:
+    #        pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
 
 
     with open(osp.join(output_dir, f'radar_index.pickle'), 'wb') as f:
