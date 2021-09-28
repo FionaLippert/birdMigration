@@ -21,7 +21,7 @@ def run(cfg: DictConfig):
     overrides = [o for o in overrides if (not "task" in o and not "model=" in o)]
     overrides = " ".join(overrides)
 
-    target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.model.name)
+    target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.datasource.name, cfg.model.name)
     print(f'target_dir = {target_dir}')
     os.makedirs(target_dir, exist_ok=True)
 
