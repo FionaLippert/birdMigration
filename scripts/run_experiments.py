@@ -21,7 +21,7 @@ def run(cfg: DictConfig):
     overrides = [o for o in overrides if (not "task" in o and not "model=" in o)]
     overrides = " ".join(overrides)
 
-    target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.model.name)
+    target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.datasource.name, cfg.model.name)
     print(f'target_dir = {target_dir}')
     os.makedirs(target_dir, exist_ok=True)
 
@@ -83,6 +83,8 @@ def hp_grid_search(cfg: DictConfig, target_dir, test_years, timeout=10):
 def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
     os.environ['HYDRA_FULL_ERROR'] = '1'
 
+    os.environ['HYDRA_FULL_ERROR'] = '1'
+    
     for year in test_years:
         # determine best hyperparameter setting
         base_dir = osp.join(target_dir, f'test_{year}')
@@ -90,11 +92,8 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
         if osp.isdir(input_dir):
             determine_best_hp(input_dir)
 
-            yaml = ruamel.yaml.YAML()
-            fp = osp.join(base_dir, 'config.yaml')
-            with open(fp, 'r') as f:
-                best_hp_config = yaml.load(f)
-            best_hp_config['task'] = cfg.task
+            best_hp_config = OmegaConf.load(osp.join(base_dir, 'config.yaml'))
+            best_hp_config.task = cfg.task
 
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=best_hp_config, f=f)
@@ -107,10 +106,12 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=cfg, f=f)
 
+            overrides = re.sub('[+]', '', overrides)
+
         # use this setting and train on all data except for one year
         output_dir = cfg.get('experiment', 'final_evaluation')
         # remove all '+' in overrides string
-        overrides = re.sub('[+]', '', overrides)
+        #overrides = re.sub('[+]', '', overrides)
         output_path = osp.join(target_dir, f'test_{year}', output_dir)
 
         if cfg.verbose:
