@@ -81,6 +81,7 @@ def hp_grid_search(cfg: DictConfig, target_dir, test_years, timeout=10):
 
 
 def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
+    os.environ['HYDRA_FULL_ERROR'] = '1'
 
     for year in test_years:
         # determine best hyperparameter setting
@@ -94,7 +95,7 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
             with open(fp, 'r') as f:
                 best_hp_config = yaml.load(f)
             best_hp_config['task'] = cfg.task
-            
+
             with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
                 OmegaConf.save(config=best_hp_config, f=f)
 

@@ -79,9 +79,11 @@ def training(cfg: DictConfig, output_dir: str, log):
 
     print('initialized model', file=log)
 
-    states_path = cfg.model.get('load_states_from', '')
-    if osp.isfile(states_path):
-        model.load_state_dict(torch.load(states_path))
+    if cfg.model.get('use_pretrained_model', False):
+        states_path = osp.join(output_dir, 'model.pkl')
+        if osp.isfile(states_path):
+            model.load_state_dict(torch.load(states_path))
+            print('successfully loaded pretrained model')
 
     model = model.to(device)
     params = model.parameters()
