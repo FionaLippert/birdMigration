@@ -33,10 +33,20 @@ def compute_rmse(model, experiment, results, groupby='trial', threshold=0, km2=T
 
 if __name__ == "__main__":
 
-    models = ['GAM', 'LocalMLP', 'LocalLSTM', 'FluxGraphLSTM']
-    models = { #'LocalLSTM': ['final_evaluation', 'final_evaluation_no_encoder'],
-              'LocalMLP': ['final_evaluation']} #, 'final_evaluation_new']}
-    models = {'GAM': ['final_evaluation']}
+    #models = ['GAM', 'LocalMLP', 'LocalLSTM', 'FluxGraphLSTM']
+
+    models = {'FluxGraphLSTM': ['final_evaluation_0', 'final_evaluation_1', 'final_evaluation_2']}
+    # models = {
+    #             'LocalLSTM': ['final_evaluation', 'final_evaluation_no_encoder'],
+    #             'LocalMLP': ['final_evaluation'],
+    #             'GAM': ['final_evaluation'],
+    #             'GBT': ['final_evaluation']
+    #          }
+
+    models = {
+                'GAM': ['final_evaluation'],
+                'GBT': ['final_evaluation']
+             }
 
     trials = 5
     year = 2017
@@ -44,6 +54,8 @@ if __name__ == "__main__":
     ext = '_fixedT0'
     ext = ''
     base_dir = '/home/fiona/birdMigration/results'
+    base_dir = '/media/flipper/Seagate Basic/PhD/paper_1/results/radar'
+    base_dir = '/media/flipper/Seagate Basic/PhD/paper_1/results/abm'
     for m, dirs in models.items():
         for d in dirs:
             result_dir = osp.join(base_dir, m, f'test_{year}', d)
@@ -55,6 +67,5 @@ if __name__ == "__main__":
                 rmse_per_fold = compute_rmse(m, d, results, groupby='trial', threshold=thr, km2=True)
                 rmse_per_fold.to_csv(osp.join(output_dir, f'rmse_thr{thr}{ext}.csv'))
 
-            thr = 0
-            rmse_per_hour = compute_rmse(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
-            rmse_per_hour.to_csv(osp.join(output_dir, f'rmse_per_hour_thr{thr}{ext}.csv'))
+                rmse_per_hour = compute_rmse(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
+                rmse_per_hour.to_csv(osp.join(output_dir, f'rmse_per_hour_thr{thr}{ext}.csv'))

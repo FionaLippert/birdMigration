@@ -5,23 +5,27 @@ import glob
 import pickle5 as pickle
 import numpy as np
 import argparse
+import geopandas as gpd
 
 parser = argparse.ArgumentParser(description='process ABM simulation results')
 parser.add_argument('--root', type=str, default='/home/fiona/birdMigration/data', help='entry point to required data')
 parser.add_argument('--year', type=int, default=2015, help='year to be processed')
 parser.add_argument('--radar_year', type=int, default=2015, help='year to use to load radar locations and names')
 parser.add_argument('--season', type=str, default='fall', help='season to be processed')
+parser.add_argument('--ndummy', type=int, default=30, help='number of dummy radars')
 args = parser.parse_args()
 
 radar_path = osp.join(args.root, 'raw', 'radar', args.season, str(args.radar_year))
 abm_path = osp.join(args.root, 'raw', 'abm', args.season, str(args.year))
 
-radars = datahandling.load_radars(radar_path)
+#radars = datahandling.load_radars(radar_path)
+df = gpd.read_file(osp.join(args.root, 'raw', 'abm', 'all_radars.shp'))
+radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
 #radar_index = {name : idx for idx, name in enumerate(radars.values())}
 #radar_index['sink'] = len(radar_index)
 #N = len(radar_index)
 
-sp = spatial.Spatial(radars, n_dummy_radars=15)
+sp = spatial.Spatial(radars, n_dummy_radars=args.ndummy)
 cells, G = sp.voronoi()
 cells = cells.to_crs(f'epsg:{sp.epsg_lonlat}')   #to_crs(epsg='4326')
 
