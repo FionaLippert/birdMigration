@@ -94,7 +94,6 @@ def training(cfg: DictConfig, output_dir: str, log):
             pretrained = True
             ext = '_pretrained'
 
-
     model = model.to(device)
     params = model.parameters()
     optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
