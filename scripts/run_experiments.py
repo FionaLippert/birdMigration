@@ -18,7 +18,7 @@ def run(cfg: DictConfig):
     if cfg.verbose: print(f'hydra working directory: {os.getcwd()}')
 
     overrides = HydraConfig.get().overrides.task
-    overrides = [o for o in overrides if (not "task" in o and not "model=" in o)]
+    overrides = [o for o in overrides if (not "task" in o and not "model=" in o and not "datasource=" in o)]
     overrides = " ".join(overrides)
 
     target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.datasource.name, cfg.model.name)
@@ -118,7 +118,7 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
         if cfg.verbose:
             print(f"Start train/eval for year {year}")
             print(f"Use overrides: {overrides}")
-
+            
         config_path = osp.dirname(output_path)
         print(f'config_path = {config_path}')
         repeats = cfg.task.repeats
