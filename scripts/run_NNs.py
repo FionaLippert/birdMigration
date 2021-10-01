@@ -33,6 +33,7 @@ def training(cfg: DictConfig, output_dir: str, log):
     n_data = len(data)
 
     print('done with setup', file=log)
+    log.flush()
 
     # split data into training and validation set
     n_val = max(1, int(cfg.datasource.val_train_split * n_data))
@@ -50,6 +51,7 @@ def training(cfg: DictConfig, output_dir: str, log):
     val_loader = DataLoader(val_data, batch_size=1, shuffle=True)
 
     print('loaded data', file=log)
+    log.flush()
 
     if cfg.model.edge_type == 'voronoi':
         n_edge_attr = 4
@@ -64,9 +66,11 @@ def training(cfg: DictConfig, output_dir: str, log):
         loss_func = utils.MSE
 
     if cfg.verbose:
-        print('------------------ model settings --------------------')
-        print(cfg.model)
-        print('------------------------------------------------------')
+        print('------------------ model settings --------------------', file=log)
+        print(cfg.model, file=log)
+        print('------------------------------------------------------', file=log)
+
+    log.flush()
 
     best_val_loss = np.inf
     training_curve = np.ones((1, cfg.model.epochs)) * np.nan
@@ -78,6 +82,7 @@ def training(cfg: DictConfig, output_dir: str, log):
                   seed=seed, **cfg.model)
 
     print('initialized model', file=log)
+    log.flush()
 
     pretrained = False
     ext = ''
@@ -106,6 +111,7 @@ def training(cfg: DictConfig, output_dir: str, log):
     saved = False
 
     print('start training', file=log)
+    log.flush()
 
     for epoch in range(cfg.model.epochs):
         all_tf[epoch] = tf
@@ -123,8 +129,9 @@ def training(cfg: DictConfig, output_dir: str, log):
         val_curve[0, epoch] = val_loss
 
         if cfg.verbose:
-            print(f'epoch {epoch + 1}: loss = {training_curve[0, epoch]}')
-            print(f'epoch {epoch + 1}: val loss = {val_loss}')
+            print(f'epoch {epoch + 1}: loss = {training_curve[0, epoch]}', file=log)
+            print(f'epoch {epoch + 1}: val loss = {val_loss}', file=log)
+            log.flush()
 
         if val_loss <= best_val_loss:
             if cfg.verbose: print('best model so far; save to disk ...')
