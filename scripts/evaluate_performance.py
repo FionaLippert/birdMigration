@@ -35,11 +35,11 @@ if __name__ == "__main__":
 
     models = ['GAM', 'LocalMLP', 'LocalLSTM', 'FluxGraphLSTM']
 
-    models = {  'FluxGraphLSTM': ['final_evaluation_0', 'final_evaluation_1', 'final_evaluation_2,'
-                                 'final_evaluation_0_6', 'final_evaluation_0_12', 'final_evaluation_0_48'],
-                'LocalLSTM': ['final_evaluation', 'final_evaluation_no_encoder'],
-                'LocalMLP': ['final_evaluation'],
-                'GAM': ['final_evaluation'],
+    models = {  #'FluxGraphLSTM': [#'final_evaluation_0', 'final_evaluation_1', 'final_evaluation_2'],
+                                 #'final_evaluation_0_12'] #, 'final_evaluation_0_48'],
+                #'LocalLSTM': ['final_evaluation', 'final_evaluation_no_encoder'],
+                #'LocalMLP': ['final_evaluation'],
+                #'GAM': ['final_evaluation'],
                 'GBT': ['final_evaluation']
              }
 

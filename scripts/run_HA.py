@@ -15,7 +15,7 @@ def train(cfg: DictConfig, output_dir: str, log):
     data_root = osp.join(cfg.device.root, 'data')
     seq_len = cfg.model.horizon
 
-    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
     processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
                         f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
@@ -78,7 +78,7 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
     seq_len = cfg.model.test_context + cfg.model.test_horizon
     if model_dir is None: model_dir = output_dir
 
-    preprocessed_dirname = f'{cfg.model.edge_type}_dummy_radars={cfg.model.n_dummy_radars}_exclude={cfg.exclude}'
+    preprocessed_dirname = f'{cfg.t_unit}_{cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
     processed_dirname = f'buffers={cfg.datasource.use_buffers}_root={cfg.root_transform}_' \
                         f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
@@ -135,10 +135,10 @@ def test(cfg: DictConfig, output_dir: str, log, model_dir=None, ext=''):
             y_hat = np.ones(y.shape[1]) * y_hat * local_night[ridx, :].detach().numpy()
             y_hat[:cfg.model.test_context] = np.nan
 
-            results['gt_km2'].append(y[ridx, :] if cfg.birds_per_km2 else y[ridx, :] / areas[ridx])
-            results['prediction_km2'].append(y_hat if cfg.birds_per_km2 else y_hat / areas[ridx])
-            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.birds_per_km2 else y[ridx, :])
-            results['prediction'].append(y_hat * areas[ridx] if cfg.birds_per_km2 else y_hat)
+            results['gt_km2'].append(y[ridx, :] if cfg.model.birds_per_km2 else y[ridx, :] / areas[ridx])
+            results['prediction_km2'].append(y_hat if cfg.model.birds_per_km2 else y_hat / areas[ridx])
+            results['gt'].append(y[ridx, :] * areas[ridx] if cfg.model.birds_per_km2 else y[ridx, :])
+            results['prediction'].append(y_hat * areas[ridx] if cfg.model.birds_per_km2 else y_hat)
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])
