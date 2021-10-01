@@ -18,7 +18,7 @@ def run(cfg: DictConfig):
     if cfg.verbose: print(f'hydra working directory: {os.getcwd()}')
 
     overrides = HydraConfig.get().overrides.task
-    overrides = [o for o in overrides if (not "task" in o and not "model=" in o)]
+    overrides = [o for o in overrides if (not "task" in o and not "model=" in o and not "datasource=" in o)]
     overrides = " ".join(overrides)
 
     target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.datasource.name, cfg.model.name)
@@ -88,7 +88,8 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
     for year in test_years:
         # determine best hyperparameter setting
         base_dir = osp.join(target_dir, f'test_{year}')
-        input_dir = osp.join(base_dir, 'hp_grid_search')
+        hp_search_dir = cfg.get('hp_search_dir', 'hp_grid_search')
+        input_dir = osp.join(base_dir, hp_search_dir)
         if osp.isdir(input_dir):
             determine_best_hp(input_dir)
 
@@ -99,7 +100,7 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
                 OmegaConf.save(config=best_hp_config, f=f)
 
         else:
-            print('Directory "hp_grid_search" not found. Use standard config for training.')
+            print(f'Directory "{hp_search_dir}" not found. Use standard config for training.')
             os.makedirs(base_dir, exist_ok=True)
             print(f'base_dir = {base_dir}')
 
@@ -117,7 +118,7 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
         if cfg.verbose:
             print(f"Start train/eval for year {year}")
             print(f"Use overrides: {overrides}")
-
+            
         config_path = osp.dirname(output_path)
         print(f'config_path = {config_path}')
         repeats = cfg.task.repeats

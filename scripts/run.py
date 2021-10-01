@@ -18,6 +18,10 @@ def run(cfg: DictConfig):
     print(f'log file: {osp.abspath(log_file)}')
     log = open(log_file, 'w+')
 
+    print('created log. start running experiment', file=log)
+    print(f'output directory: {out}')
+
+    log.flush()
     try:
         if cfg.model.name == 'GBT':
             run_GBT.run(cfg, out, log)
