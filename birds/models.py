@@ -13,14 +13,16 @@ import os
 
 def init_weights(m):
     if type(m) == nn.Linear:
-        inits.glorot(m.weight)
-        if hasattr(m, 'bias'): inits.zeros(m.bias)
-    elif type(m) == nn.LSTMCell:
-        for name, param in m.named_parameters():
-            if 'bias' in name:
-                inits.zeros(param)
-            elif 'weight' in name:
-                inits.glorot(param)
+        #inits.glorot(m.weight)
+        #nn.init.xavier_normal_(m.weight)
+        nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+        #if hasattr(m, 'bias'): inits.zeros(m.bias)
+    # elif type(m) == nn.LSTMCell:
+    #     for name, param in m.named_parameters():
+    #         if 'bias' in name:
+    #             inits.zeros(param)
+    #         elif 'weight' in name:
+    #             inits.glorot(param)
 
 class LSTM(torch.nn.Module):
     """
@@ -129,12 +131,12 @@ class MLP(torch.nn.Module):
             features = torch.cat([data.coords.flatten(),
                                   data.env[..., t].flatten()], dim=0)
             x = self.fc_in(features)
-            x = F.leaky_relu(x)
+            x = F.relu(x)
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
             for l in self.fc_hidden:
                 x = l(x)
-                x = F.leaky_relu(x)
+                x = F.relu(x)
                 x = F.dropout(x, p=self.dropout_p, training=self.training)
 
             x = self.fc_out(x)
@@ -203,11 +205,11 @@ class LocalMLP(torch.nn.Module):
             features = torch.cat([coords, env, acc], dim=1)
         else:
             features = torch.cat([coords, env], dim=1)
-        x = F.leaky_relu(self.fc_in(features))
+        x = F.relu(self.fc_in(features))
         x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         for l in self.fc_hidden:
-            x = F.leaky_relu(l(x))
+            x = F.relu(l(x))
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.fc_out(x)
@@ -247,11 +249,11 @@ class EdgeFluxMLP(torch.nn.Module):
         inputs = self.input2hidden(inputs)
         inputs = torch.cat([inputs, hidden_j], dim=1)
 
-        flux = F.leaky_relu(self.fc_edge_in(inputs))
+        flux = F.relu(self.fc_edge_in(inputs))
         flux = F.dropout(flux, p=self.dropout_p, training=self.training, inplace=False)
 
         for l in self.fc_edge_hidden:
-            flux = F.leaky_relu(l(flux))
+            flux = F.relu(l(flux))
             flux = F.dropout(flux, p=self.dropout_p, training=self.training, inplace=False)
 
         flux = self.hidden2output(flux)
@@ -569,7 +571,7 @@ class GraphLayer(MessagePassing):
     def message(self, inputs_i):
         # construct messages to node i for each edge (j,i)
         out = self.fc_edge(inputs_i)
-        out = F.leaky_relu(out)
+        out = F.relu(out)
 
         return out
 
