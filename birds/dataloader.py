@@ -568,7 +568,7 @@ class RadarData(InMemoryDataset):
 
         if self.importance_sampling:
             np.save(osp.join(self.processed_dir, 'birds_per_seq.npy'), agg)
-            np.save(osp.join(self.processed_dir, 'resampling_idx.npy'), valid_idx)
+            np.save(osp.join(self.processed_dir, 'resampling_idx.npy'), seq_index)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
