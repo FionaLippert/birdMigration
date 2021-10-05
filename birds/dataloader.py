@@ -567,8 +567,8 @@ class RadarData(InMemoryDataset):
             pickle.dump(info, f)
 
         if self.importance_sampling:
-            np.save(agg, osp.join(self.processed_dir, 'birds_per_seq.npy'))
-            np.save(valid_idx, osp.join(self.processed_dir, 'resampling_idx.npy'))
+            np.save(osp.join(self.processed_dir, 'birds_per_seq.npy'), agg)
+            np.save(osp.join(self.processed_dir, 'resampling_idx.npy'), valid_idx)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
