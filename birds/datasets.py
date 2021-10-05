@@ -214,8 +214,8 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         radar_df = pd.DataFrame(df)
         radar_df['missing'] = 0
 
-        if data_source == 'radar':
-            for col in cols:
+        for col in cols:
+            if data_source == 'radar':
                 # radar quantities being exactly 0 during the night are missing,
                 # radar quantities during the day are set to 0
                 print(f'check missing data for column {col}')
@@ -232,6 +232,13 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
                 else:
                     # for all other quantities simply interpolate linearly
                     radar_df[col].interpolate(method='linear', inplace=True)
+            else:
+                radar_df[col] = radar_df.apply(lambda row: np.nan if (row.night and np.isnan(row[col]))
+                                                            else (0 if not row.night else row[col]), axis=1)
+                radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
+
+                # fill missing bird measurements with 0
+                radar_df[col].fillna(0, inplace=True)
 
         dfs.append(radar_df)
         print(f'found {radar_df.missing.sum()} misssing time points')

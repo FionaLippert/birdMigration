@@ -38,11 +38,11 @@ def rescale(features, min=None, max=None):
         rescaled /= (max - min)
     return rescaled
 
-def reshape(data, nights, mask, timesteps, use_nights=True, index=None):
+def reshape(data, nights, mask, timesteps, use_nights=True):
     if use_nights:
         reshaped = reshape_nights(data, nights, mask, timesteps)
     else:
-        reshaped = reshape_t(data, timesteps, index)
+        reshaped = reshape_t(data, timesteps)
     return reshaped
 
 def reshape_nights(data, nights, mask, timesteps):
@@ -51,11 +51,8 @@ def reshape_nights(data, nights, mask, timesteps):
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
 
-def reshape_t(data, timesteps, index=None):
-
-    # reshaped = [data[..., t:t+timesteps+1] for t in np.arange(0, data.shape[-1] - timesteps - 1)]
-    if index is None:
-        index = np.arange(0, data.shape[-1] - timesteps)
+def reshape_t(data, timesteps):
+    index = np.arange(0, data.shape[-1] - timesteps)
     reshaped = [data[..., t:t + timesteps] for t in index]
     reshaped = np.stack(reshaped, axis=-1)
     return reshaped
@@ -196,6 +193,7 @@ class RadarData(InMemoryDataset):
         self.seed = kwargs.get('seed', 1234)
         self.rng = np.random.default_rng(self.seed)
         self.data_perc = kwargs.get('data_perc', 1.0)
+        self.importance_sampling = kwargs.get('importance_sampling', False)
 
 
         super(RadarData, self).__init__(self.root, transform, pre_transform)
@@ -434,16 +432,24 @@ class RadarData(InMemoryDataset):
         else:
             mask = check_all
 
-        if self.use_nights:
-            seq_index = None
-        else:
-            n_seq = int(self.data_perc * (mask.shape[-1] - self.timesteps))
-            print(f'data_perc = {self.data_perc}')
-            print(f'n_seq = {n_seq}')
-            seq_index = self.rng.permutation(mask.shape[-1] - self.timesteps)[:n_seq]
+
+        # reshape data into sequences
+        for k, v in data.items():
+            data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights)
+
+        tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
+        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
+
+        # remove sequences with too much missing data
+        perc_missing = data['missing'][observed_idx].reshape(-1, data['missing'].shape[-1]).mean(0)
+        valid_idx = perc_missing <= self.missing_data_threshold
 
         for k, v in data.items():
-            data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights, seq_index)
+            data[k] = data[k][..., valid_idx]
+
+        tidx = tidx[..., valid_idx]
+        dayofyear = dayofyear[..., valid_idx]
+
 
 
         if self.data_source == 'radar' and len(G.edges()) > 0:
@@ -489,15 +495,31 @@ class RadarData(InMemoryDataset):
         data['speed'] = (data['speed'] - min_speed) / (max_speed - min_speed)
 
 
-        tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights, seq_index)
-        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights, seq_index)
-
-
         # set bird densities during the day to zero
         data['inputs'] = data['inputs'] * data['nighttime']
         data['targets'] = data['targets'] * data['nighttime']
 
-        R, T, N = data['inputs'].shape
+        # sample sequences
+        if self.importance_sampling:
+            print('use importance sampling')
+            # reduce bias towards low migration intensity
+            # compute total migration intensity per sequence
+            agg = data['targets'].reshape(-1, data['targets'].shape[-1]).sum(0)
+
+            # define importance weights
+            thr = np.quantile(agg, 0.8)
+            s = agg.max() / 25
+            weight_func = lambda x: 1 / (1 + np.exp(-(x - thr) / s))
+            weights = weight_func(agg)
+            weights /= weights.sum()
+
+            # resample sequences according to importance weights
+            n_seq = int(self.data_perc * valid_idx.sum())
+            seq_index = np.random.choice(np.arange(agg.size), n_seq, p=weights, replace=True)
+        else:
+            # sample sequences uniformly
+            n_seq = int(self.data_perc * valid_idx.sum())
+            seq_index = self.rng.permutation(valid_idx.sum())[:n_seq]
 
         # create graph data objects per night
         data_list = [SensorData(edge_index=edge_index, reverse_edges=reverse_edges,
@@ -522,13 +544,13 @@ class RadarData(InMemoryDataset):
                           directions=torch.tensor(data['direction'][:, :, nidx], dtype=torch.float),
                           speeds=torch.tensor(data['speed'][:, :, nidx], dtype=torch.float),
                           bird_uv=torch.tensor(data['bird_uv'][..., nidx], dtype=torch.float))
-                for nidx in range(N) if data['missing'][observed_idx, :, nidx].mean() <= self.missing_data_threshold]
+                for nidx in seq_index]
 
         print(f'number of sequences = {len(data_list)}')
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
-        n_seq_discarded = np.sum(data['missing'][observed_idx].mean((0, 1)) > self.missing_data_threshold)
+        n_seq_discarded = valid_idx.size - valid_idx.sum()
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
                 'areas' : voronoi.area_km2.values,
@@ -543,6 +565,10 @@ class RadarData(InMemoryDataset):
 
         with open(osp.join(self.processed_dir, self.info_file_name), 'wb') as f:
             pickle.dump(info, f)
+
+        if self.importance_sampling:
+            np.save(osp.join(self.processed_dir, 'birds_per_seq.npy'), agg)
+            np.save(osp.join(self.processed_dir, 'resampling_idx.npy'), seq_index)
 
         data, slices = self.collate(data_list)
         torch.save((data, slices), self.processed_paths[0])
