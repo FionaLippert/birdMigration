@@ -501,6 +501,7 @@ class RadarData(InMemoryDataset):
 
         # sample sequences
         if self.importance_sampling:
+            print('use importance sampling')
             # reduce bias towards low migration intensity
             # compute total migration intensity per sequence
             agg = data['targets'].reshape(-1, data['targets'].shape[-1]).sum(0)
@@ -514,7 +515,7 @@ class RadarData(InMemoryDataset):
 
             # resample sequences according to importance weights
             n_seq = int(self.data_perc * valid_idx.sum())
-            seq_index = np.random.choice(np.arange(agg.size()), n_seq, p=weights, replace=True)
+            seq_index = np.random.choice(np.arange(agg.size), n_seq, p=weights, replace=True)
         else:
             # sample sequences uniformly
             n_seq = int(self.data_perc * valid_idx.sum())
@@ -549,7 +550,7 @@ class RadarData(InMemoryDataset):
 
         # write data to disk
         os.makedirs(self.processed_dir, exist_ok=True)
-        n_seq_discarded = valid_idx.size() - valid_idx.sum()
+        n_seq_discarded = valid_idx.size - valid_idx.sum()
         print(f'discarded {n_seq_discarded} sequences due to missing data')
         info = {'radars': voronoi.radar.values,
                 'areas' : voronoi.area_km2.values,
