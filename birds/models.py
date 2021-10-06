@@ -442,6 +442,8 @@ class FluxGraphLSTM(MessagePassing):
         if self.use_encoder:
             # push context timeseries through encoder to initialize decoder
             h_t, c_t = self.encoder(data)
+            #print(f'encoder states: {h_t[-1]}')
+            #assert(torch.isfinite(h_t[-1]).all())
             self.node_lstm.setup_states(h_t, c_t)
         else:
             # start from scratch
@@ -468,6 +470,7 @@ class FluxGraphLSTM(MessagePassing):
             r = torch.rand(1)
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
+                #assert(torch.isfinite(x).all())
 
             if self.use_boundary_model:
                 # boundary model
@@ -510,6 +513,7 @@ class FluxGraphLSTM(MessagePassing):
 
         inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr]
         inputs = torch.cat(inputs, dim=1)
+        #assert(torch.isfinite(inputs).all())
 
         flux = self.edge_mlp(x_j, inputs, hidden_sp_j)
 
@@ -523,6 +527,7 @@ class FluxGraphLSTM(MessagePassing):
     def update(self, aggr_out, x, coords, areas, env, t):
 
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
+        #assert(torch.isfinite(inputs).all())
 
         delta, hidden = self.node_lstm(inputs)
         self.node_deltas[..., t] = delta
@@ -650,6 +655,9 @@ class RecurrentEncoder(torch.nn.Module):
             inputs = torch.cat([x.view(-1, 1), coords, env, bird_uv], dim=1)
         else:
             inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
+
+        #print(f'encoder inputs: {inputs}')
+        #assert(torch.isfinite(inputs).all())
 
         inputs = self.input2hidden(inputs)
         h_t[0], c_t[0] = self.lstm_layers[0](inputs, (h_t[0], c_t[0]))
