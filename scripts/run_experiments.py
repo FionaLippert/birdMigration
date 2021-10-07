@@ -155,7 +155,7 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
     for year in test_years:
         assert hasattr(cfg, 'model_dir')
         model_dir = osp.join(cfg.device.root, cfg.model_dir)
-        base_dir = osp.dirname(cfg.model_dir)
+        base_dir = osp.dirname(model_dir)
         output_path = model_dir
 
         cfg.sub_dir = ''
