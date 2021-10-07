@@ -285,10 +285,20 @@ class NodeLSTM(torch.nn.Module):
         self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(self.n_hidden, self.n_hidden)
                                           for _ in range(self.n_lstm_layers - 1)])
 
-        self.hidden2output = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
-                                           torch.nn.Dropout(p=self.dropout_p),
-                                           torch.nn.LeakyReLU(),
-                                           torch.nn.Linear(self.n_hidden, 1))
+        # self.hidden2output = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        #                                    torch.nn.Dropout(p=self.dropout_p),
+        #                                    torch.nn.LeakyReLU(),
+        #                                    torch.nn.Linear(self.n_hidden, 1))
+
+        self.hidden2in = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                                 torch.nn.Dropout(p=self.dropout_p),
+                                                 torch.nn.ReLU(),
+                                                 torch.nn.Linear(self.n_hidden, 1))
+
+        self.hidden2out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                                 torch.nn.Dropout(p=self.dropout_p),
+                                                 torch.nn.ReLU(),
+                                                 torch.nn.Linear(self.n_hidden, 1))
 
         self.reset_parameters()
 
@@ -340,9 +350,12 @@ class NodeLSTM(torch.nn.Module):
             self.c[0] = F.dropout(self.c[0], p=self.dropout_p, training=self.training, inplace=False)
             self.h[l+1], self.c[l+1] = self.lstm_layers[l](self.h[l], (self.h[l+1], self.c[l+1]))
 
-        delta = torch.tanh(self.hidden2output(self.h[-1]))
+        x_in = torch.sigmoid(self.hidden2in(self.h[-1]))
+        x_out = torch.sigmoid(self.hidden2out(self.h[-1]))
 
-        return delta, self.h[-1]
+        # delta = torch.tanh(self.hidden2output(self.h[-1]))
+
+        return x_in, x_out, self.h[-1]
 
 
 class LocalLSTM(torch.nn.Module):
@@ -391,8 +404,11 @@ class LocalLSTM(torch.nn.Module):
                 x = data.x[..., t-1].view(-1, 1)
 
             inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
-            delta, hidden = self.node_lstm(inputs)
-            x = x + delta
+            # delta, hidden = self.node_lstm(inputs)
+            # x = x + delta
+
+            x_in, x_out, hidden = self.node_lstm(inputs)
+            x = x + x_in - (x_out * x)
             y_hat.append(x)
 
         prediction = torch.cat(y_hat, dim=-1)
@@ -529,7 +545,10 @@ class FluxGraphLSTM(MessagePassing):
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
         #assert(torch.isfinite(inputs).all())
 
-        delta, hidden = self.node_lstm(inputs)
+        #delta, hidden = self.node_lstm(inputs)
+        x_in, x_out, hidden = self.node_lstm(inputs)
+        delta = x_in - (x_out * x)
+
         self.node_deltas[..., t] = delta
         self.node_fluxes[..., t] = aggr_out
 
