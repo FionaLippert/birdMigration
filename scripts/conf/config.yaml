@@ -2,8 +2,8 @@
 output_dir: results
 sub_dir: none
 defaults:
-  - datasource: radar
-  - model: BirdFluxGraphLSTM
+  - datasource: abm
+  - model: FluxGraphLSTM
   - task: train_eval
   - device: cluster
 job_id: 0

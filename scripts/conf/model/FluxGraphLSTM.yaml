@@ -20,12 +20,12 @@ use_boundary_model: true
 context: 24
 root_transformed_loss: false
 compute_fluxes: true
-batch_size: 8
+batch_size: 4
 boundary_model: Extrapolation
 load_states_from: none
 edge_type: voronoi
 birds_per_km2: false
-n_dummy_radars: 15
+n_dummy_radars: 30
 early_stopping: true
 stopping_criterion: 1e-6
 avg_window: 50
