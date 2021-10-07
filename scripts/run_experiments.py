@@ -168,7 +168,7 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
         with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
             OmegaConf.save(config=cfg, f=f)
-        
+
         overrides = re.sub('[+]', '', overrides)
 
         if cfg.verbose:
