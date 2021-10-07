@@ -388,7 +388,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
                         f'fixedT0={cfg.fixed_t0}_timepoints={seq_len}_' \
                         f'edges={cfg.model.edge_type}_ndummy={cfg.model.n_dummy_radars}'
 
-    model_dir = cfg.get('model_dir', output_dir)
+    model_dir = osp.join(cfg.device.root, cfg.model_dir) if hasattr(cfg, 'model_dir') else output_dir
     device = 'cuda' if (cfg.device.cuda and torch.cuda.is_available()) else 'cpu'
 
     if cfg.model.edge_type == 'voronoi':

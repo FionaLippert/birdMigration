@@ -154,10 +154,13 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
     for year in test_years:
         assert hasattr(cfg, 'model_dir')
+        model_dir = osp.join(cfg.device.root, cfg.model_dir)
+        base_dir = osp.dirname(cfg.model_dir)
+        output_path = model_dir
 
-        base_dir = osp.join(target_dir, osp.dirname(cfg.model_dir))
-        output_path = osp.join(target_dir, cfg.model_dir)
-        cfg.model_dir = output_path
+        cfg.sub_dir = ''
+
+        print(f'model dir: {cfg.model_dir}')
 
         with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
             OmegaConf.save(config=cfg, f=f)
@@ -167,7 +170,7 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
             print(f"Eval for year {year}")
             print(f"Use overrides: {overrides}")
 
-        config_path = osp.dirname(base_dir)
+        config_path = base_dir
         print(f'config_path = {config_path}')
 
         if cfg.device.slurm:
