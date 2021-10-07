@@ -157,6 +157,7 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
         base_dir = osp.join(target_dir, osp.dirname(cfg.model_dir))
         output_path = osp.join(target_dir, cfg.model_dir)
+        cfg.model_dir = output_path
 
         with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
             OmegaConf.save(config=cfg, f=f)
@@ -168,18 +169,17 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
         config_path = osp.dirname(base_dir)
         print(f'config_path = {config_path}')
-        repeats = cfg.task.repeats
 
         if cfg.device.slurm:
             job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
-            proc = Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.device.root, output_path, config_path,
+            proc = Popen(['sbatch', job_file, cfg.device.root, output_path, config_path,
                           str(year), overrides], stdout=PIPE, stderr=PIPE)
         else:
             job_file = osp.join(cfg.device.root, cfg.task.local_job)
             os.environ['MKL_THREADING_LAYER'] = 'GNU'
             os.environ['HYDRA_FULL_ERROR'] = '1'
             proc = Popen([job_file, cfg.device.root, output_path, config_path,
-                          str(year), str(repeats)], stdout=PIPE, stderr=PIPE)
+                          str(year)], stdout=PIPE, stderr=PIPE)
         stdout, stderr = proc.communicate()
         start_time = datetime.now()
 

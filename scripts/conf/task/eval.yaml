@@ -2,4 +2,3 @@
 name: eval
 slurm_job: scripts/run_eval_slurm.job
 local_job: scripts/run_eval_local.job
-repeats: 1
