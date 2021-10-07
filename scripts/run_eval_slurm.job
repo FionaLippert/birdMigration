@@ -38,7 +38,6 @@ cd $WDIR/scripts
 
 # test existing model
 srun python run.py -cp $CONFIGPATH \
-  sub_dir=trial_$SLURM_ARRAY_TASK_ID \
   device.root=$TMPDIR \
 	datasource.test_year=$TEST_YEAR \
 	job_id=$SLURM_ARRAY_TASK_ID \
