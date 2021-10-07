@@ -310,7 +310,8 @@ class NodeLSTM(torch.nn.Module):
         #     init_weights(self.v_attention)
         init_weights(self.lstm_in)
         self.lstm_layers.apply(init_weights)
-        self.hidden2output.apply(init_weights)
+        self.hidden2in.apply(init_weights)
+        self.hidden2out.apply(init_weights)
 
     def setup_states(self, h, c, enc_state=None):
         self.h = h
