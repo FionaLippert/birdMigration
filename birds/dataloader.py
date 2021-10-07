@@ -508,8 +508,9 @@ class RadarData(InMemoryDataset):
 
             # define importance weights
             thr = np.quantile(agg, 0.8)
-            s = agg.max() / 25
-            weight_func = lambda x: 1 / (1 + np.exp(-(x - thr) / s))
+            #s = agg.max() / 25
+            #weight_func = lambda x: 1 / (1 + np.exp(-(x - thr) / s))
+            weight_func = lambda x: 1 - np.exp(-x / thr)
             weights = weight_func(agg)
             weights /= weights.sum()
 

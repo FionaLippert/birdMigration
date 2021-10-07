@@ -164,7 +164,9 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
         with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
             OmegaConf.save(config=cfg, f=f)
-            overrides = re.sub('[+]', '', overrides)
+
+        overrides = [o for o in overrides if not "model_dir" in o]
+        overrides = re.sub('[+]', '', overrides)
 
         if cfg.verbose:
             print(f"Eval for year {year}")
