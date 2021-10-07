@@ -569,7 +569,14 @@ def run(cfg: DictConfig, output_dir: str, log):
     if 'train' in cfg.task.name:
         training(cfg, output_dir, log)
     if 'eval' in cfg.task.name:
+        cfg.importance_sampling = False
         cfg['fixed_t0'] = True
         testing(cfg, output_dir, log, ext='_fixedT0')
         cfg['fixed_t0'] = False
         testing(cfg, output_dir, log)
+
+        training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
+        cfg.model.test_horizon = cfg.model.horizon
+        for y in training_years:
+            cfg.datasource.test_year = y
+            testing(cfg, output_dir, ext=f'_training_year_{y}')

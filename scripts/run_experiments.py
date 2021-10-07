@@ -34,6 +34,8 @@ def run(cfg: DictConfig):
         hp_grid_search(cfg, target_dir, test_years)
     elif cfg.task.name == 'train_eval':
         train_eval(cfg, target_dir, test_years, overrides)
+    elif cfg.task.name == 'eval':
+        eval(cfg, target_dir, test_years, overrides)
 
 def hp_grid_search(cfg: DictConfig, target_dir, test_years, timeout=10):
 
@@ -82,8 +84,6 @@ def hp_grid_search(cfg: DictConfig, target_dir, test_years, timeout=10):
 
 def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
     os.environ['HYDRA_FULL_ERROR'] = '1'
-
-    os.environ['HYDRA_FULL_ERROR'] = '1'
     
     for year in test_years:
         # determine best hyperparameter setting
@@ -119,6 +119,53 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
             print(f"Start train/eval for year {year}")
             print(f"Use overrides: {overrides}")
             
+        config_path = osp.dirname(output_path)
+        print(f'config_path = {config_path}')
+        repeats = cfg.task.repeats
+
+        if cfg.device.slurm:
+            job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
+            proc = Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.device.root, output_path, config_path,
+                          str(year), overrides], stdout=PIPE, stderr=PIPE)
+        else:
+            job_file = osp.join(cfg.device.root, cfg.task.local_job)
+            os.environ['MKL_THREADING_LAYER'] = 'GNU'
+            os.environ['HYDRA_FULL_ERROR'] = '1'
+            proc = Popen([job_file, cfg.device.root, output_path, config_path,
+                          str(year), str(repeats)], stdout=PIPE, stderr=PIPE)
+        stdout, stderr = proc.communicate()
+        start_time = datetime.now()
+
+        while True:
+            if stderr:
+                print(stderr.decode("utf-8"))
+                return
+            if stdout:
+                print(stdout.decode("utf-8"))
+                return
+            if (datetime.now() - start_time).seconds > timeout:
+                print(f'timeout after {timeout} seconds')
+                return
+
+
+def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
+    os.environ['HYDRA_FULL_ERROR'] = '1'
+
+
+    for year in test_years:
+        assert hasattr(cfg, 'model_dir')
+        model_dir = cfg.get('model_dir')
+        base_dir = osp.join(target_dir, osp.dirname(model_dir))
+        output_path = osp.join(target_dir, model_dir)
+
+        with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
+            OmegaConf.save(config=cfg, f=f)
+            overrides = re.sub('[+]', '', overrides)
+
+        if cfg.verbose:
+            print(f"Eval for year {year}")
+            print(f"Use overrides: {overrides}")
+
         config_path = osp.dirname(output_path)
         print(f'config_path = {config_path}')
         repeats = cfg.task.repeats
