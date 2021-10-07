@@ -18,7 +18,10 @@ def run(cfg: DictConfig):
     if cfg.verbose: print(f'hydra working directory: {os.getcwd()}')
 
     overrides = HydraConfig.get().overrides.task
-    overrides = [o for o in overrides if (not "task" in o and not "model=" in o and not "datasource=" in o)]
+    overrides = [o for o in overrides if (not "task" in o and 
+                                          not "model=" in o and 
+                                          not "datasource=" in o and
+                                          not "model_dir=" in o)]
     overrides = " ".join(overrides)
 
     target_dir = osp.join(cfg.device.root, cfg.output_dir, cfg.datasource.name, cfg.model.name)
@@ -154,9 +157,10 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
     for year in test_years:
         assert hasattr(cfg, 'model_dir')
-        model_dir = osp.join(cfg.device.root, cfg.model_dir)
-        base_dir = osp.dirname(model_dir)
-        output_path = model_dir
+
+        cfg.model_dir = osp.join(cfg.device.root, cfg.model_dir)
+        base_dir = osp.dirname(cfg.model_dir)
+        output_path = cfg.model_dir
 
         cfg.sub_dir = ''
 
@@ -164,7 +168,8 @@ def eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10):
 
         with open(osp.join(base_dir, 'config.yaml'), 'w') as f:
             OmegaConf.save(config=cfg, f=f)
-            overrides = re.sub('[+]', '', overrides)
+        
+        overrides = re.sub('[+]', '', overrides)
 
         if cfg.verbose:
             print(f"Eval for year {year}")
