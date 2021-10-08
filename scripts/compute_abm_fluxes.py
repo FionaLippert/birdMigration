@@ -10,12 +10,12 @@ import geopandas as gpd
 parser = argparse.ArgumentParser(description='process ABM simulation results')
 parser.add_argument('--root', type=str, default='/home/fiona/birdMigration/data', help='entry point to required data')
 parser.add_argument('--year', type=int, default=2015, help='year to be processed')
-parser.add_argument('--radar_year', type=int, default=2015, help='year to use to load radar locations and names')
+#parser.add_argument('--radar_year', type=int, default=2015, help='year to use to load radar locations and names')
 parser.add_argument('--season', type=str, default='fall', help='season to be processed')
 parser.add_argument('--ndummy', type=int, default=30, help='number of dummy radars')
 args = parser.parse_args()
 
-radar_path = osp.join(args.root, 'raw', 'radar', args.season, str(args.radar_year))
+#radar_path = osp.join(args.root, 'raw', 'radar', args.season, str(args.radar_year))
 abm_path = osp.join(args.root, 'raw', 'abm', args.season, str(args.year))
 
 #radars = datahandling.load_radars(radar_path)
