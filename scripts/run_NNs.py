@@ -579,4 +579,4 @@ def run(cfg: DictConfig, output_dir: str, log):
         cfg.model.test_horizon = cfg.model.horizon
         for y in training_years:
             cfg.datasource.test_year = y
-            testing(cfg, output_dir, ext=f'_training_year_{y}')
+            testing(cfg, output_dir, log, ext=f'_training_year_{y}')
