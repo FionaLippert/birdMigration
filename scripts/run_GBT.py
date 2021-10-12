@@ -299,7 +299,9 @@ def run(cfg: DictConfig, output_dir: str, log):
         train(cfg, output_dir, log)
     if 'eval' in cfg.task.name:
 
-        cfg.importance_sampling = False
+        if hasattr(cfg, 'importance_sampling'):
+            cfg.importance_sampling = False
+
         cfg['fixed_t0'] = True
         test(cfg, output_dir, log, ext='_fixedT0')
         cfg['fixed_t0'] = False
