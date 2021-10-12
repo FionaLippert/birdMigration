@@ -26,6 +26,7 @@ CONFIGPATH=$3 # hydra config path (with best settings from grid search)
 TEST_YEAR=$4 # year to hold out in cross-validation
 OVERRIDES=$5 # slurm config overrides
 
+echo $CONFIGPATH
 echo $OVERRIDES
 
 mkdir -p $OUTPUTDIR
