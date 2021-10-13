@@ -1,7 +1,9 @@
 import numpy as np
+import scipy as sp
 import os
 import os.path as osp
 import pandas as pd
+import itertools as it
 
 
 def load_cv_results(result_dir, ext='', trials=1):
@@ -66,10 +68,31 @@ def compute_bin(model, experiment, results, groupby='trial', threshold=0, km2=Tr
 
     return bin
 
+def compute_residual_corr(results, radar_df, km2=True):
+    ext = '_km2' if km2 else ''
+
+    # radars = results[model].radar.unique()
+    radars = radar_df.query('observed == 1').sort_values(by=['lat'], ascending=False).radar.values
+
+    corr = []
+    radars1 = []
+    radars2 = []
+    for r1, r2 in it.product(radars, repeat=2):
+        data1 = results.query(f'radar == "{r1}"')[f'residual{ext}'].to_numpy()
+        data2 = results.query(f'radar == "{r2}"')[f'residual{ext}'].to_numpy()
+
+        mask = np.logical_and(np.isfinite(data1), np.isfinite(data2))
+        r, p = sp.stats.pearsonr(data1[mask], data2[mask])
+        radars1.append(r1)
+        radars2.append(r2)
+        corr.append(r)
+
+    corr = pd.DataFrame(list(zip(radars1, radars2, corr)), column=['radar1', 'radar2', 'corr'])
+
+    return corr
+
 
 if __name__ == "__main__":
-
-    #models = ['GAM', 'LocalMLP', 'LocalLSTM', 'FluxGraphLSTM']
 
     models = {  'FluxGraphLSTM': ['test_new_weight_func'],# 'test_new_weight_func_split_delta', 'test_new_weight_func_no_dropout'],
                 #'LocalLSTM': ['final_evaluation', 'final_evaluation_no_encoder'],
@@ -78,10 +101,10 @@ if __name__ == "__main__":
                 'GBT': ['final_evaluation', 'final_evaluation_importance_sampling']
              }
 
-    trials = 1
+    trials = 5
     year = 2017
-    thresholds = [0, 0.01] #[0, 20, 40]
-    ext = '_fixedT0'
+    thresholds = [0.01, 0.02] #[0, 20, 40]
+    #ext = '_fixedT0'
     ext = ''
     base_dir = '/home/fiona/birdMigration/results'
     base_dir = '/media/flipper/Seagate Basic/PhD/paper_1/results/radar'
@@ -92,28 +115,35 @@ if __name__ == "__main__":
     for m, dirs in models.items():
         print(f'evaluate {m}')
         for d in dirs:
+
             result_dir = osp.join(base_dir, m, f'test_{year}', d)
             results = load_cv_results(result_dir, ext=ext, trials=trials)
             output_dir = osp.join(result_dir, 'performance_evaluation')
             os.makedirs(output_dir, exist_ok=True)
 
+            # compute spatial correlation of residuals
+            corr = compute_residual_corr(results, km2=True)
+            corr.to_csv(osp.join(output_dir, f'spatial_corr{ext}.csv'))
+
+            # compute mean squared error
+            mse_per_fold = compute_mse(m, d, results, groupby='trial', threshold=0, km2=True)
+            mse_per_fold.to_csv(osp.join(output_dir, f'mse{ext}.csv'))
+
+            mse_per_hour = compute_mse(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True)
+            mse_per_hour.to_csv(osp.join(output_dir, f'mse_per_hour{ext}.csv'))
+
+            # compute pearson correlation coefficient
+            pcc_per_fold = compute_pcc(m, d, results, groupby='trial', threshold=0, km2=True)
+            pcc_per_fold.to_csv(osp.join(output_dir, f'pcc{ext}.csv'))
+
+            pcc_per_hour = compute_pcc(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True)
+            pcc_per_hour.to_csv(osp.join(output_dir, f'pcc_per_hour{ext}.csv'))
+
+            # compute binary classification measures
             for thr in thresholds:
-                mse_per_fold = compute_mse(m, d, results, groupby='trial', threshold=thr, km2=True)
-                mse_per_fold.to_csv(osp.join(output_dir, f'mse_thr{thr}{ext}.csv'))
+                bin_per_fold = compute_bin(m, d, results, groupby='trial', threshold=thr, km2=True)
+                bin_per_fold.to_csv(osp.join(output_dir, f'bin_thr{thr}{ext}.csv'))
 
-                mse_per_hour = compute_mse(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
-                mse_per_hour.to_csv(osp.join(output_dir, f'mse_per_hour_thr{thr}{ext}.csv'))
-
-                pcc_per_fold = compute_pcc(m, d, results, groupby='trial', threshold=thr, km2=True)
-                pcc_per_fold.to_csv(osp.join(output_dir, f'pcc_thr{thr}{ext}.csv'))
-
-                pcc_per_hour = compute_pcc(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
-                pcc_per_hour.to_csv(osp.join(output_dir, f'pcc_per_hour_thr{thr}{ext}.csv'))
-
-                if thr > 0:
-                    bin_per_fold = compute_bin(m, d, results, groupby='trial', threshold=thr, km2=True)
-                    bin_per_fold.to_csv(osp.join(output_dir, f'bin_thr{thr}{ext}.csv'))
-
-                    bin_per_hour = compute_bin(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
-                    bin_per_hour.to_csv(osp.join(output_dir, f'bin_per_hour_thr{thr}{ext}.csv'))
+                bin_per_hour = compute_bin(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
+                bin_per_hour.to_csv(osp.join(output_dir, f'bin_per_hour_thr{thr}{ext}.csv'))
 
