@@ -16,35 +16,19 @@
 source activate birds
 
 
-##source activate birdmigration
-#module purge
-##module load 2019
 module load 2020
-##module load Python/3.8.2-GCCcore-9.3.0
-##module load Python/3.7.5-foss-2019b
-##module load Anaconda3/2020.02
-##module load Anaconda3/2018.12
 module load CUDA/11.0.2-GCC-9.3.0
-##module load CUDA/10.1.243-GCC-8.3.0
-#module load cuDNN/8.0.3.33-gcccuda-2020a
-##module load cuDNN/7.6.5.32-gcccuda-2019b
-#module load NCCL/2.7.8-gcccuda-2020a
-##module load NCCL/2.5.6-CUDA-10.1.243
-#module load GDAL/3.0.4-foss-2020a-Python-3.8.2
-##module load GDAL/2.2.3-intel-2019b-Python-3.6.6
 
 
+TEST_YEAR=$1
+MODEL_PATH=$2
 
 #Copy all necessary input files to scratch
 mkdir "$TMPDIR"/data
 cp -r $HOME/birdMigration/data/preprocessed "$TMPDIR"/data
 
 cd $HOME/birdMigration/scripts
-# Run your code
-srun python -u run.py root="$TMPDIR" model=BirdFluxGraphLSTM edge_type=voronoi birds_per_km2=False model.boundary_model=FluxMLP experiment=boundary_mlp_encoder_nights_64_fluxweight01 model.hyperparameters.conservation_constraint.default=0.1 data_perc=0.1 use_nights=True data_parallel=False model.epochs=10 repeats=1
 
-#srun python -u test_script.py root="$TMPDIR"
-
-#Copy output directory from scratch to home
-mkdir "$HOME"/output_"$SLURM_JOBID"
-cp -r "$TMPDIR"/results $HOME/birdMigration/output_"$SLURM_JOBID"
+srun python -u run.py device.root="$TMPDIR" model=FluxGraphLSTM sub_dir=testing \
+	datasource.test_year=$TEST_YEAR job_id=0 output_dir=$MODEL_DIR \
+	+model_dir=$MODEL_PATH task=eval data_perc=0.01 importance_sampling=false
