@@ -2,11 +2,11 @@
 name: LocalLSTM
 n_hidden: 128
 n_lstm_layers: 1
-dropout_p: 0.25
+dropout_p: 0.0
 epochs: 300
 lr: 1e-6
 lr_decay: 300
-lr_gamma: 0.1
+lr_gamma: 1.0
 teacher_forcing_gamma: 0.95
 predict_delta: true
 horizon: 48
@@ -15,10 +15,10 @@ force_zeros: false
 root_transformed_loss: false
 use_encoder: true
 context: 24
-batch_size: 8
+batch_size: 4
 edge_type: none
 birds_per_km2: true
 n_dummy_radars: 0
 early_stopping: true
 stopping_criterion: 1e-6
-avg_window: 50
+avg_window: 10
