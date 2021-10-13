@@ -167,7 +167,7 @@ class RadarData(InMemoryDataset):
         self.env_vars = kwargs.get('env_vars', ['u', 'v', 'cc', 'tp', 'sp', 't2m', 'sshf'])
         #self.surface_vars = kwargs.get('surface_vars', [])
         self.multinight = kwargs.get('multinight', True)
-        self.random_seed = kwargs.get('seed', 1234)
+
         self.pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
         self.wp_threshold = kwargs.get('wp_threshold', -0.5)
         self.root_transform = kwargs.get('root_transform', 0)
@@ -516,7 +516,7 @@ class RadarData(InMemoryDataset):
 
             # resample sequences according to importance weights
             n_seq = int(self.data_perc * valid_idx.sum())
-            seq_index = np.random.choice(np.arange(agg.size), n_seq, p=weights, replace=True)
+            seq_index = self.rng.choice(np.arange(agg.size), n_seq, p=weights, replace=True)
         else:
             # sample sequences uniformly
             n_seq = int(self.data_perc * valid_idx.sum())
