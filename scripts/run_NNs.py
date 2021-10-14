@@ -446,7 +446,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     if 'Flux' in cfg.model.name:
         results['flux'] = []
-        results['source/sink'] = []
+        results['source'] = []
+        results['sink'] = []
         results['influx'] = []
         results['outflux'] = []
 
@@ -504,7 +505,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             fluxes = model.node_fluxes.detach().cpu()
             influxes = edge_fluxes[nidx].sum(1)
             outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
-            node_deltas = model.node_deltas.detach().cpu()
+            node_source = model.node_source.detach().cpu()
+            node_sink = model.node_sink.detach().cpu()
 
         #elif cfg.model.name == 'AttentionGraphLSTM':
         #    attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
@@ -525,12 +527,13 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
             results['trial'].append([cfg.get('job_id', 0)] * y.shape[1])
-            results['horizon'].append(np.arange(y.shape[1]))
+            results['horizon'].append(np.arange(-cfg.model.context-1, cfg.model.test_horizon+1))
             results['missing'].append(missing[ridx, :])
 
             if 'Flux' in cfg.model.name:
                 results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
-                results['source/sink'].append(torch.cat([fill_context, node_deltas[ridx].view(-1)]))
+                results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]))
+                results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]))
                 results['influx'].append(torch.cat([fill_context, influxes[ridx].view(-1)]))
                 results['outflux'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]))
 
@@ -539,8 +542,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             pickle.dump(edge_fluxes, f, pickle.HIGHEST_PROTOCOL)
         with open(osp.join(output_dir, f'radar_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
-        with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:
-            pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
+        #with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:
+        #    pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
     #if enc_att or cfg.model.name == 'AttentionGraphLSTM':
     #    with open(osp.join(output_dir, f'attention_weights{ext}.pickle'), 'wb') as f:
     #        pickle.dump(attention_weights, f, pickle.HIGHEST_PROTOCOL)
