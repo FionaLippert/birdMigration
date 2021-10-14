@@ -104,6 +104,8 @@ if __name__ == "__main__":
 
     result_dir = osp.join(base_dir, 'results', datasource)
 
+    n_dummy = 30
+
     if datasource == 'abm':
         data_dir = osp.join(base_dir, 'data', 'raw', 'abm')
         dep = np.load(osp.join(data_dir, 'departing_birds.npy'))
@@ -114,7 +116,7 @@ if __name__ == "__main__":
             abm_time = pickle.load(f)
         time_dict = {t: idx for idx, t in enumerate(abm_time)}
 
-        voronoi = gpd.read_file(osp.join(base_dir, 'data', 'preprocessed', '1H_voronoi_ndummy=25',
+        voronoi = gpd.read_file(osp.join(base_dir, 'data', 'preprocessed', f'1H_voronoi_ndummy={n_dummy}',
                                          'abm', season, year, 'voronoi.shp'))
         radar_dict = voronoi.radar.to_dict()
         radar_dict = {v: k for k, v in radar_dict.items()}

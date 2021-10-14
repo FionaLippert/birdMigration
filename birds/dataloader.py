@@ -517,6 +517,7 @@ class RadarData(InMemoryDataset):
             # resample sequences according to importance weights
             n_seq = int(self.data_perc * valid_idx.sum())
             seq_index = self.rng.choice(np.arange(agg.size), n_seq, p=weights, replace=True)
+            print('sampled seqIDs:', seq_index)
         else:
             # sample sequences uniformly
             n_seq = int(self.data_perc * valid_idx.sum())

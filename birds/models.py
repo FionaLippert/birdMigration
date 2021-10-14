@@ -213,7 +213,7 @@ class LocalMLP(torch.nn.Module):
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.fc_out(x)
-        x = x.sigmoid()
+        x = x.relu()
 
         return x
 
@@ -351,8 +351,8 @@ class NodeLSTM(torch.nn.Module):
             self.c[0] = F.dropout(self.c[0], p=self.dropout_p, training=self.training, inplace=False)
             self.h[l+1], self.c[l+1] = self.lstm_layers[l](self.h[l], (self.h[l+1], self.c[l+1]))
 
-        x_in = torch.sigmoid(self.hidden2in(self.h[-1]))
-        x_out = torch.sigmoid(self.hidden2out(self.h[-1]))
+        x_in = self.hidden2in(self.h[-1])
+        x_out = self.hidden2out(self.h[-1])
 
         # delta = torch.tanh(self.hidden2output(self.h[-1]))
 
@@ -409,7 +409,7 @@ class LocalLSTM(torch.nn.Module):
             # x = x + delta
 
             x_in, x_out, hidden = self.node_lstm(inputs)
-            x = x + x_in - (x_out * x)
+            x = x + F.relu(x_in) - (F.sigmoid(x_out) * x)
             y_hat.append(x)
 
         prediction = torch.cat(y_hat, dim=-1)
@@ -477,7 +477,8 @@ class FluxGraphLSTM(MessagePassing):
 
         # relevant info for later
         self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon), device=x.device)
-        self.node_deltas = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+        self.node_sink = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+        self.node_source = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
         self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
 
         forecast_horizon = range(self.t_context, self.t_context + self.horizon)
@@ -548,9 +549,12 @@ class FluxGraphLSTM(MessagePassing):
 
         #delta, hidden = self.node_lstm(inputs)
         x_in, x_out, hidden = self.node_lstm(inputs)
-        delta = x_in - (x_out * x)
+        source = F.relu(x_in)
+        sink = F.sigmoid(x_out) * x
+        delta = source - sink
 
-        self.node_deltas[..., t] = delta
+        self.node_source[..., t] = source
+        self.node_sink[..., t] = sink
         self.node_fluxes[..., t] = aggr_out
 
         pred = x + delta + aggr_out
