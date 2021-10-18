@@ -194,6 +194,7 @@ class RadarData(InMemoryDataset):
         self.rng = np.random.default_rng(self.seed)
         self.data_perc = kwargs.get('data_perc', 1.0)
         self.importance_sampling = kwargs.get('importance_sampling', False)
+        print('importance sampling', self.importance_sampling)
 
 
         super(RadarData, self).__init__(self.root, transform, pre_transform)

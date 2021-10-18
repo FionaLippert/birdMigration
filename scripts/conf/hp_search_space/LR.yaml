@@ -6,7 +6,7 @@ lr_decay:
 lr_gamma:
   - 1.4
 epochs:
-  - 60
+  - 50
 teacher_forcing_gamma:
   - 1.0
 early_stopping:

@@ -4,7 +4,7 @@ n_hidden: 128
 n_fc_layers: 2
 n_lstm_layers: 1
 n_graph_layers: 0
-dropout_p: 0.0
+dropout_p: 0.25
 lr: 1e-5
 lr_decay: 300
 lr_gamma: 1.0
@@ -25,7 +25,7 @@ boundary_model: Extrapolation
 load_states_from: none
 edge_type: voronoi
 birds_per_km2: false
-n_dummy_radars: 30
+n_dummy_radars: 25
 early_stopping: true
 stopping_criterion: 1e-6
 avg_window: 10
