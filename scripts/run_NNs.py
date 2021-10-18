@@ -527,7 +527,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
             results['trial'].append([cfg.get('job_id', 0)] * y.shape[1])
-            results['horizon'].append(np.arange(-cfg.model.context-1, cfg.model.test_horizon+1))
+            results['horizon'].append(np.arange(-cfg.model.context, cfg.model.test_horizon+1))
             results['missing'].append(missing[ridx, :])
 
             if 'Flux' in cfg.model.name:
