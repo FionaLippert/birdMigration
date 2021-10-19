@@ -448,6 +448,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         results['flux'] = []
         results['source'] = []
         results['sink'] = []
+        results['source_km2'] = []
+        results['sink_km2'] = []
         results['influx'] = []
         results['outflux'] = []
 
@@ -496,17 +498,17 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         if 'Flux' in cfg.model.name:
             # fluxes along edges
             edge_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.edge_fluxes).view(
-                                data.num_nodes, data.num_nodes, -1).detach().cpu()
+                                data.num_nodes, data.num_nodes, -1).detach().cpu() * cfg.datasource.bird_scale
             radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             # net fluxes per node
-            fluxes = model.node_fluxes.detach().cpu()
-            influxes = edge_fluxes[nidx].sum(1)
-            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
-            node_source = model.node_source.detach().cpu()
-            node_sink = model.node_sink.detach().cpu()
+            fluxes = model.node_fluxes.detach().cpu() * cfg.datasource.bird_scale
+            influxes = edge_fluxes[nidx].sum(1) * cfg.datasource.bird_scale
+            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1) * cfg.datasource.bird_scale
+            node_source = model.node_source.detach().cpu() * cfg.datasource.bird_scale
+            node_sink = model.node_sink.detach().cpu() * cfg.datasource.bird_scale
 
         #elif cfg.model.name == 'AttentionGraphLSTM':
         #    attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
@@ -534,6 +536,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
                 results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
                 results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]))
                 results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]))
+                results['source_km2'].append(torch.cat([fill_context, node_source[ridx].view(-1) / areas[ridx]]))
+                results['sink_km2'].append(torch.cat([fill_context, node_sink[ridx].view(-1) / areas[ridx]]))
                 results['influx'].append(torch.cat([fill_context, influxes[ridx].view(-1)]))
                 results['outflux'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]))
 
