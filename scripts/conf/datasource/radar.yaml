@@ -19,6 +19,7 @@ env_vars:
   - night
   - dusk
   - dawn
+  - dayofyear
   - solarpos
   - solarpos_dt
 
