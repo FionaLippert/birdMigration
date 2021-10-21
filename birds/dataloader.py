@@ -376,6 +376,7 @@ class RadarData(InMemoryDataset):
         dayofyear = pd.DatetimeIndex(time).dayofyear.values
         tidx = np.arange(len(time))
         dayofyear = dayofyear / max(dayofyear)
+        dynamic_feature_df['dayofyear'] = dayofyear
 
         data = dict(inputs=[],
                     targets=[],
@@ -624,9 +625,9 @@ def get_training_data_gam(dataset, timesteps, mask_daytime=False):
     mask = []
     for seq in dataset:
         for t in range(timesteps):
-            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features) where features are solarpos and solarpos_dt
-            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
-            features = np.concatenate([env, doy], axis=-1)
+            features = seq.env[:, -3:, t].detach().numpy()  # shape (nodes, features) where features are dayofyear, solarpos and solarpos_dt
+            #doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
+            #features = np.concatenate([env, doy], axis=-1)
 
             X.append(features)
             y.append(seq.y[:, t])
@@ -685,9 +686,9 @@ def get_test_data_gam(dataset, context, horizon, mask_daytime=False):
         y_night = []
         mask_night = []
         for t in range(context, context+horizon):
-            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features)
-            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
-            features = np.concatenate([env, doy], axis=-1)
+            features = seq.env[:, -3:, t].detach().numpy()  # shape (nodes, features)
+            #doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
+            #features = np.concatenate([env, doy], axis=-1)
 
             X_night.append(features)
             y_night.append(seq.y[:, t])
