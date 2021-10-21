@@ -103,7 +103,7 @@ def training(cfg: DictConfig, output_dir: str, log):
         p.register_hook(lambda grad: torch.clamp(grad, -1.0, 1.0))
 
 
-    tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
+    tf = cfg.model.get('teacher_forcing_init', 1.0) #initialize teacher forcing (is ignored for LocalMLP)
     all_tf = np.zeros(cfg.model.epochs)
     all_lr = np.zeros(cfg.model.epochs)
     avg_loss = np.inf
@@ -248,7 +248,7 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
         for p in model.parameters():
             p.register_hook(lambda grad: torch.clamp(grad, -1.0, 1.0))
 
-        tf = 1.0 # initialize teacher forcing (is ignored for LocalMLP)
+        tf = cfg.model.get('teacher_forcing_init', 1.0) # initialize teacher forcing (is ignored for LocalMLP)
         all_tf = np.zeros(epochs)
         all_lr = np.zeros(epochs)
         for epoch in range(epochs):
@@ -529,7 +529,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
             results['trial'].append([cfg.get('job_id', 0)] * y.shape[1])
-            results['horizon'].append(np.arange(-cfg.model.context, cfg.model.test_horizon+1))
+            #print(y.shape[1], cfg.model.context + cfg.model.test_horizon +1)
+            results['horizon'].append(np.arange(-(cfg.model.context-1), cfg.model.test_horizon+1))
             results['missing'].append(missing[ridx, :])
 
             if 'Flux' in cfg.model.name:
