@@ -13,6 +13,7 @@ def load_cv_results(result_dir, ext='', trials=1):
     result_list = []
     for t in range(1, trials+1):
         file = osp.join(result_dir, f'trial_{t}', f'results{ext}.csv')
+        print(file)
         if osp.isfile(file):
             df = pd.read_csv(file)
             df['trial'] = t
@@ -89,33 +90,34 @@ def compute_bin(model, experiment, results, groupby='trial', threshold=0, km2=Tr
 
 if __name__ == "__main__":
 
-    models = { 'FluxGraphLSTM': ['test_new_weight_func'] }
+    models = { 'FluxGraphLSTM': ['test_new_weight_func_split_delta'] }
 
-    trials = 5
+    trials = 1
     year = 2017
     season = 'fall'
 
     ext = ''
     datasource = 'abm'
-    base_dir = '/home/fiona/birdMigration/results'
-    base_dir = f'/media/flipper/Seagate Basic/PhD/paper_1/results/{datasource}'
+    base_dir = '/home/flipper/birdMigration'
+    #base_dir = f'/media/flipper/Seagate Basic/PhD/paper_1/results/{datasource}'
     #base_dir = '/media/flipper/Seagate Basic/PhD/paper_1/results/abm'
     #base_dir = '/home/flipper/birdMigration/results/radar'
 
     result_dir = osp.join(base_dir, 'results', datasource)
+    n_dummy = 30
 
     if datasource == 'abm':
-        data_dir = osp.join(base_dir, 'data', 'raw', 'abm')
+        data_dir = osp.join(base_dir, 'data', 'raw', 'abm', season, str(year))
         dep = np.load(osp.join(data_dir, 'departing_birds.npy'))
         land = np.load(osp.join(data_dir, 'landing_birds.npy'))
         delta = dep - land
 
-        with open(osp.join(base_dir, 'data', 'raw', 'abm', 'time.pkl', 'rb')) as f:
+        with open(osp.join(data_dir, 'time.pkl'), 'rb') as f:
             abm_time = pickle.load(f)
         time_dict = {t: idx for idx, t in enumerate(abm_time)}
 
-        voronoi = gpd.read_file(osp.join(base_dir, 'data', 'preprocessed', '1H_voronoi_ndummy=25',
-                                         'abm', season, year, 'voronoi.shp'))
+        voronoi = gpd.read_file(osp.join(base_dir, 'data', 'preprocessed', f'1H_voronoi_ndummy={n_dummy}_backup',
+                                         'abm', season, str(year), 'voronoi.shp'))
         radar_dict = voronoi.radar.to_dict()
         radar_dict = {v: k for k, v in radar_dict.items()}
 
@@ -133,10 +135,10 @@ if __name__ == "__main__":
     for m, dirs in models.items():
         print(f'evaluate model components for {m}')
         for d in dirs:
-            result_dir = osp.join(base_dir, m, f'test_{year}', d)
+            result_dir = osp.join(base_dir, 'results', datasource, m, f'test_{year}', d)
             results, cfg = load_cv_results(result_dir, ext=ext, trials=trials)
             model_fluxes = load_model_fluxes(result_dir, ext=ext, trials=trials)
-            bird_scale = cfg.datasource.bird_scale
+            bird_scale = cfg['datasource']['bird_scale']
             output_dir = osp.join(result_dir, 'performance_evaluation')
             os.makedirs(output_dir, exist_ok=True)
 
@@ -144,23 +146,24 @@ if __name__ == "__main__":
                 lambda row: get_abm_delta(row.datetime, row.radar, bird_scale), axis=1)
 
             # corr per radar
-            gr = results[results.radar.isin(inner_radars)].dropna().groupby(['radar', 'trial'])
-            corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
-            corr.to_csv(osp.join(output_dir, f'delta_corr_per_radar{ext}.csv'))
+            #gr = results[results.radar.isin(inner_radars)].dropna().groupby(['radar', 'trial'])
+            #corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
+            #corr.to_csv(osp.join(output_dir, f'delta_corr_per_radar{ext}.csv'))
 
             # corr per gt bin
-            gr = results[results.radar.isin(inner_radars)].dropna().groupby(['seqID', 'radar', 'trial'])
-            gr['activity'] = gr['gt'].transform(np.nanmean)
-            df = gr.reset_index()
-            df['activity_bin'] = pd.cut(df['activity'].values, bins=np.arange(0, df.activity.max()+200, 200))
-            gr = df.groupby(['activity_bin', 'trial'])
-            corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
-            corr.to_csv(osp.join(output_dir, f'delta_corr_per_activity_bin{ext}.csv'))
+            #gr = results[results.radar.isin(inner_radars)].dropna().groupby(['seqID', 'radar', 'trial'])
+            
+            #activity = gr['gt'].aggregate(np.nanmean).reset_index()
+            
+            #corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
+            #joint = corr.join(activity, how='outer', rsuffix='_r')
+            #joint['activity_bin'] = pd.cut(joint['gt'].values, bins=np.arange(0, joint['gt'].max()+200, 200))
+            #joint.to_csv(osp.join(output_dir, f'delta_corr_per_activity_bin{ext}.csv'))
 
             # corr per hour
-            gr = results[results.radar.isin(inner_radars)].dropna().groupby(['horizon', 'trial'])
-            corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
-            corr.to_csv(osp.join(output_dir, f'delta_corr_per_hour{ext}.csv'))
+            #gr = results[results.radar.isin(inner_radars)].dropna().groupby(['horizon', 'trial'])
+            #corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
+            #corr.to_csv(osp.join(output_dir, f'delta_corr_per_hour{ext}.csv'))
 
 
             # rearange abm fluxes to match model fluxes
@@ -169,7 +172,7 @@ if __name__ == "__main__":
                 time = df.datetime.unique()
                 gt_flux_dict[group] = np.stack([gt_fluxes[time_dict[pd.Timestamp(t)]] for t in time], axis=-1)
 
-            gt_flux = np.stack([f[..., cfg.model.context: cfg.model.context + cfg.model.test_horizon] for
+            gt_flux = np.stack([f[..., cfg['model']['context']: cfg['model']['context'] + cfg['model']['test_horizon']] for
                         f in gt_flux_dict.values()], axis=-1)
             # exclude "self-fluxes"
             for i in range(gt_flux.shape[0]):
@@ -207,10 +210,21 @@ if __name__ == "__main__":
                                                        model_net_flux_per_seq_t[ridx][mask].flatten())
 
                 corr_per_hour[t] = {}
-                for h in range(cfg.model.test_horizon):
+                for h in range(cfg['model']['test_horizon']):
                     mask = np.isfinite(gt_net_flux[:, :, h])
                     corr_per_hour[t][h] = np.corrcoef(gt_net_flux[:, :, h][mask].flatten(),
                                                        model_net_flux_t[:, :, h][mask].flatten())
+
+                    
+                    
+            with open(osp.join(output_dir, 'overall_corr.pickle'), 'wb') as f:
+                pickle.dump(overall_corr, f, pickle.HIGHEST_PROTOCOL)
+
+            with open(osp.join(output_dir, 'corr_per_radar.pickle'), 'wb') as f:
+                pickle.dump(corr_per_radar, f, pickle.HIGHEST_PROTOCOL)
+
+            with open(osp.join(output_dir, 'corr_per_hour.pickle'), 'wb') as f:
+                pickle.dump(corr_per_hour, f, pickle.HIGHEST_PROTOCOL)
 
 
 
