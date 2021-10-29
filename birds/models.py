@@ -213,7 +213,7 @@ class LocalMLP(torch.nn.Module):
             x = F.dropout(x, p=self.dropout_p, training=self.training)
 
         x = self.fc_out(x)
-        x = x.sigmoid()
+        x = x.relu()
 
         return x
 
@@ -290,15 +290,15 @@ class NodeLSTM(torch.nn.Module):
         #                                    torch.nn.LeakyReLU(),
         #                                    torch.nn.Linear(self.n_hidden, 1))
 
-        self.hidden2in = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
-                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                 torch.nn.ReLU(),
-                                                 torch.nn.Linear(self.n_hidden, 1))
+        # self.hidden2in = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        #                                          torch.nn.Dropout(p=self.dropout_p),
+        #                                          torch.nn.ReLU(),
+        #                                          torch.nn.Linear(self.n_hidden, 1))
 
-        self.hidden2out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        self.hidden2output = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
                                                  torch.nn.Dropout(p=self.dropout_p),
                                                  torch.nn.ReLU(),
-                                                 torch.nn.Linear(self.n_hidden, 1))
+                                                 torch.nn.Linear(self.n_hidden, 2))
 
         self.reset_parameters()
 
@@ -310,8 +310,8 @@ class NodeLSTM(torch.nn.Module):
         #     init_weights(self.v_attention)
         init_weights(self.lstm_in)
         self.lstm_layers.apply(init_weights)
-        self.hidden2in.apply(init_weights)
-        self.hidden2out.apply(init_weights)
+        #self.hidden2in.apply(init_weights)
+        self.hidden2output.apply(init_weights)
 
     def setup_states(self, h, c, enc_state=None):
         self.h = h
@@ -351,12 +351,11 @@ class NodeLSTM(torch.nn.Module):
             self.c[0] = F.dropout(self.c[0], p=self.dropout_p, training=self.training, inplace=False)
             self.h[l+1], self.c[l+1] = self.lstm_layers[l](self.h[l], (self.h[l+1], self.c[l+1]))
 
-        x_in = torch.sigmoid(self.hidden2in(self.h[-1]))
-        x_out = torch.sigmoid(self.hidden2out(self.h[-1]))
+        source_sink = self.hidden2output(self.h[-1])
 
         # delta = torch.tanh(self.hidden2output(self.h[-1]))
 
-        return x_in, x_out, self.h[-1]
+        return source_sink, self.h[-1]
 
 
 class LocalLSTM(torch.nn.Module):
@@ -397,6 +396,10 @@ class LocalLSTM(torch.nn.Module):
             self.node_lstm.setup_states(h_t, c_t)
 
         forecast_horizon = range(self.t_context, self.t_context + self.horizon)
+        
+        if not self.training:
+            self.node_source = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+            self.node_sink = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
 
         for t in forecast_horizon:
 
@@ -408,9 +411,15 @@ class LocalLSTM(torch.nn.Module):
             # delta, hidden = self.node_lstm(inputs)
             # x = x + delta
 
-            x_in, x_out, hidden = self.node_lstm(inputs)
-            x = x + x_in - (x_out * x)
+            source_sink, hidden = self.node_lstm(inputs)
+            source = F.relu(source_sink[:, 0]).view(-1, 1)
+            sink = F.sigmoid(source_sink[:, 1]).view(-1, 1) * x
+            x = x + source - sink
             y_hat.append(x)
+
+            if not self.training:
+                self.node_source[..., t-self.t_context] = source
+                self.node_sink[..., t-self.t_context] = sink
 
         prediction = torch.cat(y_hat, dim=-1)
 
@@ -476,9 +485,11 @@ class FluxGraphLSTM(MessagePassing):
         hidden = h_t[-1]
 
         # relevant info for later
-        self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon), device=x.device)
-        self.node_deltas = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
-        self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+        if not self.training:
+            self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon), device=x.device)
+            self.node_sink = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+            self.node_source = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+            #self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
 
         forecast_horizon = range(self.t_context, self.t_context + self.horizon)
 
@@ -534,7 +545,7 @@ class FluxGraphLSTM(MessagePassing):
 
         flux = self.edge_mlp(x_j, inputs, hidden_sp_j)
 
-        self.edge_fluxes[..., t] = flux
+        if not self.training: self.edge_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
         flux = flux.view(-1, 1)
 
@@ -547,11 +558,18 @@ class FluxGraphLSTM(MessagePassing):
         #assert(torch.isfinite(inputs).all())
 
         #delta, hidden = self.node_lstm(inputs)
-        x_in, x_out, hidden = self.node_lstm(inputs)
-        delta = x_in - (x_out * x)
-
-        self.node_deltas[..., t] = delta
-        self.node_fluxes[..., t] = aggr_out
+        # x_in, x_out, hidden = self.node_lstm(inputs)
+        # source = F.relu(x_in)
+        # sink = F.sigmoid(x_out) * x
+        source_sink, hidden = self.node_lstm(inputs)
+        source = F.relu(source_sink[:, 0]).view(-1, 1)
+        sink = (F.sigmoid(source_sink[:, 1]).view(-1, 1) * x)
+        delta = source - sink
+        
+        if not self.training:
+            self.node_source[..., t] = source
+            self.node_sink[..., t] = sink
+            #self.node_fluxes[..., t] = aggr_out
 
         pred = x + delta + aggr_out
 

@@ -194,6 +194,7 @@ class RadarData(InMemoryDataset):
         self.rng = np.random.default_rng(self.seed)
         self.data_perc = kwargs.get('data_perc', 1.0)
         self.importance_sampling = kwargs.get('importance_sampling', False)
+        print('importance sampling', self.importance_sampling)
 
 
         super(RadarData, self).__init__(self.root, transform, pre_transform)
@@ -371,10 +372,15 @@ class RadarData(InMemoryDataset):
         env_cols = self.env_vars
         acc_cols = ['acc_rain', 'acc_wind']
 
+        def datetime_to_dayofyear(datetime):
+            return pd.DatetimeIndex(datetime).dayofyear
+
         time = dynamic_feature_df.datetime.sort_values().unique()
-        dayofyear = pd.DatetimeIndex(time).dayofyear.values
+        #dayofyear = pd.DatetimeIndex(dynamic_feature_df.datetime).dayofyear.values
         tidx = np.arange(len(time))
-        dayofyear = dayofyear / max(dayofyear)
+        #dayofyear = dayofyear / max(dayofyear)
+        dynamic_feature_df['dayofyear'] = pd.DatetimeIndex(dynamic_feature_df.datetime).dayofyear
+        dynamic_feature_df['dayofyear'] = dynamic_feature_df['dayofyear'] / dynamic_feature_df['dayofyear'].max()
 
         data = dict(inputs=[],
                     targets=[],
@@ -438,7 +444,7 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights)
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
-        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
+        #dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
 
         # remove sequences with too much missing data
         perc_missing = data['missing'][observed_idx].reshape(-1, data['missing'].shape[-1]).mean(0)
@@ -448,7 +454,7 @@ class RadarData(InMemoryDataset):
             data[k] = data[k][..., valid_idx]
 
         tidx = tidx[..., valid_idx]
-        dayofyear = dayofyear[..., valid_idx]
+        #dayofyear = dayofyear[..., valid_idx]
 
 
 
@@ -517,6 +523,7 @@ class RadarData(InMemoryDataset):
             # resample sequences according to importance weights
             n_seq = int(self.data_perc * valid_idx.sum())
             seq_index = self.rng.choice(np.arange(agg.size), n_seq, p=weights, replace=True)
+            print('sampled seqIDs:', seq_index)
         else:
             # sample sequences uniformly
             n_seq = int(self.data_perc * valid_idx.sum())
@@ -537,7 +544,7 @@ class RadarData(InMemoryDataset):
                           inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                          day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
+                          #day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=torch.tensor(fluxes[:, :, nidx], dtype=torch.float),
@@ -622,9 +629,9 @@ def get_training_data_gam(dataset, timesteps, mask_daytime=False):
     mask = []
     for seq in dataset:
         for t in range(timesteps):
-            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features) where features are solarpos and solarpos_dt
-            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
-            features = np.concatenate([env, doy], axis=-1)
+            features = seq.env[:, -3:, t].detach().numpy()  # shape (nodes, features) where features are dayofyear, solarpos and solarpos_dt
+            #doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
+            #features = np.concatenate([env, doy], axis=-1)
 
             X.append(features)
             y.append(seq.y[:, t])
@@ -683,9 +690,9 @@ def get_test_data_gam(dataset, context, horizon, mask_daytime=False):
         y_night = []
         mask_night = []
         for t in range(context, context+horizon):
-            env = seq.env[:, -2:, t].detach().numpy()  # shape (nodes, features)
-            doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
-            features = np.concatenate([env, doy], axis=-1)
+            features = seq.env[:, -3:, t].detach().numpy()  # shape (nodes, features)
+            #doy = np.ones((env.shape[0], 1)) * seq.day_of_year[t].detach().numpy()
+            #features = np.concatenate([env, doy], axis=-1)
 
             X_night.append(features)
             y_night.append(seq.y[:, t])
