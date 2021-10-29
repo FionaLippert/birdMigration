@@ -2,7 +2,7 @@
 name: LocalLSTM
 n_hidden: 128
 n_lstm_layers: 1
-dropout_p: 0.0
+dropout_p: 0.25
 epochs: 300
 lr: 1e-6
 lr_decay: 300

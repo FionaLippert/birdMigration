@@ -396,6 +396,10 @@ class LocalLSTM(torch.nn.Module):
             self.node_lstm.setup_states(h_t, c_t)
 
         forecast_horizon = range(self.t_context, self.t_context + self.horizon)
+        
+        if not self.training:
+            self.node_source = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+            self.node_sink = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
 
         for t in forecast_horizon:
 
@@ -408,8 +412,14 @@ class LocalLSTM(torch.nn.Module):
             # x = x + delta
 
             source_sink, hidden = self.node_lstm(inputs)
-            x = x + F.relu(source_sink[:, 0]) - (F.sigmoid(source_sink[:, 1]) * x)
+            source = F.relu(source_sink[:, 0]).view(-1, 1)
+            sink = F.sigmoid(source_sink[:, 1]).view(-1, 1) * x
+            x = x + source - sink
             y_hat.append(x)
+
+            if not self.training:
+                self.node_source[..., t-self.t_context] = source
+                self.node_sink[..., t-self.t_context] = sink
 
         prediction = torch.cat(y_hat, dim=-1)
 
@@ -475,10 +485,11 @@ class FluxGraphLSTM(MessagePassing):
         hidden = h_t[-1]
 
         # relevant info for later
-        self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon), device=x.device)
-        self.node_sink = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
-        self.node_source = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
-        self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+        if not self.training:
+            self.edge_fluxes = torch.zeros((data.edge_index.size(1), 1, self.horizon), device=x.device)
+            self.node_sink = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+            self.node_source = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
+            #self.node_fluxes = torch.zeros((data.x.size(0), 1, self.horizon), device=x.device)
 
         forecast_horizon = range(self.t_context, self.t_context + self.horizon)
 
@@ -534,7 +545,7 @@ class FluxGraphLSTM(MessagePassing):
 
         flux = self.edge_mlp(x_j, inputs, hidden_sp_j)
 
-        self.edge_fluxes[..., t] = flux
+        if not self.training: self.edge_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
         flux = flux.view(-1, 1)
 
@@ -551,13 +562,14 @@ class FluxGraphLSTM(MessagePassing):
         # source = F.relu(x_in)
         # sink = F.sigmoid(x_out) * x
         source_sink, hidden = self.node_lstm(inputs)
-        source = F.relu(source_sink[:, 0])
-        sink = (F.sigmoid(source_sink[:, 1]) * x)
+        source = F.relu(source_sink[:, 0]).view(-1, 1)
+        sink = (F.sigmoid(source_sink[:, 1]).view(-1, 1) * x)
         delta = source - sink
-
-        self.node_source[..., t] = source
-        self.node_sink[..., t] = sink
-        self.node_fluxes[..., t] = aggr_out
+        
+        if not self.training:
+            self.node_source[..., t] = source
+            self.node_sink[..., t] = sink
+            #self.node_fluxes[..., t] = aggr_out
 
         pred = x + delta + aggr_out
 

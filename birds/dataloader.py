@@ -372,11 +372,15 @@ class RadarData(InMemoryDataset):
         env_cols = self.env_vars
         acc_cols = ['acc_rain', 'acc_wind']
 
+        def datetime_to_dayofyear(datetime):
+            return pd.DatetimeIndex(datetime).dayofyear
+
         time = dynamic_feature_df.datetime.sort_values().unique()
-        dayofyear = pd.DatetimeIndex(time).dayofyear.values
+        #dayofyear = pd.DatetimeIndex(dynamic_feature_df.datetime).dayofyear.values
         tidx = np.arange(len(time))
-        dayofyear = dayofyear / max(dayofyear)
-        dynamic_feature_df['dayofyear'] = dayofyear
+        #dayofyear = dayofyear / max(dayofyear)
+        dynamic_feature_df['dayofyear'] = pd.DatetimeIndex(dynamic_feature_df.datetime).dayofyear
+        dynamic_feature_df['dayofyear'] = dynamic_feature_df['dayofyear'] / dynamic_feature_df['dayofyear'].max()
 
         data = dict(inputs=[],
                     targets=[],
@@ -440,7 +444,7 @@ class RadarData(InMemoryDataset):
             data[k] = reshape(v, nights, mask, self.timesteps, self.use_nights)
 
         tidx = reshape(tidx, nights, mask, self.timesteps, self.use_nights)
-        dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
+        #dayofyear = reshape(dayofyear, nights, mask, self.timesteps, self.use_nights)
 
         # remove sequences with too much missing data
         perc_missing = data['missing'][observed_idx].reshape(-1, data['missing'].shape[-1]).mean(0)
@@ -450,7 +454,7 @@ class RadarData(InMemoryDataset):
             data[k] = data[k][..., valid_idx]
 
         tidx = tidx[..., valid_idx]
-        dayofyear = dayofyear[..., valid_idx]
+        #dayofyear = dayofyear[..., valid_idx]
 
 
 
@@ -540,7 +544,7 @@ class RadarData(InMemoryDataset):
                           inner_edges=inner_edges.bool(),
                           edge_attr=edge_attr,
                           tidx=torch.tensor(tidx[:, nidx], dtype=torch.long),
-                          day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
+                          #day_of_year=torch.tensor(dayofyear[:, nidx], dtype=torch.float),
                           local_night=torch.tensor(data['nighttime'][:, :, nidx], dtype=torch.bool),
                           missing=torch.tensor(data['missing'][:, :, nidx], dtype=torch.bool),
                           fluxes=torch.tensor(fluxes[:, :, nidx], dtype=torch.float),
