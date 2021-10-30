@@ -307,11 +307,12 @@ def run(cfg: DictConfig, output_dir: str, log):
         cfg['fixed_t0'] = False
         test(cfg, output_dir, log)
 
-        training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
-        cfg.model.test_horizon = cfg.model.horizon
-        for y in training_years:
-            cfg.datasource.test_year = y
-            test(cfg, output_dir, log, ext=f'_training_year_{y}')
+        if cfg.get('test_train_data', False):
+            training_years = set(cfg.datasource.years) - set([cfg.datasource.test_year])
+            cfg.model.test_horizon = cfg.model.horizon
+            for y in training_years:
+                cfg.datasource.test_year = y
+                test(cfg, output_dir, log, ext=f'_training_year_{y}')
 
 
 if __name__ == "__main__":

@@ -444,12 +444,13 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     # load models and predict
     results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
-    if 'Flux' in cfg.model.name:
-        results['flux'] = []
+    if 'LSTM' in cfg.model.name:
+        #results['flux'] = []
         results['source'] = []
         results['sink'] = []
         results['source_km2'] = []
         results['sink_km2'] = []
+    if 'Flux' in cfg.model.name:
         results['influx'] = []
         results['outflux'] = []
 
@@ -504,9 +505,10 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             # net fluxes per node
-            fluxes = model.node_fluxes.detach().cpu() * cfg.datasource.bird_scale
+            #fluxes = model.node_fluxes.detach().cpu() * cfg.datasource.bird_scale
             influxes = edge_fluxes[nidx].sum(1) * cfg.datasource.bird_scale
             outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1) * cfg.datasource.bird_scale
+        if 'LSTM' in cfg.model.name:
             node_source = model.node_source.detach().cpu() * cfg.datasource.bird_scale
             node_sink = model.node_sink.detach().cpu() * cfg.datasource.bird_scale
 
@@ -533,12 +535,13 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['horizon'].append(np.arange(-(cfg.model.context-1), cfg.model.test_horizon+1))
             results['missing'].append(missing[ridx, :])
 
-            if 'Flux' in cfg.model.name:
-                results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
+            if 'LSTM' in cfg.model.name:
+                #results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
                 results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]))
                 results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]))
                 results['source_km2'].append(torch.cat([fill_context, node_source[ridx].view(-1) / areas[ridx]]))
                 results['sink_km2'].append(torch.cat([fill_context, node_sink[ridx].view(-1) / areas[ridx]]))
+            if 'Flux' in cfg.model.name:
                 results['influx'].append(torch.cat([fill_context, influxes[ridx].view(-1)]))
                 results['outflux'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]))
 
