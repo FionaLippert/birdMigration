@@ -99,6 +99,8 @@ def training(cfg: DictConfig, output_dir: str, log):
     optimizer = torch.optim.Adam(params, lr=cfg.model.lr)
     scheduler = lr_scheduler.StepLR(optimizer, step_size=cfg.model.lr_decay, gamma=cfg.model.get('lr_gamma', 0.1))
 
+    #scheduler = lr_scheduler.CyclicLR(optimizer, cfg.model.lr, cfg.model.get('lr_max', 10*cfg.model.lr), step_size_up=cfg.model.lr_decay)
+
     for p in model.parameters():
         p.register_hook(lambda grad: torch.clamp(grad, -1.0, 1.0))
 
