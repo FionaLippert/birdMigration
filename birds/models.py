@@ -445,7 +445,7 @@ class FluxGraphLSTM(MessagePassing):
         n_node_in = n_env + coord_dim + 1
         n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
 
-        self.node_lstm = NodeLSTM(n_node_in + 1, **kwargs)
+        self.node_lstm = NodeLSTM(n_node_in, **kwargs)
         self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_node_in, **kwargs)
@@ -462,6 +462,7 @@ class FluxGraphLSTM(MessagePassing):
         boundary_nodes = data.boundary.view(-1, 1)
         inner_nodes = torch.logical_not(data.boundary).view(-1, 1)
 
+        # density per km2 for all cells
         x = data.x[..., self.t_context - 1].view(-1, 1)
         y_hat = []
 
@@ -535,7 +536,7 @@ class FluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, hidden_sp_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
+    def message(self, x_j, areas_j, hidden_sp_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
         # construct messages to node i for each edge (j,i)
         # x_j are source features with shape [E, out_channels]
 
@@ -543,7 +544,8 @@ class FluxGraphLSTM(MessagePassing):
         inputs = torch.cat(inputs, dim=1)
         #assert(torch.isfinite(inputs).all())
 
-        flux = self.edge_mlp(x_j, inputs, hidden_sp_j)
+        # total flux from cell j to cell i
+        flux = self.edge_mlp(x_j, inputs, hidden_sp_j) * areas_j.view(-1, 1)
 
         if not self.training: self.edge_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
@@ -554,24 +556,24 @@ class FluxGraphLSTM(MessagePassing):
 
     def update(self, aggr_out, x, coords, areas, env, t):
 
-        inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
-        #assert(torch.isfinite(inputs).all())
+        inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
+        #inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
 
-        #delta, hidden = self.node_lstm(inputs)
-        # x_in, x_out, hidden = self.node_lstm(inputs)
-        # source = F.relu(x_in)
-        # sink = F.sigmoid(x_out) * x
         source_sink, hidden = self.node_lstm(inputs)
+
+        # source density per km2
         source = F.relu(source_sink[:, 0]).view(-1, 1)
+        # sink density per km2
         sink = (F.sigmoid(source_sink[:, 1]).view(-1, 1) * x)
         delta = source - sink
         
         if not self.training:
             self.node_source[..., t] = source
             self.node_sink[..., t] = sink
-            #self.node_fluxes[..., t] = aggr_out
 
-        pred = x + delta + aggr_out
+        # convert total influxes to influx per km2
+        influx = aggr_out / areas.view(-1, 1)
+        pred = x + delta + influx
 
         return pred, hidden
 

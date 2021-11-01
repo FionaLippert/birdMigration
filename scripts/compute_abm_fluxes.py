@@ -8,26 +8,22 @@ import argparse
 import geopandas as gpd
 
 parser = argparse.ArgumentParser(description='process ABM simulation results')
-parser.add_argument('--root', type=str, default='/home/fiona/birdMigration/data', help='entry point to required data')
-parser.add_argument('--year', type=int, default=2015, help='year to be processed')
-#parser.add_argument('--radar_year', type=int, default=2015, help='year to use to load radar locations and names')
+parser.add_argument('--root', type=str, default='/home/flipper/birdMigration/data', help='entry point to required data')
+parser.add_argument('--year', type=int, default=2017, help='year to be processed')
 parser.add_argument('--season', type=str, default='fall', help='season to be processed')
-parser.add_argument('--ndummy', type=int, default=30, help='number of dummy radars')
+parser.add_argument('--ndummy', type=int, default=25, help='number of dummy radars')
 args = parser.parse_args()
 
-#radar_path = osp.join(args.root, 'raw', 'radar', args.season, str(args.radar_year))
 abm_path = osp.join(args.root, 'raw', 'abm', args.season, str(args.year))
+output_dir = osp.join(args.root, 'preprocessed', f'1H_voronoi_ndummy={args.ndummy}',
+                      'abm', args.season, str(args.year))
 
-#radars = datahandling.load_radars(radar_path)
 df = gpd.read_file(osp.join(args.root, 'raw', 'abm', 'all_radars.shp'))
 radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
-#radar_index = {name : idx for idx, name in enumerate(radars.values())}
-#radar_index['sink'] = len(radar_index)
-#N = len(radar_index)
 
 sp = spatial.Spatial(radars, n_dummy_radars=args.ndummy)
 cells, G = sp.voronoi()
-cells = cells.to_crs(f'epsg:{sp.epsg_lonlat}')   #to_crs(epsg='4326')
+cells = cells.to_crs(f'epsg:{sp.epsg_lonlat}')
 
 radar_index = {name : idx for idx, name in enumerate(cells.radar.values)}
 N = len(radar_index)
@@ -71,9 +67,11 @@ for tidx in range(T):
         for radar, df_radar in groups:
             landing[tidx, radar_index[radar]] = len(df_radar)
 
-np.save(osp.join(abm_path, f'outfluxes.npy'), outfluxes)
-np.save(osp.join(abm_path, 'departing_birds.npy'), departing)
-np.save(osp.join(abm_path, 'landing_birds.npy'), landing)
+np.save(osp.join(output_dir, f'outfluxes.npy'), outfluxes)
+np.save(osp.join(output_dir, 'departing_birds.npy'), departing)
+np.save(osp.join(output_dir, 'landing_birds.npy'), landing)
+with open(osp.join(output_dir, 'time.pkl'), 'wb') as f:
+    pickle.dump(time)
 
 
 

@@ -352,13 +352,14 @@ def setup_training(cfg: DictConfig, output_dir: str):
 
     data = torch.utils.data.ConcatDataset(data)
 
-    if cfg.model.edge_type == 'voronoi':
+    if cfg.model.birds_per_km2:
+        input_col = 'birds_km2'
+    else:
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
         else:
             input_col = 'birds'
-    else:
-        input_col = 'birds_km2'
+
 
     cfg.datasource.bird_scale = float(normalization.max(input_col))
     cfg.model_seed = seed
@@ -393,15 +394,19 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     model_dir = cfg.get('model_dir', output_dir)
     device = 'cuda' if (cfg.device.cuda and torch.cuda.is_available()) else 'cpu'
 
-    if cfg.model.edge_type == 'voronoi':
-        n_edge_attr = 4
+
+    if cfg.model.birds_per_km2:
+        input_col = 'birds_km2'
+    else:
         if cfg.datasource.use_buffers:
             input_col = 'birds_from_buffer'
         else:
             input_col = 'birds'
+
+    if cfg.model.edge_type == 'voronoi':
+        n_edge_attr = 4
     else:
         n_edge_attr = 3
-        input_col = 'birds_km2'
 
     if cfg.get('use_pretrained_model', False):
         model_ext = '_pretrained'
@@ -441,6 +446,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
     areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
+    to_km2 = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
+    to_cell = test_data.info['areas'] if input_col == 'birds_km2' else np.ones(len(radars))
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
@@ -453,8 +460,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         results['source_km2'] = []
         results['sink_km2'] = []
     if 'Flux' in cfg.model.name:
-        results['influx'] = []
-        results['outflux'] = []
+        results['influx_km2'] = []
+        results['outflux_km2'] = []
 
 
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
@@ -523,10 +530,10 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         #print(fill_context.shape, y.shape, torch.cat([fill_context, y_hat[0, :]]).shape)
 
         for ridx, name in radar_index.items():
-            results['gt'].append(y[ridx, :])
-            results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]))
-            results['gt_km2'].append(y[ridx, :] / areas[ridx])
-            results['prediction_km2'].append(torch.cat([fill_context, y_hat[ridx, :] / areas[ridx]]))
+            results['gt'].append(y[ridx, :] * to_cell[ridx])
+            results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]) * to_cell[ridx])
+            results['gt_km2'].append(y[ridx, :] / to_km2[ridx])
+            results['prediction_km2'].append(torch.cat([fill_context, y_hat[ridx, :] / to_km2[ridx]]))
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])
@@ -539,13 +546,13 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
             if 'LSTM' in cfg.model.name:
                 #results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
-                results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]))
-                results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]))
-                results['source_km2'].append(torch.cat([fill_context, node_source[ridx].view(-1) / areas[ridx]]))
-                results['sink_km2'].append(torch.cat([fill_context, node_sink[ridx].view(-1) / areas[ridx]]))
+                results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]) * to_cell[ridx])
+                results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]) * to_cell[ridx])
+                results['source_km2'].append(torch.cat([fill_context, node_source[ridx].view(-1) / to_km2[ridx]]))
+                results['sink_km2'].append(torch.cat([fill_context, node_sink[ridx].view(-1) / to_km2[ridx]]))
             if 'Flux' in cfg.model.name:
-                results['influx'].append(torch.cat([fill_context, influxes[ridx].view(-1)]))
-                results['outflux'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]))
+                results['influx_km2'].append(torch.cat([fill_context, influxes[ridx].view(-1)]) * to_km2[ridx])
+                results['outflux_km2'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]) * to_km2[ridx])
 
     if 'Flux' in cfg.model.name:
         with open(osp.join(output_dir, f'model_fluxes{ext}.pickle'), 'wb') as f:
