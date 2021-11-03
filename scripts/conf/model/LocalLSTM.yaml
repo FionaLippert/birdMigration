@@ -16,9 +16,9 @@ root_transformed_loss: false
 use_encoder: true
 context: 24
 batch_size: 4
-edge_type: none
-birds_per_km2: true
+edge_type: voronoi
+birds_per_km2: false
 n_dummy_radars: 0
 early_stopping: true
 stopping_criterion: 1e-6
-avg_window: 10
+avg_window: 50
