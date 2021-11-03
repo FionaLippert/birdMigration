@@ -369,7 +369,7 @@ class LocalLSTM(torch.nn.Module):
         self.use_encoder = kwargs.get('use_encoder', True)
 
         # model components
-        n_in = n_env + coord_dim + 1
+        n_in = n_env + coord_dim + 2
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
@@ -407,7 +407,7 @@ class LocalLSTM(torch.nn.Module):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
+            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t], data.areas.view(-1, 1)], dim=1)
             # delta, hidden = self.node_lstm(inputs)
             # x = x + delta
 
@@ -442,7 +442,7 @@ class FluxGraphLSTM(MessagePassing):
         self.n_graph_layers = kwargs.get('n_graph_layers', 0)
 
         # model components
-        n_node_in = n_env + coord_dim + 1
+        n_node_in = n_env + coord_dim + 2
         n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
 
         self.node_lstm = NodeLSTM(n_node_in, **kwargs)
@@ -545,7 +545,7 @@ class FluxGraphLSTM(MessagePassing):
         #assert(torch.isfinite(inputs).all())
 
         # total flux from cell j to cell i
-        flux = self.edge_mlp(x_j, inputs, hidden_sp_j) * areas_j.view(-1, 1)
+        flux = self.edge_mlp(x_j, inputs, hidden_sp_j) #* areas_j.view(-1, 1)
 
         if not self.training: self.edge_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
@@ -556,8 +556,8 @@ class FluxGraphLSTM(MessagePassing):
 
     def update(self, aggr_out, x, coords, areas, env, t):
 
-        inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
-        #inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
+        #inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
+        inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
 
         source_sink, hidden = self.node_lstm(inputs)
 
@@ -572,7 +572,7 @@ class FluxGraphLSTM(MessagePassing):
             self.node_sink[..., t] = sink
 
         # convert total influxes to influx per km2
-        influx = aggr_out / areas.view(-1, 1)
+        influx = aggr_out #/ areas.view(-1, 1)
         pred = x + delta + influx
 
         return pred, hidden
@@ -680,21 +680,21 @@ class RecurrentEncoder(torch.nn.Module):
         for t in range(self.t_context):
             x = data.x[:, t]
             if self.use_uv:
-                h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t, data.bird_uv[..., t])
+                h_t, c_t = self.update(x, data.coords, data.env[..., t], data.areas, h_t, c_t, data.bird_uv[..., t])
             else:
-                h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t)
+                h_t, c_t = self.update(x, data.coords, data.env[..., t], data.areas, h_t, c_t)
             #states.append(h_t[-1])
 
         #states = torch.stack(states, dim=1)
         return h_t, c_t
 
 
-    def update(self, x, coords, env, h_t, c_t, bird_uv=None):
+    def update(self, x, coords, env, areas, h_t, c_t, bird_uv=None):
 
         if self.use_uv:
-            inputs = torch.cat([x.view(-1, 1), coords, env, bird_uv], dim=1)
+            inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1), bird_uv], dim=1)
         else:
-            inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
+            inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
 
         #print(f'encoder inputs: {inputs}')
         #assert(torch.isfinite(inputs).all())
