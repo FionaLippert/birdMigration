@@ -265,7 +265,7 @@ class EdgeFluxMLP(torch.nn.Module):
 class SourceSinkMLP(torch.nn.Module):
 
     def __init__(self, **kwargs):
-        super(NodeLSTM, self).__init__()
+        super(SourceSinkMLP, self).__init__()
 
         self.n_hidden = kwargs.get('n_hidden', 64)
         self.dropout_p = kwargs.get('dropout_p', 0)
@@ -581,7 +581,7 @@ class FluxGraphLSTM(MessagePassing):
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
 
         hidden = self.node_lstm(inputs)
-        source, sink = self.output_mlp(hidden)
+        source, sink = self.source_sink_mlp(hidden)
         sink = sink * x
         delta = source - sink
         
