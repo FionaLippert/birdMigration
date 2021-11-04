@@ -262,6 +262,39 @@ class EdgeFluxMLP(torch.nn.Module):
 
         return flux
 
+class SourceSinkMLP(torch.nn.Module):
+
+    def __init__(self, **kwargs):
+        super(NodeLSTM, self).__init__()
+
+        self.n_hidden = kwargs.get('n_hidden', 64)
+        self.dropout_p = kwargs.get('dropout_p', 0)
+
+        self.hidden2source = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                           torch.nn.Dropout(p=self.dropout_p),
+                                           torch.nn.LeakyReLU(),
+                                           torch.nn.Linear(self.n_hidden, 1))
+
+        self.hidden2sink = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+                                                 torch.nn.Dropout(p=self.dropout_p),
+                                                 torch.nn.ReLU(),
+                                                 torch.nn.Linear(self.n_hidden, 1))
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+
+        self.hidden2source.apply(init_weights)
+        self.hidden2sink.apply(init_weights)
+
+    def forward(self, h):
+
+        source = F.relu(self.hidden2source(h))
+        sink = F.sigmoid(self.hidden2sink(h))
+
+        return source, sink
+
+
 class NodeLSTM(torch.nn.Module):
 
     def __init__(self, n_in, **kwargs):
@@ -285,20 +318,20 @@ class NodeLSTM(torch.nn.Module):
         self.lstm_layers = nn.ModuleList([torch.nn.LSTMCell(self.n_hidden, self.n_hidden)
                                           for _ in range(self.n_lstm_layers - 1)])
 
-        # self.hidden2output = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        # self.hidden2out = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
         #                                    torch.nn.Dropout(p=self.dropout_p),
         #                                    torch.nn.LeakyReLU(),
         #                                    torch.nn.Linear(self.n_hidden, 1))
-
+        #
         # self.hidden2in = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
         #                                          torch.nn.Dropout(p=self.dropout_p),
         #                                          torch.nn.ReLU(),
         #                                          torch.nn.Linear(self.n_hidden, 1))
 
-        self.hidden2output = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
-                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                 torch.nn.ReLU(),
-                                                 torch.nn.Linear(self.n_hidden, 2))
+        # self.hidden2output = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        #                                          torch.nn.Dropout(p=self.dropout_p),
+        #                                          torch.nn.ReLU(),
+        #                                          torch.nn.Linear(self.n_hidden, 2))
 
         self.reset_parameters()
 
@@ -310,8 +343,8 @@ class NodeLSTM(torch.nn.Module):
         #     init_weights(self.v_attention)
         init_weights(self.lstm_in)
         self.lstm_layers.apply(init_weights)
-        #self.hidden2in.apply(init_weights)
-        self.hidden2output.apply(init_weights)
+        # self.hidden2in.apply(init_weights)
+        # self.hidden2out.apply(init_weights)
 
     def setup_states(self, h, c, enc_state=None):
         self.h = h
@@ -331,17 +364,6 @@ class NodeLSTM(torch.nn.Module):
         inputs = self.input2hidden(inputs)
 
         if self.use_encoder:
-            # use attention mechanism to extract information from encoder states
-            # hidden = self.h[-1].unsqueeze(1).repeat(1, self.enc_states.size(1), 1)
-            # energy = torch.tanh(self.fc_attention(torch.cat([self.enc_states, hidden], dim=2)))
-            # scores = self.v_attention(energy).squeeze()
-            # alpha = F.softmax(scores, dim=1)
-            # context = torch.matmul(alpha.unsqueeze(1), self.enc_states).squeeze() # shape (radars x hidden)
-            # inputs = torch.cat([inputs, context], dim=1)
-
-            # if not self.training:
-            #     self.alphas.append(alpha)
-
             inputs = torch.cat([inputs, self.enc_state], dim=1)
 
         # lstm layers
@@ -351,11 +373,7 @@ class NodeLSTM(torch.nn.Module):
             self.c[0] = F.dropout(self.c[0], p=self.dropout_p, training=self.training, inplace=False)
             self.h[l+1], self.c[l+1] = self.lstm_layers[l](self.h[l], (self.h[l+1], self.c[l+1]))
 
-        source_sink = self.hidden2output(self.h[-1])
-
-        # delta = torch.tanh(self.hidden2output(self.h[-1]))
-
-        return source_sink, self.h[-1]
+        return self.h[-1]
 
 
 class LocalLSTM(torch.nn.Module):
@@ -369,10 +387,11 @@ class LocalLSTM(torch.nn.Module):
         self.use_encoder = kwargs.get('use_encoder', True)
 
         # model components
-        n_in = n_env + coord_dim + 1
+        n_in = n_env + coord_dim + 2
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
+        self.output_mlp = SourceSinkMLP(**kwargs)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -407,13 +426,14 @@ class LocalLSTM(torch.nn.Module):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
+            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t], data.areas.view(-1, 1)], dim=1)
             # delta, hidden = self.node_lstm(inputs)
             # x = x + delta
 
-            source_sink, hidden = self.node_lstm(inputs)
-            source = F.relu(source_sink[:, 0]).view(-1, 1)
-            sink = F.sigmoid(source_sink[:, 1]).view(-1, 1) * x
+            hidden = self.node_lstm(inputs)
+            source, sink = self.output_mlp(hidden)
+            sink = sink * x
+
             x = x + source - sink
             y_hat.append(x)
 
@@ -442,10 +462,11 @@ class FluxGraphLSTM(MessagePassing):
         self.n_graph_layers = kwargs.get('n_graph_layers', 0)
 
         # model components
-        n_node_in = n_env + coord_dim + 1
+        n_node_in = n_env + coord_dim + 2
         n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
 
-        self.node_lstm = NodeLSTM(n_node_in + 1, **kwargs)
+        self.node_lstm = NodeLSTM(n_node_in, **kwargs)
+        self.source_sink_mlp = SourceSinkMLP(**kwargs)
         self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_node_in, **kwargs)
@@ -462,6 +483,7 @@ class FluxGraphLSTM(MessagePassing):
         boundary_nodes = data.boundary.view(-1, 1)
         inner_nodes = torch.logical_not(data.boundary).view(-1, 1)
 
+        # density per km2 for all cells
         x = data.x[..., self.t_context - 1].view(-1, 1)
         y_hat = []
 
@@ -535,7 +557,7 @@ class FluxGraphLSTM(MessagePassing):
         return prediction
 
 
-    def message(self, x_j, hidden_sp_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
+    def message(self, x_j, areas_j, hidden_sp_j, coords_i, coords_j, env_i, env_1_j, edge_attr, t, reverse_edges):
         # construct messages to node i for each edge (j,i)
         # x_j are source features with shape [E, out_channels]
 
@@ -543,7 +565,8 @@ class FluxGraphLSTM(MessagePassing):
         inputs = torch.cat(inputs, dim=1)
         #assert(torch.isfinite(inputs).all())
 
-        flux = self.edge_mlp(x_j, inputs, hidden_sp_j)
+        # total flux from cell j to cell i
+        flux = self.edge_mlp(x_j, inputs, hidden_sp_j) #* areas_j.view(-1, 1)
 
         if not self.training: self.edge_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
@@ -554,24 +577,21 @@ class FluxGraphLSTM(MessagePassing):
 
     def update(self, aggr_out, x, coords, areas, env, t):
 
+        #inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
-        #assert(torch.isfinite(inputs).all())
 
-        #delta, hidden = self.node_lstm(inputs)
-        # x_in, x_out, hidden = self.node_lstm(inputs)
-        # source = F.relu(x_in)
-        # sink = F.sigmoid(x_out) * x
-        source_sink, hidden = self.node_lstm(inputs)
-        source = F.relu(source_sink[:, 0]).view(-1, 1)
-        sink = (F.sigmoid(source_sink[:, 1]).view(-1, 1) * x)
+        hidden = self.node_lstm(inputs)
+        source, sink = self.output_mlp(hidden)
+        sink = sink * x
         delta = source - sink
         
         if not self.training:
             self.node_source[..., t] = source
             self.node_sink[..., t] = sink
-            #self.node_fluxes[..., t] = aggr_out
 
-        pred = x + delta + aggr_out
+        # convert total influxes to influx per km2
+        influx = aggr_out #/ areas.view(-1, 1)
+        pred = x + delta + influx
 
         return pred, hidden
 
@@ -678,21 +698,21 @@ class RecurrentEncoder(torch.nn.Module):
         for t in range(self.t_context):
             x = data.x[:, t]
             if self.use_uv:
-                h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t, data.bird_uv[..., t])
+                h_t, c_t = self.update(x, data.coords, data.env[..., t], data.areas, h_t, c_t, data.bird_uv[..., t])
             else:
-                h_t, c_t = self.update(x, data.coords, data.env[..., t], h_t, c_t)
+                h_t, c_t = self.update(x, data.coords, data.env[..., t], data.areas, h_t, c_t)
             #states.append(h_t[-1])
 
         #states = torch.stack(states, dim=1)
         return h_t, c_t
 
 
-    def update(self, x, coords, env, h_t, c_t, bird_uv=None):
+    def update(self, x, coords, env, areas, h_t, c_t, bird_uv=None):
 
         if self.use_uv:
-            inputs = torch.cat([x.view(-1, 1), coords, env, bird_uv], dim=1)
+            inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1), bird_uv], dim=1)
         else:
-            inputs = torch.cat([x.view(-1, 1), coords, env], dim=1)
+            inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
 
         #print(f'encoder inputs: {inputs}')
         #assert(torch.isfinite(inputs).all())
