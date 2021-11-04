@@ -18,7 +18,7 @@ context: 24
 batch_size: 4
 edge_type: voronoi
 birds_per_km2: false
-n_dummy_radars: 0
+n_dummy_radars: 25
 early_stopping: true
 stopping_criterion: 1e-6
 avg_window: 50
