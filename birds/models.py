@@ -264,18 +264,18 @@ class EdgeFluxMLP(torch.nn.Module):
 
 class SourceSinkMLP(torch.nn.Module):
 
-    def __init__(self, **kwargs):
+    def __init__(self, n_in, **kwargs):
         super(NodeLSTM, self).__init__()
 
         self.n_hidden = kwargs.get('n_hidden', 64)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
-        self.hidden2source = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        self.hidden2source = torch.nn.Sequential(torch.nn.Linear(self.n_hidden + n_in, self.n_hidden),
                                            torch.nn.Dropout(p=self.dropout_p),
                                            torch.nn.LeakyReLU(),
                                            torch.nn.Linear(self.n_hidden, 1))
 
-        self.hidden2sink = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        self.hidden2sink = torch.nn.Sequential(torch.nn.Linear(self.n_hidden + n_in, self.n_hidden),
                                                  torch.nn.Dropout(p=self.dropout_p),
                                                  torch.nn.ReLU(),
                                                  torch.nn.Linear(self.n_hidden, 1))
@@ -287,10 +287,10 @@ class SourceSinkMLP(torch.nn.Module):
         self.hidden2source.apply(init_weights)
         self.hidden2sink.apply(init_weights)
 
-    def forward(self, h):
-
-        source = F.relu(self.hidden2source(h))
-        sink = F.sigmoid(self.hidden2sink(h))
+    def forward(self, hidden, inputs):
+        inputs = torch.cat([hidden, inputs], dim=1)
+        source = F.relu(self.hidden2source(inputs))
+        sink = F.sigmoid(self.hidden2sink(inputs))
 
         return source, sink
 
@@ -391,7 +391,7 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
-        self.output_mlp = SourceSinkMLP(**kwargs)
+        self.output_mlp = SourceSinkMLP(n_in, **kwargs)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -431,7 +431,7 @@ class LocalLSTM(torch.nn.Module):
             # x = x + delta
 
             hidden = self.node_lstm(inputs)
-            source, sink = self.output_mlp(hidden)
+            source, sink = self.output_mlp(hidden, inputs)
             sink = sink * x
 
             x = x + source - sink
