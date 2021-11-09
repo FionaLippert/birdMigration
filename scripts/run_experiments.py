@@ -35,7 +35,7 @@ def run(cfg: DictConfig):
 
     if cfg.task.name == 'hp_search':
         hp_grid_search(cfg, target_dir, test_years)
-    elif cfg.task.name == 'train_eval':
+    elif cfg.task.name == 'train_eval' or cfg.task.name == 'train':
         train_eval(cfg, target_dir, test_years, overrides)
     elif cfg.task.name == 'eval':
         eval(cfg, target_dir, test_years, overrides)
