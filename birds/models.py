@@ -264,35 +264,40 @@ class EdgeFluxMLP(torch.nn.Module):
 
 class SourceSinkMLP(torch.nn.Module):
 
-    def __init__(self, **kwargs):
+    def __init__(self, n_in, **kwargs):
         super(SourceSinkMLP, self).__init__()
 
         self.n_hidden = kwargs.get('n_hidden', 64)
         self.dropout_p = kwargs.get('dropout_p', 0)
 
-        self.hidden2source = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
+        self.hidden2source = torch.nn.Sequential(torch.nn.Linear(self.n_hidden + n_in, self.n_hidden),
                                            torch.nn.Dropout(p=self.dropout_p),
                                            torch.nn.LeakyReLU(),
-                                           torch.nn.Linear(self.n_hidden, 1))
+                                           torch.nn.Linear(self.n_hidden, 2))
 
-        self.hidden2sink = torch.nn.Sequential(torch.nn.Linear(self.n_hidden, self.n_hidden),
-                                                 torch.nn.Dropout(p=self.dropout_p),
-                                                 torch.nn.ReLU(),
-                                                 torch.nn.Linear(self.n_hidden, 1))
+        #self.hidden2sink = torch.nn.Sequential(torch.nn.Linear(self.n_hidden + n_in, self.n_hidden),
+        #                                         torch.nn.Dropout(p=self.dropout_p),
+        #                                         torch.nn.ReLU(),
+        #                                         torch.nn.Linear(self.n_hidden, 1))
 
         self.reset_parameters()
 
     def reset_parameters(self):
 
         self.hidden2source.apply(init_weights)
-        self.hidden2sink.apply(init_weights)
+        #self.hidden2sink.apply(init_weights)
 
-    def forward(self, h):
+    def forward(self, hidden, inputs):
+        inputs = torch.cat([hidden, inputs], dim=1)
+        source_sink = self.hidden2source(inputs)
+        #sink = F.sigmoid(self.hidden2sink(inputs))
 
-        source = F.relu(self.hidden2source(h))
-        sink = F.sigmoid(self.hidden2sink(h))
+        #source_sink = F.tanh(self.hidden2source(h))
+        source = F.sigmoid(source_sink[:, 0].view(-1, 1))
+        sink = F.sigmoid(source_sink[:, 1].view(-1, 1))
 
         return source, sink
+        #return source_sink
 
 
 class NodeLSTM(torch.nn.Module):
@@ -391,7 +396,7 @@ class LocalLSTM(torch.nn.Module):
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
-        self.output_mlp = SourceSinkMLP(**kwargs)
+        self.output_mlp = SourceSinkMLP(n_in, **kwargs)
 
         seed = kwargs.get('seed', 1234)
         torch.manual_seed(seed)
@@ -431,10 +436,13 @@ class LocalLSTM(torch.nn.Module):
             # x = x + delta
 
             hidden = self.node_lstm(inputs)
-            source, sink = self.output_mlp(hidden)
+            source, sink = self.output_mlp(hidden, inputs)
             sink = sink * x
 
             x = x + source - sink
+
+            #source_sink = self.output_mlp(hidden)
+            #x = x + source_sink
             y_hat.append(x)
 
             if not self.training:
@@ -466,7 +474,7 @@ class FluxGraphLSTM(MessagePassing):
         n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
 
         self.node_lstm = NodeLSTM(n_node_in, **kwargs)
-        self.source_sink_mlp = SourceSinkMLP(**kwargs)
+        self.source_sink_mlp = SourceSinkMLP(n_node_in, **kwargs)
         self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_node_in, **kwargs)
@@ -566,7 +574,7 @@ class FluxGraphLSTM(MessagePassing):
         #assert(torch.isfinite(inputs).all())
 
         # total flux from cell j to cell i
-        flux = self.edge_mlp(x_j, inputs, hidden_sp_j) #* areas_j.view(-1, 1)
+        flux = self.edge_mlp(x_j, inputs, hidden_sp_j) * areas_j.view(-1, 1)
 
         if not self.training: self.edge_fluxes[..., t] = flux
         flux = flux - flux[reverse_edges]
@@ -581,7 +589,7 @@ class FluxGraphLSTM(MessagePassing):
         inputs = torch.cat([x.view(-1, 1), coords, env, areas.view(-1, 1)], dim=1)
 
         hidden = self.node_lstm(inputs)
-        source, sink = self.source_sink_mlp(hidden)
+        source, sink = self.source_sink_mlp(hidden, inputs)
         sink = sink * x
         delta = source - sink
         
@@ -590,7 +598,7 @@ class FluxGraphLSTM(MessagePassing):
             self.node_sink[..., t] = sink
 
         # convert total influxes to influx per km2
-        influx = aggr_out #/ areas.view(-1, 1)
+        influx = aggr_out / areas.view(-1, 1)
         pred = x + delta + influx
 
         return pred, hidden
