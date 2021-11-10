@@ -451,7 +451,9 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
+    # results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
+    #                tidx=[], datetime=[], horizon=[], missing=[], trial=[])
+    results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], area=[], seqID=[],
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     if 'LSTM' in cfg.model.name:
         #results['flux'] = []
