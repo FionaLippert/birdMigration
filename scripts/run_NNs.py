@@ -445,9 +445,9 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     # load additional data
     time = test_data.info['timepoints']
     radars = test_data.info['radars']
-    areas = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
+    areas = test_data.info['areas']
     to_km2 = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
-    to_cell = test_data.info['areas'] if input_col == 'birds_km2' else np.ones(len(radars))
+    # to_cell = test_data.info['areas'] if input_col == 'birds_km2' else np.ones(len(radars))
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
@@ -455,8 +455,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     if 'LSTM' in cfg.model.name:
         #results['flux'] = []
-        results['source'] = []
-        results['sink'] = []
+        #results['source'] = []
+        #results['sink'] = []
         results['source_km2'] = []
         results['sink_km2'] = []
     if 'Flux' in cfg.model.name:
@@ -482,8 +482,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
     edge_fluxes = {}
     radar_fluxes = {}
-    radar_mtr = {}
-    attention_weights = {}
+    # radar_mtr = {}
+    # attention_weights = {}
 
     #enc_att = hasattr(model, 'node_lstm') and cfg.model.get('use_encoder', False)
 
@@ -502,40 +502,39 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         local_night = data.local_night.cpu()
         missing = data.missing.cpu()
 
-        #if enc_att:
-        #    attention_weights[nidx] = torch.stack(model.node_lstm.alphas, dim=-1).detach().cpu()
-
         if 'Flux' in cfg.model.name:
             # fluxes along edges
             edge_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.edge_fluxes).view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu() * cfg.datasource.bird_scale
+            # net fluxes per node
+            influxes = edge_fluxes[nidx].sum(1)
+            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
+
+            # absolute fluxes across Voronoi faces
+            if input_col == 'birds_km2':
+                edge_fluxes[nidx] *= areas.max()
+
             radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
-            radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
-                data.num_nodes, data.num_nodes, -1).detach().cpu()
-            # net fluxes per node
-            #fluxes = model.node_fluxes.detach().cpu() * cfg.datasource.bird_scale
-            influxes = edge_fluxes[nidx].sum(1) * cfg.datasource.bird_scale
-            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1) * cfg.datasource.bird_scale
+            # radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
+            #     data.num_nodes, data.num_nodes, -1).detach().cpu()
+
         if 'LSTM' in cfg.model.name:
             node_source = model.node_source.detach().cpu() * cfg.datasource.bird_scale
             node_sink = model.node_sink.detach().cpu() * cfg.datasource.bird_scale
 
-        #elif cfg.model.name == 'AttentionGraphLSTM':
-        #    attention_weights[nidx] = to_dense_adj(data.edge_index, edge_attr=model.alphas_s).view(
-        #                        data.num_nodes, data.num_nodes, -1).detach().cpu()
 
         # fill prediction columns with nans for context timesteps
         fill_context = torch.ones(context) * float('nan')
-        #print(fill_context.shape, y.shape, torch.cat([fill_context, y_hat[0, :]]).shape)
 
         for ridx, name in radar_index.items():
-            results['gt'].append(y[ridx, :] * to_cell[ridx])
-            results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]) * to_cell[ridx])
+            #results['gt'].append(y[ridx, :] * to_cell[ridx])
+            #results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]) * to_cell[ridx])
             results['gt_km2'].append(y[ridx, :] / to_km2[ridx])
             results['prediction_km2'].append(torch.cat([fill_context, y_hat[ridx, :] / to_km2[ridx]]))
             results['night'].append(local_night[ridx, :])
             results['radar'].append([name] * y.shape[1])
+            results['area'].append([areas[ridx]] * y.shape[1])
             results['seqID'].append([nidx] * y.shape[1])
             results['tidx'].append(_tidx)
             results['datetime'].append(time[_tidx])
@@ -546,8 +545,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
             if 'LSTM' in cfg.model.name:
                 #results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
-                results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]) * to_cell[ridx])
-                results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]) * to_cell[ridx])
+                #results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]) * to_cell[ridx])
+                #results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]) * to_cell[ridx])
                 results['source_km2'].append(torch.cat([fill_context, node_source[ridx].view(-1) / to_km2[ridx]]))
                 results['sink_km2'].append(torch.cat([fill_context, node_sink[ridx].view(-1) / to_km2[ridx]]))
             if 'Flux' in cfg.model.name:
@@ -557,8 +556,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     if 'Flux' in cfg.model.name:
         with open(osp.join(output_dir, f'model_fluxes{ext}.pickle'), 'wb') as f:
             pickle.dump(edge_fluxes, f, pickle.HIGHEST_PROTOCOL)
-        with open(osp.join(output_dir, f'radar_fluxes{ext}.pickle'), 'wb') as f:
-            pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
+        # with open(osp.join(output_dir, f'radar_fluxes{ext}.pickle'), 'wb') as f:
+        #     pickle.dump(radar_fluxes, f, pickle.HIGHEST_PROTOCOL)
         #with open(osp.join(output_dir, f'radar_mtr{ext}.pickle'), 'wb') as f:
         #    pickle.dump(radar_mtr, f, pickle.HIGHEST_PROTOCOL)
     #if enc_att or cfg.model.name == 'AttentionGraphLSTM':
@@ -575,7 +574,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results[k] = torch.cat(v).numpy()
         else:
             results[k] = np.concatenate(v)
-    results['residual'] = results['gt'] - results['prediction']
+    #results['residual'] = results['gt'] - results['prediction']
     results['residual_km2'] = results['gt_km2'] - results['prediction_km2']
     df = pd.DataFrame(results)
     df.to_csv(osp.join(output_dir, f'results{ext}.csv'))

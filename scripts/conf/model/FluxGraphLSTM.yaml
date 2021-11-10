@@ -24,7 +24,7 @@ batch_size: 4
 boundary_model: Extrapolation
 load_states_from: none
 edge_type: voronoi
-birds_per_km2: false
+birds_per_km2: true
 n_dummy_radars: 25
 early_stopping: true
 stopping_criterion: 1e-6
