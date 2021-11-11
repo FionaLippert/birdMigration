@@ -434,7 +434,7 @@ class LocalLSTM(torch.nn.Module):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t], data.areas.view(-1, 1)], dim=1)
+            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
             # delta, hidden = self.node_lstm(inputs)
             # x = x + delta
 
