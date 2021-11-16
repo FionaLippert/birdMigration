@@ -201,7 +201,8 @@ class Spatial:
         deg = np.rad2deg(rad)
 
         # make sure angle is between 0 and 360 degree
-        deg = (deg + 180) % 360 + 180
+        # deg = (deg + 180) % 360 + 180
+        deg = (deg + 360) % 360
 
         return deg
 
