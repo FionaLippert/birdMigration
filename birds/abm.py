@@ -522,6 +522,20 @@ def landing_birds(trajectories, states, tidx, grid):
     return landing
 
 
+def stop_birds_after_arrival(trajectories, states, target_area):
+    T, B, _ = trajectories.shape
+    for bird in range(B):
+        for t in range(T):
+            lon, lat = trajectories[t, bird]
+            arrived = target_area.contains(geometry.Point(lon, lat)).any()
+            if arrived:
+                states[t:, bird] = 0
+                trajectories[t:, bird, 0] = lon
+                trajectories[t:, bird, 1] = lat
+                break
+
+    return trajectories, states
+
 
 
 def load_season(root, season, year, cells, uv=True):

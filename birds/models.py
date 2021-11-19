@@ -434,7 +434,7 @@ class LocalLSTM(torch.nn.Module):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t], data.areas.view(-1, 1)], dim=1)
+            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
             # delta, hidden = self.node_lstm(inputs)
             # x = x + delta
 
@@ -559,8 +559,8 @@ class FluxGraphLSTM(MessagePassing):
                                          t=t-self.t_context)
 
             if self.fixed_boundary:
-                # # use ground truth for boundary nodes
-                x[data.boundary, 0] = data.y[data.boundary, t] * data.areas[data.boundary]
+                # use ground truth for boundary nodes
+                x[data.boundary, 0] = data.y[data.boundary, t] #* data.areas[data.boundary]
 
             y_hat.append(x)
 
