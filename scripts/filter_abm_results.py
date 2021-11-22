@@ -17,7 +17,7 @@ states = np.load(osp.join(args.path, 'states.npy'))
 
 # remove trajectories after birds arrived in target area
 print('remove traj after arrival')
-target_area = gpd.read_file(args.target_area_path)
+target_area = gpd.read_file(args.target_area_path).iloc[0].geometry
 traj, states = abm.stop_birds_after_arrival(traj, states, target_area)
 
 # write to disk

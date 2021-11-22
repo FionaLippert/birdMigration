@@ -525,13 +525,16 @@ def landing_birds(trajectories, states, tidx, grid):
 def stop_birds_after_arrival(trajectories, states, target_area):
     T, B, _ = trajectories.shape
     for bird in range(B):
-        for t in range(T):
-            lon, lat = trajectories[t, bird]
-            arrived = target_area.contains(geometry.Point(lon, lat)).any()
+        for t in range(T-1):
+            lon1, lat1 = trajectories[t, bird]
+            lon2, lat2 = trajectories[t+1, bird]
+
+            path = geometry.LineString([geometry.Point(lon1, lat1), geometry.Point(lon2, lat2)])
+            arrived = path.intersects(target_area)
             if arrived:
-                states[t:, bird] = 0
-                trajectories[t:, bird, 0] = lon
-                trajectories[t:, bird, 1] = lat
+                states[t + 1:, bird] = 0
+                trajectories[t + 1:, bird, 0] = lon2
+                trajectories[t + 1:, bird, 1] = lat2
                 break
 
     return trajectories, states
