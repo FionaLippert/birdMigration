@@ -286,13 +286,55 @@ if __name__ == "__main__":
             output_dir = osp.join(result_dir, 'performance_evaluation', f'H={H}')
             os.makedirs(output_dir, exist_ok=True)
 
-            #area_scale = results.area.max()
+            area_scale = results.area.max()
 
             #df = results.query(f'horizon == {H}')
-            #df = results.query(f'horizon <= 12')
-            #df = df[df.radar.isin(inner_radars)]
+            df = results.query(f'horizon <= 24')
+            df = df[df.radar.isin(inner_radars)]
+            df['month'] = pd.DatetimeIndex(df.datetime).month
 
-            #print('evaluate source/sink')
+            print('evaluate source/sink')
+
+            corr_source = dict(month=[], trial=[], corr=[])
+            corr_sink = dict(month=[], trial=[], corr=[])
+
+            for m in df.month.unique():
+                print(f'evaluate month {m}')
+                for t in df.trial.unique():
+                    data = df.query(f'month == {m} & trial == {t}')
+
+                    print('compute abm source/sink')
+                    data['gt_source_km2'] = data.apply(
+                       lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
+                    data['gt_sink_km2'] = data.apply(
+                           lambda row: get_abm_data(land, row.datetime, row.radar) / (row.area / area_scale), axis=1)
+
+                    print('aggregate source/sink over 24 H')
+                    grouped = data.groupby(['seqID', 'radar'])
+                    grouped = grouped[['gt_source_km2', 'source_km2', 'gt_sink_km2', 'sink_km2']].aggregate(
+                        np.nansum).reset_index()
+
+                    print('compute correlation')
+                    corr = np.corrcoef(grouped.gt_source_km2.to_numpy(),
+                                grouped.source_km2.to_numpy())[0, 1]
+                    corr_source['month'].append(m)
+                    corr_source['trial'].append(t)
+                    corr_source['corr'].append(corr)
+
+                    corr = np.corrcoef(grouped.gt_sink_km2.to_numpy(),
+                                       grouped.sink_km2.to_numpy())[0, 1]
+                    corr_sink['month'].append(m)
+                    corr_sink['trial'].append(t)
+                    corr_sink['corr'].append(corr)
+
+            corr_source = pd.DataFrame(corr_source)
+            corr_sink = pd.DataFrame(corr_sink)
+
+            corr_source.to_csv(osp.join(output_dir, 'agg_source_corr_per_trial.csv'))
+            corr_sink.to_csv(osp.join(output_dir, 'agg_sink_corr_per_trial.csv'))
+
+
+
 
             #df['gt_source_km2'] = df.apply(
             #    lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
