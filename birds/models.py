@@ -477,7 +477,7 @@ class FluxGraphLSTM(MessagePassing):
         n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
 
         self.node_lstm = NodeLSTM(n_node_in + 1, **kwargs)
-        self.source_sink_mlp = SourceSinkMLP(n_node_in, **kwargs)
+        self.source_sink_mlp = SourceSinkMLP(n_node_in + 1, **kwargs)
         self.edge_mlp = EdgeFluxMLP(n_edge_in, **kwargs)
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_node_in, **kwargs)
