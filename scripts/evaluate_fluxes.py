@@ -227,6 +227,9 @@ if __name__ == "__main__":
 
     models = { 'FluxGraphLSTM': ['final_evaluation_64'] }
 
+    source_sink = False
+    fluxes = True
+
     trials = 5
     year = 2017
     season = 'fall'
@@ -286,52 +289,58 @@ if __name__ == "__main__":
             output_dir = osp.join(result_dir, 'performance_evaluation', f'H={H}')
             os.makedirs(output_dir, exist_ok=True)
 
-            area_scale = results.area.max()
 
-            #df = results.query(f'horizon == {H}')
-            df = results.query(f'horizon <= 24')
-            df = df[df.radar.isin(inner_radars)]
-            df['month'] = pd.DatetimeIndex(df.datetime).month
+            if source_sink:
+                area_scale = results.area.max()
 
-            print('evaluate source/sink')
+                #df = results.query(f'horizon == {H}')
+                df = results.query(f'horizon <= 24')
+                df = df[df.radar.isin(inner_radars)]
+                df['month'] = pd.DatetimeIndex(df.datetime).month
 
-            corr_source = dict(month=[], trial=[], corr=[])
-            corr_sink = dict(month=[], trial=[], corr=[])
+                print('evaluate source/sink')
 
-            for m in df.month.unique():
-                print(f'evaluate month {m}')
-                for t in df.trial.unique():
-                    data = df.query(f'month == {m} & trial == {t}')
+                corr_source = dict(month=[], trial=[], corr=[])
+                corr_sink = dict(month=[], trial=[], corr=[])
 
-                    print('compute abm source/sink')
-                    data['gt_source_km2'] = data.apply(
-                       lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
-                    data['gt_sink_km2'] = data.apply(
-                           lambda row: get_abm_data(land, row.datetime, row.radar) / (row.area / area_scale), axis=1)
+                for m in df.month.unique():
+                    print(f'evaluate month {m}')
+                    for t in df.trial.unique():
+                        data = df.query(f'month == {m} & trial == {t}')
 
-                    print('aggregate source/sink over 24 H')
-                    grouped = data.groupby(['seqID', 'radar'])
-                    grouped = grouped[['gt_source_km2', 'source_km2', 'gt_sink_km2', 'sink_km2']].aggregate(
-                        np.nansum).reset_index()
+                        print('compute abm source/sink')
+                        data.assign(gt_source_km2 = lambda row: get_abm_data(dep, row.datetime, row.radar) /
+                                                                (row.area / area_scale))
+                        data.assign(gt_sink_km2 = lambda row: get_abm_data(land, row.datetime, row.radar) /
+                                                              (row.area / area_scale))
+                        # data['gt_source_km2'] = data.apply(
+                        #    lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
+                        # data['gt_sink_km2'] = data.apply(
+                        #        lambda row: get_abm_data(land, row.datetime, row.radar) / (row.area / area_scale), axis=1)
 
-                    print('compute correlation')
-                    corr = np.corrcoef(grouped.gt_source_km2.to_numpy(),
-                                grouped.source_km2.to_numpy())[0, 1]
-                    corr_source['month'].append(m)
-                    corr_source['trial'].append(t)
-                    corr_source['corr'].append(corr)
+                        print('aggregate source/sink over 24 H')
+                        grouped = data.groupby(['seqID', 'radar'])
+                        grouped = grouped[['gt_source_km2', 'source_km2', 'gt_sink_km2', 'sink_km2']].aggregate(
+                            np.nansum).reset_index()
 
-                    corr = np.corrcoef(grouped.gt_sink_km2.to_numpy(),
-                                       grouped.sink_km2.to_numpy())[0, 1]
-                    corr_sink['month'].append(m)
-                    corr_sink['trial'].append(t)
-                    corr_sink['corr'].append(corr)
+                        print('compute correlation')
+                        corr = np.corrcoef(grouped.gt_source_km2.to_numpy(),
+                                    grouped.source_km2.to_numpy())[0, 1]
+                        corr_source['month'].append(m)
+                        corr_source['trial'].append(t)
+                        corr_source['corr'].append(corr)
 
-            corr_source = pd.DataFrame(corr_source)
-            corr_sink = pd.DataFrame(corr_sink)
+                        corr = np.corrcoef(grouped.gt_sink_km2.to_numpy(),
+                                           grouped.sink_km2.to_numpy())[0, 1]
+                        corr_sink['month'].append(m)
+                        corr_sink['trial'].append(t)
+                        corr_sink['corr'].append(corr)
 
-            corr_source.to_csv(osp.join(output_dir, 'agg_source_corr_per_trial.csv'))
-            corr_sink.to_csv(osp.join(output_dir, 'agg_sink_corr_per_trial.csv'))
+                corr_source = pd.DataFrame(corr_source)
+                corr_sink = pd.DataFrame(corr_sink)
+
+                corr_source.to_csv(osp.join(output_dir, 'agg_source_corr_per_trial.csv'))
+                corr_sink.to_csv(osp.join(output_dir, 'agg_sink_corr_per_trial.csv'))
 
 
 
@@ -386,15 +395,18 @@ if __name__ == "__main__":
                 df = results.query(f'seqID == {s}')
                 time = sorted(df.datetime.unique())
                 t = time[context + H]
-                gt_times.append(t)
-                gt_fluxes_H.append(gt_fluxes[time_dict[pd.Timestamp(t)]])
+                #gt_times.append(t)
+                agg_gt_fluxes = np.stack([gt_fluxes[time_dict[pd.Timestamp(time[context + h])]]
+                                          for h in range(1, H+1)], axis=0).sum(0)
+                #gt_fluxes_H.append(gt_fluxes[time_dict[pd.Timestamp(t)]])
+                gt_fluxes_H.append(agg_gt_fluxes)
 
             #context = cfg['model']['context']
             #horizon = cfg['model']['test_horizon']
             # gt_flux = np.stack([f[..., context: context + horizon] for
             #             f in gt_flux_dict.values()], axis=-1)
             gt_fluxes = np.stack(gt_fluxes_H, axis=-1)
-            gt_times = np.stack(gt_times, axis=-1)
+            #gt_times = np.stack(gt_times, axis=-1)
 
             # exclude "self-fluxes"
             for i in range(gt_fluxes.shape[0]):
@@ -424,7 +436,8 @@ if __name__ == "__main__":
 
                 print(f'evaluate fluxes for trial {t}')
                 seqIDs = sorted(model_fluxes_t.keys())
-                model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H] for s in seqIDs], axis=-1)
+                #model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H] for s in seqIDs], axis=-1)
+                model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., :H+1].sum(-1) for s in seqIDs], axis=-1)
                 model_net_fluxes_t = model_fluxes_t - np.moveaxis(model_fluxes_t, 0, 1)
                 # model_flux_per_seq_t = model_flux_per_seq_t = model_flux_t.sum(2)
                 # model_net_flux_per_seq_t = model_flux_per_seq_t - np.moveaxis(model_flux_per_seq_t, 0, 1)
@@ -541,11 +554,11 @@ if __name__ == "__main__":
             corr_d2b = pd.concat(corr_d2b)
             corr_angles = pd.concat(corr_angles)
             bin_fluxes = pd.concat(bin_fluxes)
-            corr_d2b.to_csv(osp.join(output_dir, 'corr_d2b_per_trial.csv'))
-            corr_angles.to_csv(osp.join(output_dir, 'corr_angles_per_trial.csv'))
-            bin_fluxes.to_csv(osp.join(output_dir, 'bins_per_trial.csv'))
+            corr_d2b.to_csv(osp.join(output_dir, 'agg_corr_d2b_per_trial.csv'))
+            corr_angles.to_csv(osp.join(output_dir, 'agg_corr_angles_per_trial.csv'))
+            bin_fluxes.to_csv(osp.join(output_dir, 'agg_bins_per_trial.csv'))
 
-            with open(osp.join(output_dir, 'overall_corr.pickle'), 'wb') as f:
+            with open(osp.join(output_dir, 'agg_overall_corr.pickle'), 'wb') as f:
                 pickle.dump(overall_corr, f, pickle.HIGHEST_PROTOCOL)
             #
             # with open(osp.join(output_dir, 'corr_per_radar.pickle'), 'wb') as f:
