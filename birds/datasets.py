@@ -18,16 +18,22 @@ RADAR_REPLACEMENTS = {'nldbl': 'nlhrw'}
 def static_features(radars, **kwargs):
 
     # check for radars to exclude
-    exclude = kwargs.get('exclude', [])
+    exclude = []
+    exclude.extend(kwargs.get('exclude', []))
+    print(exclude)
+    print(radars)
     for r1, r2 in RADAR_REPLACEMENTS.items():
         # if two radars are available for the same location, use the first one
         if (r1 in radars.values()) and (r2 in radars.values()):
+            print(r1, r2)
+            print(r1 in radars.values())
+            print(r2 in radars.values())
             print('both radars are available')
             exclude.append(r2)
     print(f'excluded: {exclude}')
 
     radars = {k: v for k, v in radars.items() if not v in exclude}
-
+    print(radars)
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0))
     voronoi, G = space.voronoi()
