@@ -3,9 +3,12 @@ import pickle5 as pickle
 import glob
 import numpy as np
 import os.path as osp
+import geopandas as gpd
+from birds import abm
 
 parser = argparse.ArgumentParser()
 parser.add_argument('path', type=str, help='entry point to required data')
+parser.add_argument('target_area', type=str, help='shape file of target area')
 args = parser.parse_args()
 
 # Collect results and combine them into numpy arrays
@@ -21,6 +24,11 @@ for file in files:
 traj = np.concatenate(traj, axis=1)
 states = np.concatenate(states, axis=1)
 time = result['time']
+
+# remove trajectories after birds arrived in target area
+print('remove traj after arrival')
+target_area = gpd.read_file(args.target_area_path)
+traj, states = abm.stop_birds_after_arrival(traj, states, target_area)
 
 # write to disk
 np.save(osp.join(args.path, 'traj.npy'), traj)

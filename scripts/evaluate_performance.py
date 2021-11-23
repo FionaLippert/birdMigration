@@ -27,17 +27,29 @@ def load_cv_results(result_dir, ext='', trials=1):
     return results, cfg
 
 
-def compute_mse(model, experiment, results, groupby='trial', threshold=0, km2=True):
+def compute_rmse(model, experiment, results, groupby='trial', threshold=0, km2=True):
     ext = '_km2' if km2 else ''
 
     results[f'squared_error{ext}'] = results[f'residual{ext}'].pow(2)
     df = results.query(f'missing == 0 & gt{ext} >= {threshold}') # & night == 1')
-    mse = df.groupby(groupby)[f'squared_error{ext}'].aggregate(np.mean) #.apply(np.sqrt)
-    mse = mse.reset_index(name='mse')
-    mse['model'] = model
-    mse['experiment'] = experiment
+    rmse = df.groupby(groupby)[f'squared_error{ext}'].aggregate(np.mean).apply(np.sqrt)
+    rmse = rmse.reset_index(name='rmse')
+    rmse['model'] = model
+    rmse['experiment'] = experiment
 
-    return mse
+    return rmse
+
+def compute_mae(model, experiment, results, groupby='trial', threshold=0, km2=True):
+    ext = '_km2' if km2 else ''
+
+    results[f'absolute_error{ext}'] = results[f'residual{ext}'].abs()
+    df = results.query(f'missing == 0 & gt{ext} >= {threshold}') # & night == 1')
+    mae = df.groupby(groupby)[f'absolute_error{ext}'].aggregate(np.mean)
+    mae = mae.reset_index(name='mae')
+    mae['model'] = model
+    mae['experiment'] = experiment
+
+    return mae
 
 
 def compute_pcc(model, experiment, results, groupby='trial', threshold=0, km2=True):
@@ -71,6 +83,7 @@ def compute_bin(model, experiment, results, groupby='trial', threshold=0, km2=Tr
     bin = bin.reset_index()
     bin['model'] = model
     bin['experiment'] = experiment
+    bin['threshold'] = threshold
 
     return bin
 
@@ -101,19 +114,19 @@ def compute_residual_corr(results, radar_df, km2=True):
 
 if __name__ == "__main__":
 
-    models = {  'FluxGraphLSTM': ['test_new_weight_func_split_delta']#, 'test_new_weight_func_no_dropout'],
-                #'LocalLSTM': ['final_evaluation'],
+    models = {  'FluxGraphLSTM': ['final_evaluation_64', 'final_evaluation_64_new'], #, 'test_new_weight_func_no_dropout'],
+                'LocalLSTM': ['final_evaluation_64'],
                 #'LocalMLP': ['final_evaluation_importance_sampling'],
                 #'GAM': ['final_evaluation_new'],
                 #'HA': ['final_evaluation_new'],
-                #'GBT': ['final_evaluation_new', 'final_evaluation_new_importance_sampling',
+                #'GBT': ['final_evaluation'] #, 'final_evaluation_new_importance_sampling',
                 #        'final_evaluation_new_acc', 'final_evaluation_new_importance_sampling_acc']
              }
 
     trials = 5
     year = 2017
     season = 'fall'
-    thresholds = [0.05, 0.1, 0.2] #[0, 20, 40]
+    thresholds = [0.0019, 0.0207] #[0, 20, 40]
     #ext = '_fixedT0'
     ext = ''
     #base_dir = '/home/fiona/birdMigration/results/abm'
@@ -124,6 +137,11 @@ if __name__ == "__main__":
     datasource = 'abm'
     data_dir = osp.join(base_dir, 'data', 'preprocessed', '1H_none_ndummy=0', datasource, season, str(year))
 
+    rmse_per_hour = []
+    mae_per_hour = []
+    pcc_per_hour = []
+    bin_per_hour = []
+
     for m, dirs in models.items():
         print(f'evaluate {m}')
 
@@ -132,46 +150,33 @@ if __name__ == "__main__":
 
             result_dir = osp.join(base_dir, 'results', datasource, m, f'test_{year}', d)
             results, cfg = load_cv_results(result_dir, ext=ext, trials=trials)
-            if 'Flux' in m:
-                _, cfg = load_cv_results(osp.join(base_dir, 'results', datasource, 'GBT', f'test_{year}', 'final_evaluation_new'), ext=ext, trials=1)
-            output_dir = osp.join(result_dir, 'performance_evaluation')
-            os.makedirs(output_dir, exist_ok=True)
 
-            # compute spatial correlation of residuals
-            #corr = compute_residual_corr(results, radar_df, km2=True)
-            #corr.to_csv(osp.join(output_dir, f'spatial_corr{ext}.csv'))
-            
-            # compute mean squared error
-            mse_per_fold = compute_mse(m, d, results, groupby='trial', threshold=0, km2=True)
-            mse_per_fold.to_csv(osp.join(output_dir, f'mse{ext}.csv'))
-            
-            mse_per_hour = compute_mse(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True)
-            mse_per_hour.to_csv(osp.join(output_dir, f'mse_per_hour{ext}.csv'))
-            
-            mse_per_radar = compute_mse(m, d, results, groupby=['horizon', 'trial', 'radar'], threshold=0, km2=True)
-            mse_per_radar.to_csv(osp.join(output_dir, f'mse_per_radar{ext}.csv'))
-
-
-            # compute pearson correlation coefficient
-            pcc_per_fold = compute_pcc(m, d, results, groupby='trial', threshold=0, km2=True)
-            pcc_per_fold.to_csv(osp.join(output_dir, f'pcc{ext}.csv'))
-            
-            pcc_per_hour = compute_pcc(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True)
-            pcc_per_hour.to_csv(osp.join(output_dir, f'pcc_per_hour{ext}.csv'))
-
-            pcc_per_radar = compute_pcc(m, d, results, groupby=['horizon', 'trial', 'radar'], threshold=0, km2=True)
-            pcc_per_radar.to_csv(osp.join(output_dir, f'pcc_per_radar{ext}.csv'))
+            rmse_per_hour.append(compute_rmse(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True))
+            mae_per_hour.append(compute_mae(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True))
+            pcc_per_hour.append(compute_pcc(m, d, results, groupby=['horizon', 'trial'], threshold=0, km2=True))
 
             # compute binary classification measures
-            #thresholds = [cfg.datasource.bird_scale * f for f in [0.05, 0.1, 0.2]]
-            for f in thresholds:
-                thr = cfg['datasource']['bird_scale'] * f
-                bin_per_fold = compute_bin(m, d, results, groupby='trial', threshold=thr, km2=True)
-                bin_per_fold.to_csv(osp.join(output_dir, f'bin_thr{int(f*100)}{ext}.csv'))
+            for thr in thresholds:
+                #thr = cfg['datasource']['bird_scale'] * f
+                bin_per_hour.append(compute_bin(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True))
 
-                bin_per_hour = compute_bin(m, d, results, groupby=['horizon', 'trial'], threshold=thr, km2=True)
-                bin_per_hour.to_csv(osp.join(output_dir, f'bin_per_hour_thr{int(f*100)}{ext}.csv'))
+            # compute spatial correlation of residuals
+            # corr = compute_residual_corr(results, radar_df, km2=True)
+            # output_dir = osp.join(result_dir, 'performance_evaluation')
+            # os.makedirs(output_dir, exist_ok=True)
+            # corr.to_csv(osp.join(output_dir, f'spatial_corr{ext}.csv'))
 
-                bin_per_radar = compute_bin(m, d, results, groupby=['horizon', 'trial', 'radar'], threshold=thr, km2=True)
-                bin_per_radar.to_csv(osp.join(output_dir, f'bin_per_radar_thr{int(f*100)}{ext}.csv'))
+    output_dir = osp.join(base_dir, 'results', datasource, 'performance_evaluation', 'ablations')
+    os.makedirs(output_dir, exist_ok=True)
 
+    rmse_per_hour = pd.concat(rmse_per_hour)
+    rmse_per_hour.to_csv(osp.join(output_dir, f'rmse_per_hour.csv'))
+
+    mae_per_hour = pd.concat(mae_per_hour)
+    mae_per_hour.to_csv(osp.join(output_dir, f'mae_per_hour.csv'))
+
+    pcc_per_hour = pd.concat(pcc_per_hour)
+    pcc_per_hour.to_csv(osp.join(output_dir, f'pcc_per_hour.csv'))
+
+    bin_per_hour = pd.concat(bin_per_hour)
+    bin_per_hour.to_csv(osp.join(output_dir, f'bin_per_hour.csv'))
