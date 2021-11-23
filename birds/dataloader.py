@@ -354,13 +354,14 @@ class RadarData(InMemoryDataset):
             print('Use Voronoi tessellation')
             # get distances, angles and face lengths between radars
             distances = rescale(np.array([data['distance'] for i, j, data in G.edges(data=True)]))
-            #angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
+            angles = rescale(np.array([data['angle'] for i, j, data in G.edges(data=True)]), min=0, max=360)
             delta_x = np.array([coords[j, 0] - coords[i, 0] for i, j in G.edges()])
             delta_y = np.array([coords[j, 1] - coords[i, 1] for i, j in G.edges()])
 
             face_lengths = rescale(np.array([data['face_length'] for i, j, data in G.edges(data=True)]))
             edge_attr = torch.stack([
                 torch.tensor(distances, dtype=torch.float),
+                torch.tensor(angles, dtype=torch.float),
                 torch.tensor(delta_x, dtype=torch.float),
                 torch.tensor(delta_y, dtype=torch.float),
                 torch.tensor(face_lengths, dtype=torch.float)

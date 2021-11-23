@@ -1,7 +1,6 @@
 #!/bin/bash
 
 #SBATCH --partition=gpu_shared
-#SBATCH --gres=gpu:1
 #SBATCH --job-name=train_eval
 #SBATCH --time=120:00:00
 #SBATCH --output=slurm_output_%A_%a.out
@@ -27,6 +26,8 @@ TEST_YEAR=$4 # year to hold out in cross-validation
 OVERRIDES=$5 # slurm config overrides
 
 echo $OVERRIDES
+
+echo $CUDA_VISIBLE_DEVICES
 
 mkdir -p $OUTPUTDIR
 
