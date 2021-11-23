@@ -54,9 +54,9 @@ def training(cfg: DictConfig, output_dir: str, log):
     log.flush()
 
     if cfg.model.edge_type == 'voronoi':
-        n_edge_attr = 4
+        n_edge_attr = 5
     else:
-        n_edge_attr = 3
+        n_edge_attr = 4
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
@@ -194,9 +194,9 @@ def cross_validation(cfg: DictConfig, output_dir: str, log):
     n_data = len(data)
 
     if cfg.model.edge_type == 'voronoi':
-        n_edge_attr = 4
+        n_edge_attr = 5
     else:
-        n_edge_attr = 3
+        n_edge_attr = 4
 
     if cfg.model.get('root_transformed_loss', False):
         loss_func = utils.MSE_root_transformed
@@ -404,9 +404,9 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             input_col = 'birds'
 
     if cfg.model.edge_type == 'voronoi':
-        n_edge_attr = 4
+        n_edge_attr = 5
     else:
-        n_edge_attr = 3
+        n_edge_attr = 4
 
     if cfg.get('use_pretrained_model', False):
         model_ext = '_pretrained'
@@ -506,7 +506,14 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
         if 'Flux' in cfg.model.name:
             # fluxes along edges
-            edge_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=model.edge_fluxes).view(
+            print(f'edge_index shape: {data.edge_index.size()}')
+            print(f'edge_fluxes shape: {model.edge_fluxes.size()}')
+            print(f'number of nodes: {data.num_nodes}')
+
+            adj = to_dense_adj(data.edge_index, edge_attr=model.edge_fluxes)
+
+            print(f'adj shape: {adj.size()}')
+            edge_fluxes[nidx] = adj.view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu() * cfg.datasource.bird_scale
             # net fluxes per node
             influxes = edge_fluxes[nidx].sum(1)
@@ -594,6 +601,7 @@ def run(cfg: DictConfig, output_dir: str, log):
     if 'eval' in cfg.task.name:
         if hasattr(cfg, 'importance_sampling'):
             cfg.importance_sampling = False
+
         cfg['fixed_t0'] = True
         testing(cfg, output_dir, log, ext='_fixedT0')
         cfg['fixed_t0'] = False
