@@ -128,7 +128,8 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
 
         if cfg.device.slurm:
             job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
-            proc = Popen(['sbatch', f'--array=1-{repeats}', job_file, cfg.device.root, output_path, config_path,
+            gres = 1 if cfg.device.cuda else 0
+            proc = Popen(['sbatch', f'--array=1-{repeats}', f'--gres=gpu:{gres}', job_file, cfg.device.root, output_path, config_path,
                           str(year), overrides], stdout=PIPE, stderr=PIPE)
         else:
             job_file = osp.join(cfg.device.root, cfg.task.local_job)
