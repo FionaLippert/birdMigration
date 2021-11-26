@@ -385,187 +385,205 @@ if __name__ == "__main__":
             #corr = gr[['abm_delta', 'source/sink']].corr().iloc[0::2, -1].reset_index()
             #corr.to_csv(osp.join(output_dir, f'delta_corr_per_hour{ext}.csv'))
 
-            context = cfg['model']['context']
-            horizon = cfg['model']['test_horizon']
 
-            # rearange abm fluxes to match model fluxes
-            gt_fluxes_H = []
-            gt_times = []
-            for s in sorted(results.groupby('seqID').groups.keys()):
-                df = results.query(f'seqID == {s}')
-                time = sorted(df.datetime.unique())
-                t = time[context + H]
-                #gt_times.append(t)
-                agg_gt_fluxes = np.stack([gt_fluxes[time_dict[pd.Timestamp(time[context + h])]]
-                                          for h in range(1, H+1)], axis=0).sum(0)
-                #gt_fluxes_H.append(gt_fluxes[time_dict[pd.Timestamp(t)]])
-                gt_fluxes_H.append(agg_gt_fluxes)
+            if fluxes:
+                context = cfg['model']['context']
+                horizon = cfg['model']['test_horizon']
 
-            #context = cfg['model']['context']
-            #horizon = cfg['model']['test_horizon']
-            # gt_flux = np.stack([f[..., context: context + horizon] for
-            #             f in gt_flux_dict.values()], axis=-1)
-            gt_fluxes = np.stack(gt_fluxes_H, axis=-1)
-            #gt_times = np.stack(gt_times, axis=-1)
+                # rearange abm fluxes to match model fluxes
+                gt_fluxes_H = []
+                gt_months = []
+                for s in sorted(results.groupby('seqID').groups.keys()):
+                    df = results.query(f'seqID == {s}')
+                    time = sorted(df.datetime.unique())
+                    #t = time[context + H]
+                    gt_months.append(pd.DatetimeIndex(time[context + 1]).month)
+                    agg_gt_fluxes = np.stack([gt_fluxes[time_dict[pd.Timestamp(time[context + h])]]
+                                              for h in range(1, H+1)], axis=0).sum(0)
+                    #gt_fluxes_H.append(gt_fluxes[time_dict[pd.Timestamp(t)]])
+                    gt_fluxes_H.append(agg_gt_fluxes)
 
-            # exclude "self-fluxes"
-            for i in range(gt_fluxes.shape[0]):
-                gt_fluxes[i, i] = np.nan
+                #context = cfg['model']['context']
+                #horizon = cfg['model']['test_horizon']
+                # gt_flux = np.stack([f[..., context: context + horizon] for
+                #             f in gt_flux_dict.values()], axis=-1)
+                gt_fluxes = np.stack(gt_fluxes_H, axis=-1)
+                gt_months = np.stack(gt_months, axis=-1)
 
-            # exclude boundary to boundary fluxes
-            for i, j in it.product(boundary_idx, repeat=2):
-                gt_fluxes[i, j] = np.nan
+                # exclude "self-fluxes"
+                for i in range(gt_fluxes.shape[0]):
+                    gt_fluxes[i, i] = np.nan
 
-            # aggregate fluxes per sequence
-            # gt_flux_per_seq = gt_flux.sum(2)
+                # exclude boundary to boundary fluxes
+                for i, j in it.product(boundary_idx, repeat=2):
+                    gt_fluxes[i, j] = np.nan
 
-            # net fluxes
-            gt_net_fluxes = gt_fluxes - np.moveaxis(gt_fluxes, 0, 1)
-            # gt_net_flux_per_seq = gt_flux_per_seq - np.moveaxis(gt_flux_per_seq, 0, 1)
+                # aggregate fluxes per sequence
+                # gt_flux_per_seq = gt_flux.sum(2)
 
-            #gt_net_fluxes = gt_net_fluxes[..., :5]
+                # net fluxes
+                gt_net_fluxes = gt_fluxes - np.moveaxis(gt_fluxes, 0, 1)
+                # gt_net_flux_per_seq = gt_flux_per_seq - np.moveaxis(gt_flux_per_seq, 0, 1)
 
-            overall_corr = {}
-            corr_per_radar = {}
-            corr_per_hour = {}
-            corr_d2b = []
-            corr_angles = []
-            bin_fluxes = []
-            # loop over all trials
-            for t, model_fluxes_t in model_fluxes.items():
+                #gt_net_fluxes = gt_net_fluxes[..., :5]
 
-                print(f'evaluate fluxes for trial {t}')
-                seqIDs = sorted(model_fluxes_t.keys())
-                #model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H] for s in seqIDs], axis=-1)
-                model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., :H+1].sum(-1) for s in seqIDs], axis=-1)
-                model_net_fluxes_t = model_fluxes_t - np.moveaxis(model_fluxes_t, 0, 1)
-                # model_flux_per_seq_t = model_flux_per_seq_t = model_flux_t.sum(2)
-                # model_net_flux_per_seq_t = model_flux_per_seq_t - np.moveaxis(model_flux_per_seq_t, 0, 1)
-                #model_net_fluxes_t = model_net_fluxes_t[..., :5]
+                overall_corr = {}
+                corr_per_radar = {}
+                corr_per_hour = {}
+                corr_influx = []
+                corr_outflux = []
+                corr_d2b = []
+                corr_angles = []
+                bin_fluxes = []
+                # loop over all trials
+                for t, model_fluxes_t in model_fluxes.items():
 
-                mask = np.isfinite(gt_net_fluxes)
-                overall_corr[t] = np.corrcoef(gt_net_fluxes[mask].flatten(),
-                                              model_net_fluxes_t[mask].flatten())[0, 1]
+                    print(f'evaluate fluxes for trial {t}')
+                    seqIDs = sorted(model_fluxes_t.keys())
+                    #model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H] for s in seqIDs], axis=-1)
+                    model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., :H+1].sum(-1) for s in seqIDs], axis=-1)
+                    model_net_fluxes_t = model_fluxes_t - np.moveaxis(model_fluxes_t, 0, 1)
+                    # model_flux_per_seq_t = model_flux_per_seq_t = model_flux_t.sum(2)
+                    # model_net_flux_per_seq_t = model_flux_per_seq_t - np.moveaxis(model_flux_per_seq_t, 0, 1)
+                    #model_net_fluxes_t = model_net_fluxes_t[..., :5]
 
-                
-                bin_results = bin_metrics_fluxes(model_net_fluxes_t, gt_net_fluxes)
-                bin_results = pd.DataFrame(bin_results)
-                bin_results['trial'] = t
-                bin_fluxes.append(bin_results)
-
-                d2b_index = fluxes_per_dist2boundary(G, voronoi)
-                corr_per_d2b = dict(d2b=[], corr=[], trial=[])
-                for d2b, index in d2b_index.items():
-                    model_net_fluxes_d2b = model_net_fluxes_t[index['idx'], index['jdx']]
-                    gt_net_fluxes_d2b = gt_net_fluxes[index['idx'], index['jdx']]
-                    mask = np.isfinite(gt_net_fluxes_d2b)
-                    corr = stats.pearsonr(model_net_fluxes_d2b[mask].flatten(), gt_net_fluxes_d2b[mask].flatten())[0]
-                    corr_per_d2b['d2b'].append(d2b)
-                    corr_per_d2b['corr'].append(corr)
-                    corr_per_d2b['trial'].append(t)
-                corr_d2b.append(pd.DataFrame(corr_per_d2b))
+                    mask = np.isfinite(gt_net_fluxes)
+                    overall_corr[t] = np.corrcoef(gt_net_fluxes[mask].flatten(),
+                                                  model_net_fluxes_t[mask].flatten())[0, 1]
 
 
-                angle_index = fluxes_per_angle(G)
-                corr_per_angle = dict(angle=[], rad=[], corr=[], trial=[])
-                for angle, index in angle_index.items():
-                    model_net_fluxes_a = model_net_fluxes_t[index['idx'], index['jdx']]
-                    gt_net_fluxes_a = gt_net_fluxes[index['idx'], index['jdx']]
-                    mask = np.isfinite(gt_net_fluxes_a)
-                    corr = stats.pearsonr(model_net_fluxes_a[mask].flatten(), gt_net_fluxes_a[mask].flatten())[0]
-                    
-                    corr_per_angle['angle'].append(angle)
-                    corr_per_angle['rad'].append(angle / 360 * 2 * np.pi)
-                    corr_per_angle['corr'].append(corr)
-                    corr_per_angle['trial'].append(t)
-                corr_angles.append(pd.DataFrame(corr_per_angle))
+                    bin_results = bin_metrics_fluxes(model_net_fluxes_t, gt_net_fluxes)
+                    bin_results = pd.DataFrame(bin_results)
+                    bin_results['trial'] = t
+                    bin_fluxes.append(bin_results)
+
+                    corr_influx_per_month = dict(month=[], corr=[], trial=[])
+                    corr_outflux_per_month = dict(month=[], corr=[], trial=[])
+                    for m in np.unique(gt_months):
+                        idx = np.where(gt_months == m)
+                        gt_influx_m = gt_fluxes[..., idx].sum(1)
+                        gt_outflux_m = gt_fluxes[..., idx].sum(0)
+
+                        model_influx_m = model_fluxes_t[..., idx].sum(1)
+                        model_outflux_m = model_fluxes_t[..., idx].sum(0)
+
+                        mask = np.isfinite(gt_influx_m)
+                        corr = np.corrcoef(gt_influx_m[mask].flatten(),
+                                                  model_influx_m[mask].flatten())[0, 1]
+                        corr_influx_per_month['corr'].append(corr)
+                        corr_influx_per_month['month'].append(m)
+                        corr_influx_per_month['trial'].append(t)
+
+                        mask = np.isfinite(gt_outflux_m)
+                        corr = np.corrcoef(gt_outflux_m[mask].flatten(),
+                                           model_outflux_m[mask].flatten())[0, 1]
+                        corr_outflux_per_month['corr'].append(corr)
+                        corr_outflux_per_month['month'].append(m)
+                        corr_outflux_per_month['trial'].append(t)
+                    corr_influx.append(pd.DataFrame(corr_influx_per_month))
+                    corr_outflux.append(pd.DataFrame(corr_outflux_per_month))
+
+                    d2b_index = fluxes_per_dist2boundary(G, voronoi)
+                    corr_per_d2b = dict(d2b=[], corr=[], trial=[])
+                    for d2b, index in d2b_index.items():
+                        model_net_fluxes_d2b = model_net_fluxes_t[index['idx'], index['jdx']]
+                        gt_net_fluxes_d2b = gt_net_fluxes[index['idx'], index['jdx']]
+                        mask = np.isfinite(gt_net_fluxes_d2b)
+                        corr = stats.pearsonr(model_net_fluxes_d2b[mask].flatten(), gt_net_fluxes_d2b[mask].flatten())[0]
+                        corr_per_d2b['d2b'].append(d2b)
+                        corr_per_d2b['corr'].append(corr)
+                        corr_per_d2b['trial'].append(t)
+                    corr_d2b.append(pd.DataFrame(corr_per_d2b))
 
 
-                #df_corr_d2b = flux_corr_per_dist2boundary(voronoi, model_net_fluxes_t, gt_net_fluxes)
-                #df_corr_d2b.to_csv(osp.join(output_dir, f'flux_corr_d2b_{t}.csv'))
-                #df_corr_d2b['trial'] = t
-                #corr_d2b.append(df_corr_d2b)
+                    angle_index = fluxes_per_angle(G)
+                    corr_per_angle = dict(angle=[], rad=[], corr=[], trial=[])
+                    for angle, index in angle_index.items():
+                        model_net_fluxes_a = model_net_fluxes_t[index['idx'], index['jdx']]
+                        gt_net_fluxes_a = gt_net_fluxes[index['idx'], index['jdx']]
+                        mask = np.isfinite(gt_net_fluxes_a)
+                        corr = stats.pearsonr(model_net_fluxes_a[mask].flatten(), gt_net_fluxes_a[mask].flatten())[0]
+
+                        corr_per_angle['angle'].append(angle)
+                        corr_per_angle['rad'].append(angle / 360 * 2 * np.pi)
+                        corr_per_angle['corr'].append(corr)
+                        corr_per_angle['trial'].append(t)
+                    corr_angles.append(pd.DataFrame(corr_per_angle))
 
 
-                #fig, ax = plt.subplots(figsize=(4, 4))
-                #sb.boxplot(x='dist2boundary', y='corr', data=df_corr_d2b.dropna(), ax=ax, width=0.6, linewidth=2, color='lightgray')
-                #ax.set_xlabel('distance to boundary', fontsize=12)
-                #ax.set_ylabel('correlation coefficient', fontsize=12)
-                #plt.grid(color='gray', linestyle='--', alpha=0.5);
-                #fig.savefig(osp.join(output_dir, f'flux_corr_d2b_{t}.png'), bbox_inches='tight', dpi=200)
+                    #df_corr_d2b = flux_corr_per_dist2boundary(voronoi, model_net_fluxes_t, gt_net_fluxes)
+                    #df_corr_d2b.to_csv(osp.join(output_dir, f'flux_corr_d2b_{t}.csv'))
+                    #df_corr_d2b['trial'] = t
+                    #corr_d2b.append(df_corr_d2b)
+
+
+                    #fig, ax = plt.subplots(figsize=(4, 4))
+                    #sb.boxplot(x='dist2boundary', y='corr', data=df_corr_d2b.dropna(), ax=ax, width=0.6, linewidth=2, color='lightgray')
+                    #ax.set_xlabel('distance to boundary', fontsize=12)
+                    #ax.set_ylabel('correlation coefficient', fontsize=12)
+                    #plt.grid(color='gray', linestyle='--', alpha=0.5);
+                    #fig.savefig(osp.join(output_dir, f'flux_corr_d2b_{t}.png'), bbox_inches='tight', dpi=200)
 
 
 
-                #df_corr_angles = flux_corr_per_angle(G, model_net_fluxes_t, gt_net_fluxes)
-                #df_corr_angles.to_csv(osp.join(output_dir, f'flux_corr_angles_{t}.csv'))
-                #df_corr_angles['trial'] = t
+                    #df_corr_angles = flux_corr_per_angle(G, model_net_fluxes_t, gt_net_fluxes)
+                    #df_corr_angles.to_csv(osp.join(output_dir, f'flux_corr_angles_{t}.csv'))
+                    #df_corr_angles['trial'] = t
 
-                #bins = np.linspace(0, 360, 13)
-                #df_corr_angles['angle_bin'] = pd.cut(df_corr_angles['angle'], bins)
-                #df_corr_angles['angle_bin'] = df_corr_angles['angle_bin'].apply(lambda deg: (deg.left + deg.right) / 2)
-                #df_corr_angles['rad_bin'] = df_corr_angles['angle_bin'].apply(lambda deg: deg / 360 * 2 * np.pi)
-                #corr_angles.append(df_corr_angles)
+                    #bins = np.linspace(0, 360, 13)
+                    #df_corr_angles['angle_bin'] = pd.cut(df_corr_angles['angle'], bins)
+                    #df_corr_angles['angle_bin'] = df_corr_angles['angle_bin'].apply(lambda deg: (deg.left + deg.right) / 2)
+                    #df_corr_angles['rad_bin'] = df_corr_angles['angle_bin'].apply(lambda deg: deg / 360 * 2 * np.pi)
+                    #corr_angles.append(df_corr_angles)
 
-                #fig, ax = plt.subplots(figsize=(4, 4), subplot_kw={'projection': 'polar'})
-                #grouped = df_corr_angles.groupby('rad_bin')
-                #means = grouped.aggregate(np.nanmean).reset_index()
-                #stds = grouped.aggregate(np.nanstd).reset_index()
-                #bars = ax.bar(means['rad_bin'], means['corr'], width=0.3, bottom=0,
-                #              yerr=stds['corr'], ecolor='black', color='gray')
-                
-                #max_corr = means['corr'].max() + stds['corr'].max()
-                #ax.set_rlim(0, max_corr)
-                #ax.set_theta_zero_location("N")
-                #ax.set_theta_direction(-1)
-                #fig.savefig(osp.join(output_dir, f'flux_corr_angles_{t}.png'), bbox_inches='tight', dpi=200)
+                    #fig, ax = plt.subplots(figsize=(4, 4), subplot_kw={'projection': 'polar'})
+                    #grouped = df_corr_angles.groupby('rad_bin')
+                    #means = grouped.aggregate(np.nanmean).reset_index()
+                    #stds = grouped.aggregate(np.nanstd).reset_index()
+                    #bars = ax.bar(means['rad_bin'], means['corr'], width=0.3, bottom=0,
+                    #              yerr=stds['corr'], ecolor='black', color='gray')
+
+                    #max_corr = means['corr'].max() + stds['corr'].max()
+                    #ax.set_rlim(0, max_corr)
+                    #ax.set_theta_zero_location("N")
+                    #ax.set_theta_direction(-1)
+                    #fig.savefig(osp.join(output_dir, f'flux_corr_angles_{t}.png'), bbox_inches='tight', dpi=200)
 
 
-                # plot map with avg fluxes
-                shape_dir = osp.join(base_dir, 'data', 'shapes')
-                countries = gpd.read_file(osp.join(shape_dir, 'ne_10m_admin_0_countries_lakes.shp'))
-                bounds = voronoi.total_bounds
-                clon = np.mean([bounds[0], bounds[2]])
-                clat = np.mean([bounds[1], bounds[3]])
-                extent = [-6, 16, 41, 56]
-                crs = ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat)
+                    # plot map with avg fluxes
+                    bounds = voronoi.total_bounds
+                    clon = np.mean([bounds[0], bounds[2]])
+                    clat = np.mean([bounds[1], bounds[3]])
+                    extent = [-6, 16, 41, 56]
+                    crs = ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat)
 
-                fig, ax = plt.subplots(figsize=(14, 10), subplot_kw={'projection': crs})
-                ax.set_extent(extent)
-                f = ShapelyFeature(countries.geometry, ccrs.PlateCarree(), edgecolor='white')
-                ax.add_feature(f, facecolor='lightgray', zorder=0)
+                    G_model, ax = plot_fluxes(voronoi, extent, G, model_net_fluxes_t,
+                                crs=crs.proj4_init, max_flux=8)
+                    nx.write_gpickle(G_model, osp.join(output_dir, f'model_fluxes_{t}.gpickle'), protocol=4)
 
-                G_model, ax = plot_fluxes(voronoi, extent, G, model_net_fluxes_t,
-                            ax=ax, crs=crs.proj4_init, max_flux=8)
+                    if t == 1:
+                        G_gt, ax = plot_fluxes(voronoi, extent, G, gt_net_fluxes, crs=crs.proj4_init, max_flux=8)
+                        nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
 
-                gl = ax.gridlines(crs=ccrs.PlateCarree(),
-                                  linewidth=1, color='gray', alpha=0.25, linestyle='--')
-                xspacing = FixedLocator([-10, -5, 0, 5, 10, 15, 20])
-                yspacing = FixedLocator([40, 45, 50, 55])
-                gl.xlocator = xspacing
-                gl.ylocator = yspacing
-                ax.set_extent(extent)
-                fig.savefig(osp.join(output_dir, f'flux_map_{t}.png'), bbox_inches='tight', dpi=200)
-                nx.write_gpickle(G_model, osp.join(output_dir, f'model_fluxes_{t}.gpickle'), protocol=4)
+                corr_d2b = pd.concat(corr_d2b)
+                corr_angles = pd.concat(corr_angles)
+                bin_fluxes = pd.concat(bin_fluxes)
+                corr_influx = pd.concat(corr_influx)
+                corr_outflux = pd.concat(corr_outflux)
+                corr_d2b.to_csv(osp.join(output_dir, 'agg_corr_d2b_per_trial.csv'))
+                corr_angles.to_csv(osp.join(output_dir, 'agg_corr_angles_per_trial.csv'))
+                bin_fluxes.to_csv(osp.join(output_dir, 'agg_bins_per_trial.csv'))
+                corr_influx.to_csv(osp.join(output_dir, 'agg_corr_influx_per_month.csv'))
+                corr_outflux.to_csv(osp.join(output_dir, 'agg_corr_outflux_per_month.csv'))
 
-                if t == 1:
-                    G_gt, ax = plot_fluxes(voronoi, extent, G, gt_net_fluxes, crs=crs.proj4_init, max_flux=8)
-                    nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
-            
-            corr_d2b = pd.concat(corr_d2b)
-            corr_angles = pd.concat(corr_angles)
-            bin_fluxes = pd.concat(bin_fluxes)
-            corr_d2b.to_csv(osp.join(output_dir, 'agg_corr_d2b_per_trial.csv'))
-            corr_angles.to_csv(osp.join(output_dir, 'agg_corr_angles_per_trial.csv'))
-            bin_fluxes.to_csv(osp.join(output_dir, 'agg_bins_per_trial.csv'))
-
-            with open(osp.join(output_dir, 'agg_overall_corr.pickle'), 'wb') as f:
-                pickle.dump(overall_corr, f, pickle.HIGHEST_PROTOCOL)
-            #
-            # with open(osp.join(output_dir, 'corr_per_radar.pickle'), 'wb') as f:
-            #     pickle.dump(corr_per_radar, f, pickle.HIGHEST_PROTOCOL)
-            #
-            # with open(osp.join(output_dir, 'corr_per_hour.pickle'), 'wb') as f:
-            #     pickle.dump(corr_per_hour, f, pickle.HIGHEST_PROTOCOL)
+                with open(osp.join(output_dir, 'agg_overall_corr.pickle'), 'wb') as f:
+                    pickle.dump(overall_corr, f, pickle.HIGHEST_PROTOCOL)
+                #
+                # with open(osp.join(output_dir, 'corr_per_radar.pickle'), 'wb') as f:
+                #     pickle.dump(corr_per_radar, f, pickle.HIGHEST_PROTOCOL)
+                #
+                # with open(osp.join(output_dir, 'corr_per_hour.pickle'), 'wb') as f:
+                #     pickle.dump(corr_per_hour, f, pickle.HIGHEST_PROTOCOL)
 
 
 
