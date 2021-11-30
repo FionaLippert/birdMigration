@@ -458,10 +458,10 @@ class LocalLSTM(torch.nn.Module):
 
 
 
-class FluxGraphLSTM(MessagePassing):
+class FluxRGNN(MessagePassing):
 
     def __init__(self, n_env, n_edge_attr, coord_dim=2, **kwargs):
-        super(FluxGraphLSTM, self).__init__(aggr='add', node_dim=0)
+        super(FluxRGNN, self).__init__(aggr='add', node_dim=0)
 
         # settings
         self.horizon = kwargs.get('horizon', 40)

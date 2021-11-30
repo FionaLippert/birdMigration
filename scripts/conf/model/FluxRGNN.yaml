@@ -1,22 +1,23 @@
 # @package _group_
-name: FluxGraphLSTM
+name: FluxRGNN
 n_hidden: 128
 n_fc_layers: 2
 n_lstm_layers: 1
 n_graph_layers: 0
 dropout_p: 0.25
 lr: 1e-5
-lr_decay: 400
+lr_decay: 500
 lr_gamma: 1.0
 teacher_forcing_gamma: 0.95
 flux_loss_weight: 0.0
-epochs: 300
+epochs: 500
 horizon: 48
 test_horizon: 64
-fixed_boundary: false
+#fixed_boundary: false
 force_zeros: false
 use_encoder: true
 use_boundary_model: true
+use_uv: true
 context: 24
 root_transformed_loss: false
 compute_fluxes: true

@@ -16,7 +16,7 @@ import pandas as pd
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
-                 'FluxGraphLSTM': FluxGraphLSTM}
+                 'FluxRGNN': FluxRGNN}
 
 
 def training(cfg: DictConfig, output_dir: str, log):
@@ -455,7 +455,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     #                tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], area=[], seqID=[],
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
-    if 'LSTM' in cfg.model.name:
+    if 'LSTM' in cfg.model.name or 'RGNN' in cfg.model.name:
         #results['flux'] = []
         #results['source'] = []
         #results['sink'] = []
@@ -528,7 +528,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             # radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
             #     data.num_nodes, data.num_nodes, -1).detach().cpu()
 
-        if 'LSTM' in cfg.model.name:
+        if 'LSTM' in cfg.model.name or 'RGNN' in cfg.model.name:
             node_source = model.node_source.detach().cpu() * cfg.datasource.bird_scale
             node_sink = model.node_sink.detach().cpu() * cfg.datasource.bird_scale
 
@@ -552,7 +552,7 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['horizon'].append(np.arange(-(cfg.model.context-1), cfg.model.test_horizon+1))
             results['missing'].append(missing[ridx, :])
 
-            if 'LSTM' in cfg.model.name:
+            if 'LSTM' in cfg.model.name or 'RGNN' in cfg.model.name:
                 #results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
                 #results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]) * to_cell[ridx])
                 #results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]) * to_cell[ridx])
