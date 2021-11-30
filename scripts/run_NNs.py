@@ -18,6 +18,10 @@ MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
                  'FluxRGNN': FluxRGNN}
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+
 
 def training(cfg: DictConfig, output_dir: str, log):
     assert cfg.model.name in MODEL_MAPPING
@@ -81,7 +85,11 @@ def training(cfg: DictConfig, output_dir: str, log):
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=seed, **cfg.model)
 
+    n_params = count_parameters(model)
+
     print('initialized model', file=log)
+    print(f'number of model parameters: {n_params}', file=log)
+
     log.flush()
 
     pretrained = False
