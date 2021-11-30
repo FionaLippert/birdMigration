@@ -44,11 +44,11 @@ def training(cfg: DictConfig, output_dir: str, log):
     n_train = n_data - n_val
 
     if cfg.verbose:
-        print('------------------------------------------------------')
-        print('-------------------- data sets -----------------------')
-        print(f'total number of sequences = {n_data}')
-        print(f'number of training sequences = {n_train}')
-        print(f'number of validation sequences = {n_val}')
+        print('------------------------------------------------------', file=log)
+        print('-------------------- data sets -----------------------', file=log)
+        print(f'total number of sequences = {n_data}', file=log)
+        print(f'number of training sequences = {n_train}', file=log)
+        print(f'number of validation sequences = {n_val}', file=log)
 
     train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
     train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
