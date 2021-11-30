@@ -558,9 +558,9 @@ class FluxGraphLSTM(MessagePassing):
                                          env_1=data.env[..., t-1],
                                          t=t-self.t_context)
 
-            if self.fixed_boundary:
-                # use ground truth for boundary nodes
-                x[data.boundary, 0] = data.y[data.boundary, t] #* data.areas[data.boundary]
+            #if self.fixed_boundary:
+            #    # use ground truth for boundary nodes
+            #    x[data.boundary, 0] = data.y[data.boundary, t] #* data.areas[data.boundary]
 
             y_hat.append(x)
 
