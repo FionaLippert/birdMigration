@@ -8,6 +8,7 @@ import pandas as pd
 import pickle5 as pickle
 import itertools as it
 import warnings
+import datetime
 warnings.filterwarnings("ignore")
 
 
@@ -153,7 +154,10 @@ class RadarData(InMemoryDataset):
         self.root = kwargs.get('data_root')
         self.preprocessed_dirname = preprocessed_dirname
         self.processed_dirname = processed_dirname
-        self.sub_dir = kwargs.get('sub_dir', '')
+        if kwargs.get('device')['slurm']:
+            self.sub_dir = str(datetime.datetime.utcnow())
+        else:
+            self.sub_dir = '' #kwargs.get('sub_dir', '')
         self.season = kwargs.get('season')
         self.year = str(year)
         self.timesteps = timesteps
