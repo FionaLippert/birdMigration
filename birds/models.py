@@ -474,7 +474,7 @@ class FluxRGNN(MessagePassing):
 
         # model components
         n_node_in = n_env + coord_dim + 2
-        n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
+        n_edge_in = 2 * n_env + n_edge_attr # + 2 * coord_dim
 
         self.node_lstm = NodeLSTM(n_node_in, **kwargs)
         self.source_sink_mlp = SourceSinkMLP(n_node_in, **kwargs)
@@ -572,7 +572,8 @@ class FluxRGNN(MessagePassing):
         # construct messages to node i for each edge (j,i)
         # x_j are source features with shape [E, out_channels]
 
-        inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr]
+        #inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr]
+        inputs = [env_i, env_1_j, edge_attr]
         inputs = torch.cat(inputs, dim=1)
         #assert(torch.isfinite(inputs).all())
 
