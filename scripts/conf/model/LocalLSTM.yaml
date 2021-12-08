@@ -14,6 +14,7 @@ test_horizon: 64
 force_zeros: false
 root_transformed_loss: false
 use_encoder: true
+use_uv: false
 context: 24
 batch_size: 4
 edge_type: voronoi

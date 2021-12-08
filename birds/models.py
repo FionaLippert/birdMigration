@@ -395,7 +395,7 @@ class LocalLSTM(torch.nn.Module):
         self.use_encoder = kwargs.get('use_encoder', True)
 
         # model components
-        n_in = n_env + coord_dim + 1
+        n_in = n_env + coord_dim + 2
         if self.use_encoder:
             self.encoder = RecurrentEncoder(n_in, **kwargs)
         self.node_lstm = NodeLSTM(n_in, **kwargs)
@@ -434,7 +434,7 @@ class LocalLSTM(torch.nn.Module):
             if r < self.teacher_forcing:
                 x = data.x[..., t-1].view(-1, 1)
 
-            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t]], dim=1)
+            inputs = torch.cat([x.view(-1, 1), data.coords, data.env[..., t], data.areas.view(-1, 1)], dim=1)
             # delta, hidden = self.node_lstm(inputs)
             # x = x + delta
 
@@ -458,10 +458,10 @@ class LocalLSTM(torch.nn.Module):
 
 
 
-class FluxGraphLSTM(MessagePassing):
+class FluxRGNN(MessagePassing):
 
     def __init__(self, n_env, n_edge_attr, coord_dim=2, **kwargs):
-        super(FluxGraphLSTM, self).__init__(aggr='add', node_dim=0)
+        super(FluxRGNN, self).__init__(aggr='add', node_dim=0)
 
         # settings
         self.horizon = kwargs.get('horizon', 40)
@@ -474,7 +474,7 @@ class FluxGraphLSTM(MessagePassing):
 
         # model components
         n_node_in = n_env + coord_dim + 2
-        n_edge_in = 2 * n_env + 2 * coord_dim + n_edge_attr
+        n_edge_in = 2 * n_env + n_edge_attr # + 2 * coord_dim
 
         self.node_lstm = NodeLSTM(n_node_in, **kwargs)
         self.source_sink_mlp = SourceSinkMLP(n_node_in, **kwargs)
@@ -558,9 +558,9 @@ class FluxGraphLSTM(MessagePassing):
                                          env_1=data.env[..., t-1],
                                          t=t-self.t_context)
 
-            if self.fixed_boundary:
-                # use ground truth for boundary nodes
-                x[data.boundary, 0] = data.y[data.boundary, t] #* data.areas[data.boundary]
+            #if self.fixed_boundary:
+            #    # use ground truth for boundary nodes
+            #    x[data.boundary, 0] = data.y[data.boundary, t] #* data.areas[data.boundary]
 
             y_hat.append(x)
 
@@ -572,7 +572,8 @@ class FluxGraphLSTM(MessagePassing):
         # construct messages to node i for each edge (j,i)
         # x_j are source features with shape [E, out_channels]
 
-        inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr]
+        #inputs = [coords_i, coords_j, env_i, env_1_j, edge_attr]
+        inputs = [env_i, env_1_j, edge_attr]
         inputs = torch.cat(inputs, dim=1)
         #assert(torch.isfinite(inputs).all())
 

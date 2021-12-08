@@ -16,7 +16,11 @@ import pandas as pd
 # map model name to implementation
 MODEL_MAPPING = {'LocalMLP': LocalMLP,
                  'LocalLSTM': LocalLSTM,
-                 'FluxGraphLSTM': FluxGraphLSTM}
+                 'FluxRGNN': FluxRGNN}
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
 
 
 def training(cfg: DictConfig, output_dir: str, log):
@@ -40,11 +44,11 @@ def training(cfg: DictConfig, output_dir: str, log):
     n_train = n_data - n_val
 
     if cfg.verbose:
-        print('------------------------------------------------------')
-        print('-------------------- data sets -----------------------')
-        print(f'total number of sequences = {n_data}')
-        print(f'number of training sequences = {n_train}')
-        print(f'number of validation sequences = {n_val}')
+        print('------------------------------------------------------', file=log)
+        print('-------------------- data sets -----------------------', file=log)
+        print(f'total number of sequences = {n_data}', file=log)
+        print(f'number of training sequences = {n_train}', file=log)
+        print(f'number of validation sequences = {n_val}', file=log)
 
     train_data, val_data = random_split(data, (n_train, n_val), generator=torch.Generator().manual_seed(cfg.seed))
     train_loader = DataLoader(train_data, batch_size=cfg.model.batch_size, shuffle=True)
@@ -81,7 +85,11 @@ def training(cfg: DictConfig, output_dir: str, log):
     model = Model(n_env=len(cfg.datasource.env_vars), coord_dim=2, n_edge_attr=n_edge_attr,
                   seed=seed, **cfg.model)
 
+    n_params = count_parameters(model)
+
     print('initialized model', file=log)
+    print(f'number of model parameters: {n_params}', file=log)
+
     log.flush()
 
     pretrained = False
@@ -447,21 +455,18 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     radars = test_data.info['radars']
     areas = test_data.info['areas']
     to_km2 = np.ones(len(radars)) if input_col == 'birds_km2' else test_data.info['areas']
-    # to_cell = test_data.info['areas'] if input_col == 'birds_km2' else np.ones(len(radars))
+    to_cell = test_data.info['areas'] if input_col == 'birds_km2' else np.ones(len(radars))
     radar_index = {idx: name for idx, name in enumerate(radars)}
 
     # load models and predict
-    # results = dict(gt=[], gt_km2=[], prediction=[], prediction_km2=[], night=[], radar=[], seqID=[],
-    #                tidx=[], datetime=[], horizon=[], missing=[], trial=[])
     results = dict(gt_km2=[], prediction_km2=[], night=[], radar=[], area=[], seqID=[],
                    tidx=[], datetime=[], horizon=[], missing=[], trial=[])
-    if 'LSTM' in cfg.model.name:
-        #results['flux'] = []
-        #results['source'] = []
-        #results['sink'] = []
+    if cfg.model.name in ['LocalLSTM', 'FluxRGNN']:
+        # results['source'] = []
+        # results['sink'] = []
         results['source_km2'] = []
         results['sink_km2'] = []
-    if 'Flux' in cfg.model.name:
+    if cfg.model.name == 'FluxRGNN':
         results['influx_km2'] = []
         results['outflux_km2'] = []
 
@@ -478,19 +483,11 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
     model.to(device)
     model.eval()
 
-    # for name, param in model.named_parameters():
-    #     if param.requires_grad:
-    #         print(name, param.data)
-
     edge_fluxes = {}
     radar_fluxes = {}
-    # radar_mtr = {}
-    # attention_weights = {}
-
-    #enc_att = hasattr(model, 'node_lstm') and cfg.model.get('use_encoder', False)
 
     for nidx, data in enumerate(test_loader):
-        #nidx += seq_shift
+        # load ground truth and predicted densities
         data = data.to(device)
         y_hat = model(data).cpu().detach() * cfg.datasource.bird_scale
         y = data.y.cpu() * cfg.datasource.bird_scale
@@ -506,29 +503,24 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
 
         if 'Flux' in cfg.model.name:
             # fluxes along edges
-            print(f'edge_index shape: {data.edge_index.size()}')
-            print(f'edge_fluxes shape: {model.edge_fluxes.size()}')
-            print(f'number of nodes: {data.num_nodes}')
-
             adj = to_dense_adj(data.edge_index, edge_attr=model.edge_fluxes)
-
-            print(f'adj shape: {adj.size()}')
             edge_fluxes[nidx] = adj.view(
                                 data.num_nodes, data.num_nodes, -1).detach().cpu() * cfg.datasource.bird_scale
-            # net fluxes per node
-            influxes = edge_fluxes[nidx].sum(1)
-            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
 
             # absolute fluxes across Voronoi faces
             if input_col == 'birds_km2':
                 edge_fluxes[nidx] *= areas.max()
+
+            # net fluxes per node
+            influxes = edge_fluxes[nidx].sum(1)
+            outfluxes = edge_fluxes[nidx].permute(1, 0, 2).sum(1)
 
             radar_fluxes[nidx] = to_dense_adj(data.edge_index, edge_attr=data.fluxes).view(
                 data.num_nodes, data.num_nodes, -1).detach().cpu()
             # radar_mtr[nidx] = to_dense_adj(data.edge_index, edge_attr=data.mtr).view(
             #     data.num_nodes, data.num_nodes, -1).detach().cpu()
 
-        if 'LSTM' in cfg.model.name:
+        if 'LSTM' in cfg.model.name or 'RGNN' in cfg.model.name:
             node_source = model.node_source.detach().cpu() * cfg.datasource.bird_scale
             node_sink = model.node_sink.detach().cpu() * cfg.datasource.bird_scale
 
@@ -537,8 +529,8 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
         fill_context = torch.ones(context) * float('nan')
 
         for ridx, name in radar_index.items():
-            #results['gt'].append(y[ridx, :] * to_cell[ridx])
-            #results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]) * to_cell[ridx])
+            # results['gt'].append(y[ridx, :] * to_cell[ridx])
+            # results['prediction'].append(torch.cat([fill_context, y_hat[ridx, :]]) * to_cell[ridx])
             results['gt_km2'].append(y[ridx, :] / to_km2[ridx])
             results['prediction_km2'].append(torch.cat([fill_context, y_hat[ridx, :] / to_km2[ridx]]))
             results['night'].append(local_night[ridx, :])
@@ -552,15 +544,15 @@ def testing(cfg: DictConfig, output_dir: str, log, ext=''):
             results['horizon'].append(np.arange(-(cfg.model.context-1), cfg.model.test_horizon+1))
             results['missing'].append(missing[ridx, :])
 
-            if 'LSTM' in cfg.model.name:
+            if 'LSTM' in cfg.model.name or 'RGNN' in cfg.model.name:
                 #results['flux'].append(torch.cat([fill_context, fluxes[ridx].view(-1)]))
-                #results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]) * to_cell[ridx])
-                #results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]) * to_cell[ridx])
+                # results['source'].append(torch.cat([fill_context, node_source[ridx].view(-1)]) * to_cell[ridx])
+                # results['sink'].append(torch.cat([fill_context, node_sink[ridx].view(-1)]) * to_cell[ridx])
                 results['source_km2'].append(torch.cat([fill_context, node_source[ridx].view(-1) / to_km2[ridx]]))
                 results['sink_km2'].append(torch.cat([fill_context, node_sink[ridx].view(-1) / to_km2[ridx]]))
             if 'Flux' in cfg.model.name:
-                results['influx_km2'].append(torch.cat([fill_context, influxes[ridx].view(-1)]) * to_km2[ridx])
-                results['outflux_km2'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]) * to_km2[ridx])
+                results['influx_km2'].append(torch.cat([fill_context, influxes[ridx].view(-1)]) / to_km2[ridx])
+                results['outflux_km2'].append(torch.cat([fill_context, outfluxes[ridx].view(-1)]) / to_km2[ridx])
 
     if 'Flux' in cfg.model.name:
         with open(osp.join(output_dir, f'model_fluxes{ext}.pickle'), 'wb') as f:

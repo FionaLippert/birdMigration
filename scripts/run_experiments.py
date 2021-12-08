@@ -125,11 +125,15 @@ def train_eval(cfg: DictConfig, target_dir, test_years, overrides='', timeout=10
         config_path = osp.dirname(output_path)
         print(f'config_path = {config_path}')
         repeats = cfg.task.repeats
+        if hasattr(cfg, 'trial'):
+            array = cfg.trial
+        else:
+            array = f'1-{repeats}'
 
         if cfg.device.slurm:
             job_file = osp.join(cfg.device.root, cfg.task.slurm_job)
             gres = 1 if cfg.device.cuda else 0
-            proc = Popen(['sbatch', f'--array=1-{repeats}', f'--gres=gpu:{gres}', job_file, cfg.device.root, output_path, config_path,
+            proc = Popen(['sbatch', f'--array={array}', f'--gres=gpu:{gres}', job_file, cfg.device.root, output_path, config_path,
                           str(year), overrides], stdout=PIPE, stderr=PIPE)
         else:
             job_file = osp.join(cfg.device.root, cfg.task.local_job)

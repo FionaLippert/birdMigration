@@ -8,6 +8,7 @@ import pandas as pd
 import pickle5 as pickle
 import itertools as it
 import warnings
+import datetime
 warnings.filterwarnings("ignore")
 
 
@@ -153,7 +154,10 @@ class RadarData(InMemoryDataset):
         self.root = kwargs.get('data_root')
         self.preprocessed_dirname = preprocessed_dirname
         self.processed_dirname = processed_dirname
-        self.sub_dir = kwargs.get('sub_dir', '')
+        if kwargs.get('device')['slurm']:
+            self.sub_dir = str(datetime.datetime.utcnow())
+        else:
+            self.sub_dir = '' #kwargs.get('sub_dir', '')
         self.season = kwargs.get('season')
         self.year = str(year)
         self.timesteps = timesteps
@@ -256,14 +260,14 @@ class RadarData(InMemoryDataset):
 
 
         # boundary radars and boundary edges
-        boundary = voronoi['boundary'].to_numpy()
-        boundary2inner_edges = torch.tensor([(boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
+        inner = voronoi['observed'].to_numpy()
+        boundary2inner_edges = torch.tensor([(not inner[edge_index[0, idx]] and inner[edge_index[1, idx]])
                                             for idx in range(n_edges)])
-        inner2boundary_edges = torch.tensor([(not boundary[edge_index[0, idx]] and boundary[edge_index[1, idx]])
+        inner2boundary_edges = torch.tensor([(inner[edge_index[0, idx]] and not inner[edge_index[1, idx]])
                                              for idx in range(n_edges)])
-        inner_edges = torch.tensor([(not boundary[edge_index[0, idx]] and not boundary[edge_index[1, idx]])
+        inner_edges = torch.tensor([(inner[edge_index[0, idx]] and inner[edge_index[1, idx]])
                                     for idx in range(n_edges)])
-        boundary2boundary_edges = torch.tensor([(boundary[edge_index[0, idx]] and boundary[edge_index[1, idx]])
+        boundary2boundary_edges = torch.tensor([(not inner[edge_index[0, idx]] and not inner[edge_index[1, idx]])
                                     for idx in range(n_edges)])
 
         reverse_edges = torch.zeros(n_edges, dtype=torch.long)
@@ -536,7 +540,7 @@ class RadarData(InMemoryDataset):
                           y=torch.tensor(data['targets'][:, :, nidx], dtype=torch.float),
                           coords=torch.tensor(coords, dtype=torch.float),
                           areas=torch.tensor(areas, dtype=torch.float),
-                          boundary=torch.tensor(boundary, dtype=torch.bool),
+                          boundary=torch.tensor(np.logical_not(inner), dtype=torch.bool),
                           env=torch.tensor(data['env'][..., nidx], dtype=torch.float),
                           acc=torch.tensor(data['acc'][..., nidx], dtype=torch.float),
                           boundary2inner_edges=boundary2inner_edges.bool(),
