@@ -114,12 +114,12 @@ def compute_residual_corr(results, radar_df, km2=True):
 
 if __name__ == "__main__":
 
-    models = {  'FluxGraphLSTM': ['final_evaluation_64', 'final_evaluation_64_new'], #, 'test_new_weight_func_no_dropout'],
-                'LocalLSTM': ['final_evaluation_64'],
+    models = {  'FluxGraphLSTM': ['final_evaluation_64_voronoi'], #'final_evaluation_64_new'], #, 'test_new_weight_func_no_dropout'],
+                #'LocalLSTM': ['final_evaluation_64'],
                 #'LocalMLP': ['final_evaluation_importance_sampling'],
-                #'GAM': ['final_evaluation_new'],
-                #'HA': ['final_evaluation_new'],
-                #'GBT': ['final_evaluation'] #, 'final_evaluation_new_importance_sampling',
+                'GAM': ['final_evaluation_new'],
+                'HA': ['final_evaluation_new'],
+                'GBT': ['final_evaluation'] #, 'final_evaluation_new_importance_sampling',
                 #        'final_evaluation_new_acc', 'final_evaluation_new_importance_sampling_acc']
              }
 
