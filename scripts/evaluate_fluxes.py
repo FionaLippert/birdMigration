@@ -41,10 +41,11 @@ def load_model_fluxes(result_dir, ext='', trials=1):
 
     fluxes = {}
     for t in range(1, trials + 1):
-        file = osp.join(result_dir, f'trial_{t}', f'model_fluxes{ext}.pickle')
 
-        with open(file, 'rb') as f:
-            fluxes[t] = pickle.load(f)
+        file = osp.join(result_dir, f'trial_{t}', f'model_fluxes{ext}.pickle')
+        if osp.isfile(file):
+            with open(file, 'rb') as f:
+                fluxes[t] = pickle.load(f)
 
     return fluxes
 
@@ -160,7 +161,7 @@ def bin_metrics_fluxes(model_fluxes, gt_fluxes):
 
     return summary
     
-def G_corr(voronoi, G, gt_fluxes, model_fluxes):
+def corr_on_graph(voronoi, G, gt_fluxes, model_fluxes):
 
     G_new = nx.DiGraph()
     G_new.add_nodes_from(list(G.nodes(data=True)))
@@ -186,7 +187,8 @@ def G_corr(voronoi, G, gt_fluxes, model_fluxes):
     return G_new
 
 
-def G_fluxes(voronoi, G, fluxes):
+def fluxes_on_graph(voronoi, G, fluxes, agg_func=np.nanmean):
+
     G_new = nx.DiGraph()
     G_new.add_nodes_from(list(G.nodes(data=True)))
 
@@ -195,28 +197,29 @@ def G_fluxes(voronoi, G, fluxes):
     for i, ri in enumerate(radars):
         for j, rj in enumerate(radars):
 
-            val = np.nanmean(fluxes[i, j])
+            val = agg_func(fluxes[i, j])
 
             if val > 0 and i != j:
-                boundary1 = ('boundary' in ri) and ('boundary' in rj)
-                boundary2 = voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['boundary'].all()
+                boundary = ('boundary' in ri) and ('boundary' in rj)
+                #boundary2 = not voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['observed'].any()
 
-                if not boundary1 and not boundary2:
+                if not boundary: # and not boundary2:
                     G_new.add_edge(i, j, flux=val)
 
     return G_new
 
 if __name__ == "__main__":
 
-    models = { 'FluxGraphLSTM': ['final_evaluation_64'] }
+    models = { 'FluxGraphLSTM': ['final_evaluation_64_voronoi'] }
 
-    source_sink = False
+    source_sink = True
     fluxes = True
 
     trials = 5
     year = 2017
     season = 'fall'
-    H = 24
+    H_min = 1
+    H_max = 24
 
     ext = ''
     datasource = 'abm'
@@ -252,6 +255,7 @@ if __name__ == "__main__":
 
 
     def get_abm_data(data, datetime, radar, bird_scale=1):
+        #print(radar, datetime)
         tidx = time_dict[pd.Timestamp(datetime)]
         ridx = radar_dict[radar]
         return data[tidx, ridx] / bird_scale
@@ -269,7 +273,7 @@ if __name__ == "__main__":
             results, cfg = load_cv_results(result_dir, ext=ext, trials=trials)
             model_fluxes = load_model_fluxes(result_dir, ext=ext, trials=trials)
             bird_scale = cfg['datasource']['bird_scale']
-            output_dir = osp.join(result_dir, 'performance_evaluation', f'H={H}')
+            output_dir = osp.join(result_dir, 'performance_evaluation', f'{H_min}-{H_max}')
             os.makedirs(output_dir, exist_ok=True)
 
 
@@ -277,7 +281,7 @@ if __name__ == "__main__":
                 area_scale = results.area.max()
 
                 #df = results.query(f'horizon == {H}')
-                df = results.query(f'horizon <= 24')
+                df = results.query(f'horizon <= {H_max} & horizon >= {H_min}')
                 df = df[df.radar.isin(inner_radars)]
                 df['month'] = pd.DatetimeIndex(df.datetime).month
 
@@ -291,11 +295,23 @@ if __name__ == "__main__":
                     for t in df.trial.unique():
                         data = df.query(f'month == {m} & trial == {t}')
 
-                        print('compute abm source/sink')
-                        data.assign(gt_source_km2 = lambda row: get_abm_data(dep, row.datetime, row.radar) /
-                                                                (row.area / area_scale))
-                        data.assign(gt_sink_km2 = lambda row: get_abm_data(land, row.datetime, row.radar) /
-                                                              (row.area / area_scale))
+                        print(f'compute abm source/sink for trial {t}')
+
+                        gt_source_km2 = []
+                        gt_sink_km2 = []
+                        for i, row in data.iterrows():
+                            gt_source_km2.append(get_abm_data(dep, row['datetime'], row['radar']) / (row['area']/area_scale))
+                            gt_sink_km2.append(get_abm_data(land, row['datetime'], row['radar']) / (row['area']/area_scale))
+                        
+                        #data.assign(gt_source_km2=np.stack(gt_source_km2))
+                        #data.assign(gt_sink_km2=np.stack(gt_sink_km2))
+
+                        data['gt_source_km2'] = gt_source_km2
+                        data['gt_sink_km2'] = gt_sink_km2
+                        #data.assign(gt_source_km2 = lambda row: get_abm_data(dep, row['datetime'], row['radar']) /
+                        #                                        (row['area'] / area_scale))
+                        #data.assign(gt_sink_km2 = lambda row: get_abm_data(land, row['datetime'], row['radar']) /
+                        #                                      (row['area'] / area_scale))
                         # data['gt_source_km2'] = data.apply(
                         #    lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
                         # data['gt_sink_km2'] = data.apply(
@@ -380,9 +396,9 @@ if __name__ == "__main__":
                     df = results.query(f'seqID == {s}')
                     time = sorted(df.datetime.unique())
                     #t = time[context + H]
-                    gt_months.append(pd.DatetimeIndex(time[context + 1]).month)
+                    gt_months.append(pd.DatetimeIndex(time).month[context + 1])
                     agg_gt_fluxes = np.stack([gt_fluxes[time_dict[pd.Timestamp(time[context + h])]]
-                                              for h in range(1, H+1)], axis=0).sum(0)
+                                              for h in range(H_min, H_max+1)], axis=0).sum(0)
                     #gt_fluxes_H.append(gt_fluxes[time_dict[pd.Timestamp(t)]])
                     gt_fluxes_H.append(agg_gt_fluxes)
 
@@ -424,7 +440,7 @@ if __name__ == "__main__":
                     print(f'evaluate fluxes for trial {t}')
                     seqIDs = sorted(model_fluxes_t.keys())
                     #model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H] for s in seqIDs], axis=-1)
-                    model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., :H+1].sum(-1) for s in seqIDs], axis=-1)
+                    model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H_min:H_max+1].sum(-1) for s in seqIDs], axis=-1)
                     model_net_fluxes_t = model_fluxes_t - np.moveaxis(model_fluxes_t, 0, 1)
                     # model_flux_per_seq_t = model_flux_per_seq_t = model_flux_t.sum(2)
                     # model_net_flux_per_seq_t = model_flux_per_seq_t - np.moveaxis(model_flux_per_seq_t, 0, 1)
@@ -444,11 +460,11 @@ if __name__ == "__main__":
                     corr_outflux_per_month = dict(month=[], corr=[], trial=[])
                     for m in np.unique(gt_months):
                         idx = np.where(gt_months == m)
-                        gt_influx_m = gt_fluxes[..., idx].sum(1)
-                        gt_outflux_m = gt_fluxes[..., idx].sum(0)
+                        gt_influx_m = np.nansum(gt_fluxes[..., idx], axis=1)
+                        gt_outflux_m = np.nansum(gt_fluxes[..., idx], axis=0)
 
-                        model_influx_m = model_fluxes_t[..., idx].sum(1)
-                        model_outflux_m = model_fluxes_t[..., idx].sum(0)
+                        model_influx_m = np.nansum(model_fluxes_t[..., idx], axis=1)
+                        model_outflux_m = np.nansum(model_fluxes_t[..., idx], axis=0)
 
                         mask = np.isfinite(gt_influx_m)
                         corr = np.corrcoef(gt_influx_m[mask].flatten(),
@@ -532,22 +548,19 @@ if __name__ == "__main__":
                     #ax.set_theta_direction(-1)
                     #fig.savefig(osp.join(output_dir, f'flux_corr_angles_{t}.png'), bbox_inches='tight', dpi=200)
 
+                    if H_min == H_max:
+                        agg_func = np.nansum
+                    else:
+                        agg_func = np.nanmean
 
-                    # plot map with avg fluxes
-                    bounds = voronoi.total_bounds
-                    clon = np.mean([bounds[0], bounds[2]])
-                    clat = np.mean([bounds[1], bounds[3]])
-                    extent = [-6, 16, 41, 56]
-                    crs = ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat)
-
-                    G_model = G_fluxes(voronoi, G, model_net_fluxes_t)
+                    G_model = fluxes_on_graph(voronoi, G, model_net_fluxes_t, agg_func=agg_func)
                     nx.write_gpickle(G_model, osp.join(output_dir, f'model_fluxes_{t}.gpickle'), protocol=4)
 
-                    G_flux_corr = G_corr(voronoi, G, gt_net_fluxes, model_net_fluxes_t)
+                    G_flux_corr = corr_on_graph(voronoi, G, gt_net_fluxes, model_net_fluxes_t)
                     nx.write_gpickle(G_flux_corr, osp.join(output_dir, f'flux_corr_{t}.gpickle'), protocol=4)
 
                     if t == 1:
-                        G_gt = G_fluxes(voronoi, G, gt_net_fluxes)
+                        G_gt = fluxes_on_graph(voronoi, G, gt_net_fluxes, agg_func=np.agg_func)
                         nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
 
                 corr_d2b = pd.concat(corr_d2b)
