@@ -161,10 +161,8 @@ def bin_metrics_fluxes(model_fluxes, gt_fluxes):
 
     return summary
     
+def corr_on_graph(voronoi, G, gt_fluxes, model_fluxes):
 
-
-
-def net_fluxes_on_graph(voronoi, G, fluxes, agg_func=np.nanmean):
     G_new = nx.DiGraph()
     G_new.add_nodes_from(list(G.nodes(data=True)))
 
@@ -172,15 +170,41 @@ def net_fluxes_on_graph(voronoi, G, fluxes, agg_func=np.nanmean):
 
     for i, ri in enumerate(radars):
         for j, rj in enumerate(radars):
-            val = agg_func(fluxes[j,i] - fluxes[i,j])
+
+            val = np.nanmean(gt_fluxes[i, j])
+
+            if val > 0 and i != j:
+                boundary1 = ('boundary' in ri) and ('boundary' in rj)
+                boundary2 = voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['boundary'].all()
+
+                if not boundary1 and not boundary2:
+                    model_fluxes_ij= model_fluxes[i, j]
+                    gt_fluxes_ij = gt_fluxes[i, j]
+                    mask = np.isfinite(gt_fluxes_ij)
+                    corr = stats.pearsonr(model_fluxes_ij[mask].flatten(), gt_fluxes_ij[mask].flatten())[0]
+                    G_new.add_edge(i, j, corr=corr)
+
+    return G_new
+
+
+def net_fluxes_on_graph(voronoi, G, fluxes, agg_func=np.nanmean):
+
+    G_new = nx.DiGraph()
+    G_new.add_nodes_from(list(G.nodes(data=True)))
+
+    radars = voronoi.radar.values
+
+    for i, ri in enumerate(radars):
+        for j, rj in enumerate(radars):
+
+            val = agg_func(fluxes[i,j] - fluxes[j,i])
 
             if val > 0 and i != j:
                 boundary = ('boundary' in ri) and ('boundary' in rj)
                 #boundary2 = not voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['observed'].any()
 
                 if not boundary: # and not boundary2:
-                    G_new.add_edge(j, i, flux=val)
-
+                    G_new.add_edge(i, j, flux=val)
 
     return G_new
 
@@ -194,7 +218,8 @@ if __name__ == "__main__":
     trials = 5
     year = 2017
     season = 'fall'
-    H = 24
+    H_min = 1
+    H_max = 24
 
     ext = ''
     datasource = 'abm'
@@ -252,7 +277,7 @@ if __name__ == "__main__":
             results, cfg = load_cv_results(result_dir, ext=ext, trials=trials)
             model_fluxes = load_model_fluxes(result_dir, ext=ext, trials=trials)
             bird_scale = cfg['datasource']['bird_scale']
-            output_dir = osp.join(result_dir, 'performance_evaluation', f'H={H}')
+            output_dir = osp.join(result_dir, 'performance_evaluation', f'{H_min}-{H_max}')
             os.makedirs(output_dir, exist_ok=True)
 
 
@@ -260,7 +285,7 @@ if __name__ == "__main__":
                 area_scale = results.area.max()
 
                 #df = results.query(f'horizon == {H}')
-                df = results.query(f'horizon <= 24')
+                df = results.query(f'horizon <= {H_max} & horizon >= {H_min}')
                 df = df[df.radar.isin(inner_radars)]
                 df['month'] = pd.DatetimeIndex(df.datetime).month
 
@@ -378,9 +403,10 @@ if __name__ == "__main__":
                         #t = time[context + H]
                         gt_months.append(pd.DatetimeIndex(time).month[context + 1])
                         agg_gt_fluxes = np.stack([gt_fluxes[time_dict[pd.Timestamp(time[context + h])]]
-                                              for h in range(1, H+1)], axis=0).sum(0)
+                                              for h in range(H_min, H_max+1)], axis=0).sum(0)
                         #gt_fluxes_H.append(gt_fluxes[time_dict[pd.Timestamp(t)]])
                         gt_fluxes_H.append(agg_gt_fluxes)
+
 
                     #context = cfg['model']['context']
                     #horizon = cfg['model']['test_horizon']
@@ -420,7 +446,7 @@ if __name__ == "__main__":
                     print(f'evaluate fluxes for trial {t}')
                     seqIDs = sorted(model_fluxes_t.keys())
                     #model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H] for s in seqIDs], axis=-1)
-                    model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., :H+1].sum(-1) for s in seqIDs], axis=-1)
+                    model_fluxes_t = np.stack([model_fluxes_t[s].detach().numpy()[..., H_min:H_max+1].sum(-1) for s in seqIDs], axis=-1)
                     model_net_fluxes_t = model_fluxes_t - np.moveaxis(model_fluxes_t, 0, 1)
                     # model_flux_per_seq_t = model_flux_per_seq_t = model_flux_t.sum(2)
                     # model_net_flux_per_seq_t = model_flux_per_seq_t - np.moveaxis(model_flux_per_seq_t, 0, 1)
@@ -529,12 +555,19 @@ if __name__ == "__main__":
                     #ax.set_theta_direction(-1)
                     #fig.savefig(osp.join(output_dir, f'flux_corr_angles_{t}.png'), bbox_inches='tight', dpi=200)
 
+                    if H_min == H_max:
+                        agg_func = np.nansum
+                    else:
+                        agg_func = np.nanmean
 
-                    G_model = net_fluxes_on_graph(voronoi, G, model_net_fluxes_t, agg_func=np.nanmean)
+                    G_model = net_fluxes_on_graph(voronoi, G, model_net_fluxes_t, agg_func=agg_func)
                     nx.write_gpickle(G_model, osp.join(output_dir, f'model_fluxes_{t}.gpickle'), protocol=4)
 
+                    G_flux_corr = corr_on_graph(voronoi, G, gt_net_fluxes, model_net_fluxes_t)
+                    nx.write_gpickle(G_flux_corr, osp.join(output_dir, f'flux_corr_{t}.gpickle'), protocol=4)
+
                     if t == 1 and datasource == 'abm':
-                        G_gt = net_fluxes_on_graph(voronoi, G, gt_net_fluxes, agg_func=np.nanmean)
+                        G_gt = net_fluxes_on_graph(voronoi, G, gt_net_fluxes, agg_func=np.agg_func)
                         nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
 
 
