@@ -160,11 +160,8 @@ def bin_metrics_fluxes(model_fluxes, gt_fluxes):
 
     return summary
     
+def G_corr(voronoi, G, gt_fluxes, model_fluxes):
 
-
-
-def plot_fluxes(voronoi, extent, G, fluxes, bird_scale=1,
-                ax=None, crs=None, max_flux=None, cbar=True):
     G_new = nx.DiGraph()
     G_new.add_nodes_from(list(G.nodes(data=True)))
 
@@ -173,55 +170,41 @@ def plot_fluxes(voronoi, extent, G, fluxes, bird_scale=1,
     for i, ri in enumerate(radars):
         for j, rj in enumerate(radars):
 
-            val = np.nanmean(fluxes[j, i])
+            val = np.nanmean(gt_fluxes[i, j])
 
             if val > 0 and i != j:
                 boundary1 = ('boundary' in ri) and ('boundary' in rj)
                 boundary2 = voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['boundary'].all()
 
                 if not boundary1 and not boundary2:
-                    G_new.add_edge(j, i, flux=val)
+                    model_fluxes_ij= model_fluxes[i, j]
+                    gt_fluxes_ij = gt_fluxes[i, j]
+                    mask = np.isfinite(gt_fluxes_ij)
+                    corr = stats.pearsonr(model_fluxes_ij[mask].flatten(), gt_fluxes_ij[mask].flatten())[0]
+                    G_new.add_edge(i, j, corr=corr)
 
-    coord_df = gpd.GeoDataFrame(dict(radar=voronoi.radar,
-                                     observed=voronoi.observed,
-                                     geometry=[geometry.Point((row.lon, row.lat)) for i, row in voronoi.iterrows()]),
-                                crs='epsg:4326').to_crs(crs)
-    pos = {ridx: (
-    coord_df.query(f'radar == "{name}"').geometry.iloc[0].x, coord_df.query(f'radar == "{name}"').geometry.iloc[0].y)
-           for
-           (ridx, name) in nx.get_node_attributes(G_new, 'radar').items()}
+    return G_new
 
-    fluxes = np.array(list(nx.get_edge_attributes(G_new, 'flux').values()))
-    fluxes *= bird_scale
-    if max_flux is None:
-        max_flux = fluxes.max()
 
-    c_radar = 'lightgray'
-    c_marker = '#0a3142'
-    cmap = cm.get_cmap('YlOrRd')
-    norm = plt.Normalize(0, max_flux)
-    edge_colors = cmap(norm(fluxes))
-    edge_widths = np.minimum(fluxes, max_flux) / (0.25 * max_flux) + 0.8
+def G_fluxes(voronoi, G, fluxes):
+    G_new = nx.DiGraph()
+    G_new.add_nodes_from(list(G.nodes(data=True)))
 
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 8))
+    radars = voronoi.radar.values
 
-    nx.draw(G_new, pos=pos, with_labels=False, ax=ax,
-            node_size=9000 / len(G_new), node_color=c_radar, width=edge_widths,
-            connectionstyle="arc3,rad=0.1", edge_color=edge_colors)#,
-            #options={'arrowsize': edge_widths*100}, zorder=2)
+    for i, ri in enumerate(radars):
+        for j, rj in enumerate(radars):
 
-    gplt.polyplot(coord_df.query('observed == 1').buffer(20_000).to_crs(epsg=4326),
-                  ax=ax, extent=extent, zorder=3, edgecolor=c_marker, linewidth=1.5)
-    gplt.polyplot(coord_df.query('observed == 0').buffer(20_000).to_crs(epsg=4326),
-                  ax=ax, extent=extent, zorder=3, edgecolor=c_marker, linewidth=2)
-    gplt.pointplot(coord_df.query('observed == 1').to_crs(epsg=4326),
-                  ax=ax, extent=extent, zorder=4, edgecolor=c_marker, s=6)
-    if cbar:
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        plt.colorbar(sm, extend='max').set_label(label='number of birds', size=15);
+            val = np.nanmean(fluxes[i, j])
 
-    return G_new, ax
+            if val > 0 and i != j:
+                boundary1 = ('boundary' in ri) and ('boundary' in rj)
+                boundary2 = voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['boundary'].all()
+
+                if not boundary1 and not boundary2:
+                    G_new.add_edge(i, j, flux=val)
+
+    return G_new
 
 if __name__ == "__main__":
 
@@ -557,12 +540,14 @@ if __name__ == "__main__":
                     extent = [-6, 16, 41, 56]
                     crs = ccrs.AlbersEqualArea(central_longitude=clon, central_latitude=clat)
 
-                    G_model, ax = plot_fluxes(voronoi, extent, G, model_net_fluxes_t,
-                                crs=crs.proj4_init, max_flux=8)
+                    G_model = G_fluxes(voronoi, G, model_net_fluxes_t)
                     nx.write_gpickle(G_model, osp.join(output_dir, f'model_fluxes_{t}.gpickle'), protocol=4)
 
+                    G_flux_corr = G_corr(voronoi, G, gt_net_fluxes, model_net_fluxes_t)
+                    nx.write_gpickle(G_flux_corr, osp.join(output_dir, f'flux_corr_{t}.gpickle'), protocol=4)
+
                     if t == 1:
-                        G_gt, ax = plot_fluxes(voronoi, extent, G, gt_net_fluxes, crs=crs.proj4_init, max_flux=8)
+                        G_gt = G_fluxes(voronoi, G, gt_net_fluxes)
                         nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
 
                 corr_d2b = pd.concat(corr_d2b)
