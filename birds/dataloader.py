@@ -608,7 +608,7 @@ def get_training_data_gbt(dataset, timesteps, mask_daytime=False, use_acc_vars=F
     mask = []
     for seq in dataset:
         for t in range(timesteps):
-            print(f'coord size = {seq.coords.detach().numpy()shape}')
+            print(f'coord size = {seq.coords.detach().numpy().shape}')
             print(f'area size = {seq.areas.view(-1, 1).detach().numpy().shape}')
             print(f'env size = {seq.env[..., t].detach().numpy().shape}')
             features = [seq.coords.detach().numpy(),
