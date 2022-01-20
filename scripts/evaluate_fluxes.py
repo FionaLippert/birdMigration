@@ -187,45 +187,56 @@ def corr_on_graph(voronoi, G, gt_fluxes, model_fluxes):
     return G_new
 
 
-def net_fluxes_on_graph(voronoi, G, fluxes, agg_func=np.nanmean):
+def fluxes_on_graph(voronoi, G, fluxes, agg_func=np.nanmean, radars=None):
 
     G_new = nx.DiGraph()
     G_new.add_nodes_from(list(G.nodes(data=True)))
 
-    radars = voronoi.radar.values
+    all_radars = voronoi.radar.values
 
-    for i, ri in enumerate(radars):
-        for j, rj in enumerate(radars):
+    for i, ri in enumerate(all_radars):
+        for j, rj in enumerate(all_radars):
+            if radars is None or ri in radars or rj in radars:
 
-            val = agg_func(fluxes[i,j] - fluxes[j,i])
+                val = agg_func(fluxes[i,j])
 
-            if val > 0 and i != j:
-                boundary = ('boundary' in ri) and ('boundary' in rj)
-                #boundary2 = not voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['observed'].any()
+                if val > 0 and i != j:
+                    boundary = ('boundary' in ri) and ('boundary' in rj)
+                    #boundary2 = not voronoi.query(f'radar == "{ri}" or radar == "{rj}"')['observed'].any()
 
-                if not boundary: # and not boundary2:
-                    G_new.add_edge(i, j, flux=val)
+                    if not boundary: # and not boundary2:
+                        G_new.add_edge(i, j, flux=val)
 
     return G_new
+
+def total_net_flux(G, node):
+    net_flux = 0
+    for u, v, data in G.edges(data=True):
+        if u == node:
+            net_flux += data['flux']
+        elif v == node:
+            net_flux -= data['flux']
+    return net_flux
+
 
 if __name__ == "__main__":
 
     models = { 'FluxRGNN': ['final'] }
 
-    source_sink = False
+    source_sink = True
     fluxes = True
 
     trials = 5
     year = 2017
     season = 'fall'
-    H_min = 1
+    H_min = 24
     H_max = 24
 
     ext = ''
-    datasource = 'abm'
-    n_dummy = 25
-    #datasource = 'radar'
-    #n_dummy = 15
+    #datasource = 'abm'
+    #n_dummy = 25
+    datasource = 'radar'
+    n_dummy = 15
 
     base_dir = '/home/flipper/birdMigration'
     result_dir = osp.join(base_dir, 'results', datasource)
@@ -270,10 +281,10 @@ if __name__ == "__main__":
         gt_fluxes = np.load(osp.join(data_dir, 'outfluxes.npy'))
 
 
-    for m, dirs in models.items():
-        print(f'evaluate model components for {m}')
+    for model, dirs in models.items():
+        print(f'evaluate model components for {model}')
         for d in dirs:
-            result_dir = osp.join(base_dir, 'results', datasource, m, f'test_{year}', d)
+            result_dir = osp.join(base_dir, 'results', datasource, model, f'test_{year}', d)
             results, cfg = load_cv_results(result_dir, ext=ext, trials=trials)
             model_fluxes = load_model_fluxes(result_dir, ext=ext, trials=trials)
             bird_scale = cfg['datasource']['bird_scale']
@@ -281,7 +292,7 @@ if __name__ == "__main__":
             os.makedirs(output_dir, exist_ok=True)
 
 
-            if source_sink and datasource == 'abm':
+            if source_sink:
                 area_scale = results.area.max()
 
                 #df = results.query(f'horizon == {H}')
@@ -289,62 +300,109 @@ if __name__ == "__main__":
                 df = df[df.radar.isin(inner_radars)]
                 df['month'] = pd.DatetimeIndex(df.datetime).month
 
-                print('evaluate source/sink')
+                grouped = df.groupby(['radar', 'trial'])
+                #grouped = df.groupby(['radar', 'trial', 'month'])
+                #grouped = grouped[['source_km2', 'sink_km2']].aggregate(np.nansum)
 
-                corr_source = dict(month=[], trial=[], corr=[])
-                corr_sink = dict(month=[], trial=[], corr=[])
+                def get_net_source_sink(radar, trial):
+                    if radar in inner_radars:
+                        df = grouped.get_group((radar, trial)).aggregate(np.nansum)
+                        return df['source_km2'] - df['sink_km2']
+                    else:
+                        return np.nan
 
-                for m in df.month.unique():
-                    print(f'evaluate month {m}')
-                    for t in df.trial.unique():
-                        data = df.query(f'month == {m} & trial == {t}')
+                for t in df.trial.unique():
+                    voronoi[f'net_source_sink_{t}'] = voronoi.apply(lambda row: 
+                            get_net_source_sink(row.radar, t, month), axis=1)
 
-                        print(f'compute abm source/sink for trial {t}')
+                if datasource == 'abm':
 
-                        gt_source_km2 = []
-                        gt_sink_km2 = []
-                        for i, row in data.iterrows():
-                            gt_source_km2.append(get_abm_data(dep, row['datetime'], row['radar']) / (row['area']/area_scale))
-                            gt_sink_km2.append(get_abm_data(land, row['datetime'], row['radar']) / (row['area']/area_scale))
+                    print('evaluate source/sink')
+
+                    corr_source = dict(month=[], trial=[], corr=[])
+                    corr_sink = dict(month=[], trial=[], corr=[])
+                
+                    source_agg = dict(trial=[], gt=[], model=[])
+                    sink_agg = dict(trial=[], gt=[], model=[])
+                    for m in df.month.unique():
+                        print(f'evaluate month {m}')
+                        for t in df.trial.unique():
+                            data = df.query(f'month == {m} & trial == {t}')
+
+                            print(f'compute abm source/sink for trial {t}')
+
+                            gt_source_km2 = []
+                            gt_sink_km2 = []
+                            for i, row in data.iterrows():
+                                gt_source_km2.append(get_abm_data(dep, row['datetime'], row['radar']) / (row['area']/area_scale))
+                                gt_sink_km2.append(get_abm_data(land, row['datetime'], row['radar']) / (row['area']/area_scale))
                         
-                        #data.assign(gt_source_km2=np.stack(gt_source_km2))
-                        #data.assign(gt_sink_km2=np.stack(gt_sink_km2))
+                            #data.assign(gt_source_km2=np.stack(gt_source_km2))
+                            #data.assign(gt_sink_km2=np.stack(gt_sink_km2))
 
-                        data['gt_source_km2'] = gt_source_km2
-                        data['gt_sink_km2'] = gt_sink_km2
-                        #data.assign(gt_source_km2 = lambda row: get_abm_data(dep, row['datetime'], row['radar']) /
-                        #                                        (row['area'] / area_scale))
-                        #data.assign(gt_sink_km2 = lambda row: get_abm_data(land, row['datetime'], row['radar']) /
-                        #                                      (row['area'] / area_scale))
-                        # data['gt_source_km2'] = data.apply(
-                        #    lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
-                        # data['gt_sink_km2'] = data.apply(
-                        #        lambda row: get_abm_data(land, row.datetime, row.radar) / (row.area / area_scale), axis=1)
+                            data['gt_source_km2'] = gt_source_km2
+                            data['gt_sink_km2'] = gt_sink_km2
+                            #data.assign(gt_source_km2 = lambda row: get_abm_data(dep, row['datetime'], row['radar']) /
+                            #                                        (row['area'] / area_scale))
+                            #data.assign(gt_sink_km2 = lambda row: get_abm_data(land, row['datetime'], row['radar']) /
+                            #                                      (row['area'] / area_scale))
+                            # data['gt_source_km2'] = data.apply(
+                            #    lambda row: get_abm_data(dep, row.datetime, row.radar) / (row.area / area_scale), axis=1)
+                            # data['gt_sink_km2'] = data.apply(
+                            #        lambda row: get_abm_data(land, row.datetime, row.radar) / (row.area / area_scale), axis=1)
 
-                        print('aggregate source/sink over 24 H')
-                        grouped = data.groupby(['seqID', 'radar'])
-                        grouped = grouped[['gt_source_km2', 'source_km2', 'gt_sink_km2', 'sink_km2']].aggregate(
-                            np.nansum).reset_index()
+                            print('aggregate source/sink over 24 H')
+                            grouped = data.groupby(['seqID', 'radar'])
+                            grouped = grouped[['gt_source_km2', 'source_km2', 'gt_sink_km2', 'sink_km2']].aggregate(
+                                np.nansum).reset_index()
 
-                        print('compute correlation')
-                        corr = np.corrcoef(grouped.gt_source_km2.to_numpy(),
+                            source_agg['gt'].extend(grouped.gt_source_km2.values)
+                            source_agg['model'].extend(grouped.source_km2.values)
+                            source_agg['trial'].extend([t]*len(grouped.gt_source_km2))
+                            sink_agg['gt'].extend(grouped.gt_sink_km2.values)
+                            sink_agg['model'].extend(grouped.sink_km2.values)
+                            sink_agg['trial'].extend([t]*len(grouped.gt_sink_km2))
+
+                            print('compute correlation')
+                            corr = np.corrcoef(grouped.gt_source_km2.to_numpy(),
                                     grouped.source_km2.to_numpy())[0, 1]
-                        corr_source['month'].append(m)
-                        corr_source['trial'].append(t)
-                        corr_source['corr'].append(corr)
+                            corr_source['month'].append(m)
+                            corr_source['trial'].append(t)
+                            corr_source['corr'].append(corr)
 
-                        corr = np.corrcoef(grouped.gt_sink_km2.to_numpy(),
+                            corr = np.corrcoef(grouped.gt_sink_km2.to_numpy(),
                                            grouped.sink_km2.to_numpy())[0, 1]
-                        corr_sink['month'].append(m)
-                        corr_sink['trial'].append(t)
-                        corr_sink['corr'].append(corr)
+                            corr_sink['month'].append(m)
+                            corr_sink['trial'].append(t)
+                            corr_sink['corr'].append(corr)
 
-                corr_source = pd.DataFrame(corr_source)
-                corr_sink = pd.DataFrame(corr_sink)
+                    corr_source = pd.DataFrame(corr_source)
+                    corr_sink = pd.DataFrame(corr_sink)
 
-                corr_source.to_csv(osp.join(output_dir, 'agg_source_corr_per_trial.csv'))
-                corr_sink.to_csv(osp.join(output_dir, 'agg_sink_corr_per_trial.csv'))
+                    corr_source.to_csv(osp.join(output_dir, 'agg_source_corr_per_month_and_trial.csv'))
+                    corr_sink.to_csv(osp.join(output_dir, 'agg_sink_corr_per_month_and_trial.csv'))
 
+
+                    source_agg = pd.DataFrame(source_agg)
+                    sink_agg = pd.DataFrame(sink_agg)
+
+                    corr_source_all = dict(trial=[], corr=[])
+                    corr_sink_all = dict(trial=[], corr=[])
+
+                    for t in df.trial.unique():
+                        source_agg_t = source_agg.query(f'trial == {t}')
+                        corr_source_all['corr'].append(np.corrcoef(source_agg_t['gt'].to_numpy(),
+                            source_agg_t.model.to_numpy())[0, 1])
+                        corr_source_all['trial'].append(t)
+                        sink_agg_t = sink_agg.query(f'trial == {t}')
+                        corr_sink_all['corr'].append(np.corrcoef(sink_agg_t['gt'].to_numpy(),
+                            sink_agg_t.model.to_numpy())[0, 1])
+                        corr_sink_all['trial'].append(t)
+
+                    corr_source_all = pd.DataFrame(corr_source_all)
+                    corr_source_all.to_csv(osp.join(output_dir, 'agg_source_corr_per_trial.csv'))
+                    corr_sink_all = pd.DataFrame(corr_sink_all)
+                    corr_sink_all.to_csv(osp.join(output_dir, 'agg_sink_corr_per_trial.csv'))
 
 
 
@@ -560,17 +618,24 @@ if __name__ == "__main__":
                     else:
                         agg_func = np.nanmean
 
-                    G_model = net_fluxes_on_graph(voronoi, G, model_net_fluxes_t, agg_func=agg_func)
+                    G_model = fluxes_on_graph(voronoi, G, model_net_fluxes_t, agg_func=agg_func)
                     nx.write_gpickle(G_model, osp.join(output_dir, f'model_fluxes_{t}.gpickle'), protocol=4)
+                    boundary_radars = voronoi.query('boundary == True').radar.values
+                    G_boundary = fluxes_on_graph(voronoi, G, model_net_fluxes_t, agg_func=agg_func, radars=boundary_radars)
+                    voronoi[f'net_flux_{t}'] = voronoi.apply(lambda row: total_net_flux(G_boundary, row.name), axis=1)
+                    
+                    if datasource == 'abm':
+                        G_flux_corr = corr_on_graph(voronoi, G, gt_net_fluxes, model_net_fluxes_t)
+                        nx.write_gpickle(G_flux_corr, osp.join(output_dir, f'flux_corr_{t}.gpickle'), protocol=4)
 
-                    G_flux_corr = corr_on_graph(voronoi, G, gt_net_fluxes, model_net_fluxes_t)
-                    nx.write_gpickle(G_flux_corr, osp.join(output_dir, f'flux_corr_{t}.gpickle'), protocol=4)
-
-                    if t == 1 and datasource == 'abm':
-                        G_gt = net_fluxes_on_graph(voronoi, G, gt_net_fluxes, agg_func=np.agg_func)
-                        nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
+                        if t == 1:
+                            G_gt = fluxes_on_graph(voronoi, G, gt_net_fluxes, agg_func=agg_func)
+                            nx.write_gpickle(G_gt, osp.join(output_dir, 'gt_fluxes.gpickle'), protocol=4)
 
 
+                voronoi.to_csv(osp.join(output_dir, 'voronoi_summary.csv'))
+
+                
                 if datasource == 'abm':
                     corr_d2b = pd.concat(corr_d2b)
                     corr_angles = pd.concat(corr_angles)
