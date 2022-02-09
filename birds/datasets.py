@@ -1,5 +1,3 @@
-#import torch
-#from torch_geometric.data import Data, DataLoader, Dataset, InMemoryDataset
 from omegaconf import DictConfig, OmegaConf
 import numpy as np
 import networkx as nx
@@ -15,30 +13,69 @@ from birds import spatial, datahandling, era5interface, abm
 
 RADAR_REPLACEMENTS = {'nldbl': 'nlhrw'}
 
+
+def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
+    """
+    Prepare static and dynamic features for all radars available in the given year and season.
+
+    :param target_dir: directory where features will be written to
+    :param data_dir: directory containting all relevant data
+    :param year: year of interest
+    :param data_source: 'radar' or 'abm' (simulated data)
+    """
+
+    # load static features
+    if data_source == 'abm':
+        df = gpd.read_file(osp.join(data_dir, 'abm', 'all_radars.shp'))
+        radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
+    else:
+        season = kwargs.get('season', 'fall')
+        radar_dir = osp.join(data_dir, 'radar', season, year)
+        radars = datahandling.load_radars(radar_dir)
+
+    voronoi, radar_buffers, G = static_features(radars, **kwargs)
+
+    # save to disk
+    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
+    static_feature_df = voronoi.drop(columns='geometry')
+    static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
+    radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
+    nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
+
+    if kwargs.get('process_dynamic', True):
+        # load dynamic features
+        dynamic_feature_df = dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs)
+        # save to disk
+        dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
+
+
 def static_features(radars, **kwargs):
+    """
+    For a given set of radars, construct Voronoi tessellation and associated static features.
+
+    These features include: Delaunay triangulation (graph), Voronoi cell areas, length and orientation of Voronoi faces,
+    distances between radars, and 25km buffers around radars used for bird estimation.
+
+    :param radars: mapping from radar coordinates (lon, lat) to names
+    :return: Voronoi tessellation (geopandas dataframe), radar buffers (geopandas dataframe),
+        Delaunay triangulation (networkx graph)
+    """
 
     # check for radars to exclude
     exclude = []
     exclude.extend(kwargs.get('exclude', []))
-    print(exclude)
-    print(radars)
+
     for r1, r2 in RADAR_REPLACEMENTS.items():
         # if two radars are available for the same location, use the first one
         if (r1 in radars.values()) and (r2 in radars.values()):
-            print(r1, r2)
-            print(r1 in radars.values())
-            print(r2 in radars.values())
-            print('both radars are available')
             exclude.append(r2)
-    print(f'excluded: {exclude}')
 
     radars = {k: v for k, v in radars.items() if not v in exclude}
-    print(radars)
+    print(f'excluded radars: {exclude}')
+
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0))
     voronoi, G = space.voronoi()
-    # G = space.subgraph(G, 'type', 'measured')  # graph without sink nodes
-    #G_max_dist = space.G_max_dist(kwargs.get('max_distance', 250))
 
     print('create radar buffer dataframe')
     # 25 km buffers around radars
@@ -59,6 +96,19 @@ def static_features(radars, **kwargs):
     return voronoi, radar_buffers, G
 
 def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs):
+    """
+    Load all dynamic features, including bird densities and velocities, environmental data, and derived features
+    such as estimated accumulation of bird on the ground due to adverse weather.
+
+    Missing data is interpolated, but marked as missing.
+
+    :param data_dir: directory containing all relevant data
+    :param year: year of interest
+    :param data_source: 'radar' or 'abm' (simulated data)
+    :param voronoi: Voronoi tessellation (geopandas dataframe)
+    :param radar_buffers: radar buffers with static features (geopandas dataframe)
+    :return: dynamic features (pandas dataframe)
+    """
 
     env_points = kwargs.get('env_points', 100)
     season = kwargs.get('season', 'fall')
@@ -90,31 +140,26 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         bird_u = radar_data[:, 2, :]
         bird_v = radar_data[:, 3, :]
 
-        data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None] # rescale according to voronoi cell size
+        # rescale according to voronoi cell size
+        data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None]
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
         voronoi_radars = voronoi.query('observed == True')
-        print(voronoi_radars.radar.values)
         radar_buffers_radars = radar_buffers.query('observed == True')
-        print(radar_buffers_radars.crs)
         data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, voronoi_radars)
-        print('loaded voronoi cell data')
         buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
-        print('loaded buffer data')
 
         # rescale to birds per km^2
         birds_km2 = data / voronoi_radars.area_km2.to_numpy()[:, None]
-        # rescale to birds per km^2
         birds_km2_from_buffer = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None]
         # rescale to birds per voronoi cell
         birds_from_buffer = birds_km2_from_buffer * voronoi_radars.area_km2.to_numpy()[:, None]
 
     # time range for solar positions to be able to infer dusk and dawn
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
-    #solar_t_range = solar_t_range.insert(0, t_range[0] - pd.Timedelta(t_range.freq))
 
     print('load env data')
     env_vars = ['u', 'v', 'u10', 'v10', 'cc', 'tp', 'sp', 't2m', 'sshf']
@@ -252,44 +297,3 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     print(f'columns: {dynamic_feature_df.columns}')
     return dynamic_feature_df
-
-
-
-def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
-
-    radar_years = kwargs.get('radar_years', ['2015', '2016', '2017'])
-    process_dynamic = kwargs.get('process_dynamic', True)
-
-    # load static features
-    if data_source == 'abm': # and not year in radar_years:
-        #radar_year = radar_years[-1]
-        df = gpd.read_file(osp.join(data_dir, 'abm', 'all_radars.shp'))
-        radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
-        print(radars)
-    else:
-        season = kwargs.get('season', 'fall')
-        radar_dir = osp.join(data_dir, 'radar', season, year)
-        radars = datahandling.load_radars(radar_dir)
-
-    voronoi, radar_buffers, G = static_features(radars, **kwargs)
-
-    # save to disk
-    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
-    static_feature_df = voronoi.drop(columns='geometry')
-    print('save static features')
-    static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
-    print('save radar buffers')
-    radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
-    nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
-
-    if process_dynamic:
-        # load era5 data if not available
-        #env_dir = osp.join(data_dir, 'env', season, year)
-        #if not osp.isdir(env_dir):
-        #    dl = era5interface.ERA5Loader(radars)
-        #    dl.download_season(season, year, env_dir, **kwargs)
-
-        # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs)
-        # save to disk
-        dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))

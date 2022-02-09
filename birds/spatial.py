@@ -11,13 +11,19 @@ import geopandas as gpd
 
 
 class Spatial:
-    def __init__(self, radars, seed=1234, buffer=150_000, n_dummy_radars=0): #, epsg_local='3035'):
+    """
+    Spatial object holding radar information and allowing for construction of the associated Voronoi tessellation,
+    Delaunay triangulation, and other static node (radar) and edge (Voronoi face) features.
+    """
+
+    def __init__(self, radars, seed=1234, buffer=150_000, n_dummy_radars=0):
         """
         Initialization of Spatial object
-        Args:
-            radars (dict): mapping from radar coordinates (lon, lat) to names
-            epsg (str): coordinate reference system as epsg string
-            epsg_local (str): coordinate reference system as epsg string
+
+        :param radars: mapping from radar coordinates (lon, lat) to names
+        :param seed: random seed
+        :param buffer: radius for outline of boundary cells
+        :param n_dummy_radars: number of dummy radars, i.e. unobserved boundary cells
         """
 
         self.radars = radars
@@ -25,7 +31,8 @@ class Spatial:
 
         # setup geodesic (lonlat) coordinate system
         self.epsg_lonlat = '4326'
-        self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()], crs=f'epsg:{self.epsg_lonlat}')
+        self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
+                                        crs=f'epsg:{self.epsg_lonlat}')
 
         # setup local "aximuthal equidistant" coordinate system
         lat_0 = self.pts_lonlat.y.mean()
@@ -42,16 +49,15 @@ class Spatial:
     def voronoi(self, buffer=150_000, self_edges=False):
         """
         Construct Voronoi diagram based on radar coordinates
-        Args:
-            buffer (float): max distance around radar stations (in meters)
-        Returns:
-            adj (GeoDataFrame): edges between neighbouring radars, weight=distance [m]
-            cells (GeoDataFrame): polygons describing the Voronoi cells
+
+        :param buffer: max distance around radar stations (in meters)
+        :param self_edges: add self-edges to graph (booloean)
+        :return: cells (polygons describing the Voronoi cells), G (Delaunay triangulation with edge attributes)
         """
 
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
         sink = boundary.buffer(buffer).difference(boundary)
-        self.sink = gpd.GeoSeries(sink, crs=self.crs_local)  # .to_crs(epsg=self.epsg_equal_area)
+        self.sink = gpd.GeoSeries(sink, crs=self.crs_local)
 
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
@@ -68,7 +74,7 @@ class Spatial:
                                   },
                                  geometry=polygons,
                                  crs=self.crs_local)
-        print(cells.crs)
+
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
 
         adj = np.zeros((self.N, self.N))
@@ -98,13 +104,6 @@ class Spatial:
 
         nx.set_node_attributes(G, pd.Series(cells['radar']).to_dict(), 'radar')
         nx.set_node_attributes(G, pd.Series(cells['boundary']).to_dict(), 'boundary')
-        # nx.set_node_attributes(G, 'measured', name='type')
-        #
-        # # add one global sink node
-        # sink_id = len(G)
-        # G.add_node(sink_id, type='sink')
-        # G.add_edges_from([(sink_id, n) for n in G.nodes])
-        # G.add_edges_from([(n, sink_id) for n in G.nodes])
 
         self.cells = cells
         self.G = G
@@ -113,18 +112,14 @@ class Spatial:
 
         return cells, G
 
-    def sample_point(self, area):
-        minx, miny, maxx, maxy = area.total_bounds
-        x = self.rng.uniform(minx, maxx)
-        y = self.rng.uniform(miny, maxy)
-        pos = geometry.Point(x, y)
-        while not area.contains(pos).any():
-            x = np.random.uniform(minx, maxx)
-            y = np.random.uniform(miny, maxy)
-            pos = geometry.Point(x, y)
-        return x, y
 
     def add_dummy_radars(self, n, buffer=150_000):
+        """
+        Add dummy radars to list of radars.
+
+        :param n: number of dummy radars to add
+        :param buffer: distance of dummy radars to other radars
+        """
         if n == 0: return
         boundary = geometry.MultiPoint(self.pts_local).buffer(buffer).boundary
 
@@ -133,15 +128,19 @@ class Spatial:
 
         print(f'add {n} dummy radars')
         dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(f'epsg:{self.epsg_lonlat}')
-        print(self.pts_local.crs)
         self.pts_lonlat = self.pts_lonlat.append(dummy_radars, ignore_index=True)
         self.pts_local = self.pts_local.append(dummy_radars.to_crs(self.crs_local), ignore_index=True)
         self.pts_local = gpd.GeoSeries(self.pts_local, crs=self.crs_local)
-        print(self.pts_local.crs)
 
 
     def G_max_dist(self, max_distance):
-        # create graph with edges between any two radars with distance <= max_distance [km]
+        """
+        Create graph with edges between any two radars with distance <= max_distance [km]
+
+        :param max_distance: maximum distance for which radars will still be connected
+        :return: graph G
+        """
+
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
         max_distance = max_distance * 1000 # kilometers to meters
@@ -162,6 +161,15 @@ class Spatial:
         return G
 
     def subgraph(self, G, attr, value):
+        """
+        Extract subgraph from larger graph G.
+
+        :param G: larger graph
+        :param attr: attribute to filter on
+        :param value: only nodes where attr==value will be included in subgraph
+        :return: subgraph
+        """
+
         node_gen = (n for n, data in G.nodes(data=True) if data.get(attr) == value)
         subgraph = G.subgraph(node_gen)
         return nx.DiGraph(subgraph)
@@ -177,22 +185,28 @@ class Spatial:
         coords = [[p.xy[0][0], p.xy[1][0]] for p in pts]
         if reverse_xy:
             coords = [[p.xy[1][0], p.xy[0][0]] for p in pts]
-            #coords = np.flip(coords, axis=1)
         return coords
 
     def distance(self, coord1, coord2):
         """
         Compute distance between two geographical locations in local crs
-        Args:
-            coord1 (tuple): coordinates of first location (x, y)
-            coord2 (tuple): coordinates of second location (x, y)
-        Returns:
-            dist (float): distance in meters
+
+        :param coord1: coordinates of first location (x, y)
+        :param coord2: coordinates of second location (x, y)
+        :return: distance in meters
         """
+
         dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
         return dist
 
     def angle(self, coord1, coord2):
+        """
+        Compute angle between two geographical locations, i.e. the direction of the line from coord1 to coord2.
+
+        :param coord1: coordinates of first location (x, y)
+        :param coord2: coordinates of second location (x, y)
+        :return: angle (in degrees north)
+        """
         # coords should be in lonlat crs
         y = coord2[0] - coord1[0]
         x = coord2[1] - coord1[1]
@@ -201,41 +215,16 @@ class Spatial:
         deg = np.rad2deg(rad)
 
         # make sure angle is between 0 and 360 degree
-        # deg = (deg + 180) % 360 + 180
         deg = (deg + 360) % 360
 
         return deg
 
     def flip(self, coord):
+        """
+        Flip x and y (or lon and lat) coordinates.
+
+        :param coord: coordinates (x, y)
+        :return: flipped coordinates (y, x)
+        """
         return (coord[1], coord[0])
 
-    def voronoi_with_sink(self):
-        gdf_sink = gpd.GeoDataFrame()
-
-        if not hasattr(self, 'cells'):
-            self.voronoi()
-        for c in self.cells.columns:
-            gdf_sink[c] = [np.nan]
-        gdf_sink['radar'] = 'sink'
-        gdf_sink['geometry'] = self.sink.geometry
-        voronoi_with_sink = self.cells.append(gdf_sink, ignore_index=True)
-        return voronoi_with_sink
-
-
-if __name__ == '__main__':
-
-    from birds import datahandling
-    import os.path as osp
-
-    path = '/home/fiona/birdMigration/data/raw/radar/fall/2015'
-    radars = datahandling.load_radars(path)
-
-    sp = Spatial(radars, n_dummy_radars=15)
-    sp.cells.to_file(osp.join(path, 'voronoi_test.shp'))
-    sp.sink.to_file(osp.join(path, 'voronoi_sink_test.shp'))
-    nx.write_gpickle(sp.subgraph('type', 'measured'), osp.join(path, 'delaunay_test.gpickle'), protocol=4)
-
-    # for index, row in sp.cells.iterrows():
-    #     area = row.geometry.area / 1000_000
-    #     partial = row.geometry.buffer(-36_000).area / 1000_000
-    #     print(row.radar, partial/area)

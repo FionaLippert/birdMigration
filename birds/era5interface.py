@@ -7,13 +7,21 @@ import numpy as np
 from shapely import geometry
 import geopandas as gpd
 
-from birds import datahandling
 from birds.spatial import Spatial
 
 
 class ERA5Loader():
+    """
+    Wrapper for easy loading of ERA5 environmental data for given radar locations.
+    """
 
     def __init__(self, radars):
+        """
+        Initialization of radars and variables to download.
+
+        :param radars: mapping from coordinates to radar names
+        """
+
         self.radars = radars
 
         self.surface_data_config = {'variable' : ['2m_temperature',
@@ -28,7 +36,6 @@ class ERA5Loader():
 
         self.pressure_level_config = {'variable' : ['fraction_of_cloud_cover',
                                                     'specific_humidity',
-                                                    #'specific_rain_water_content',
                                                     'temperature',
                                                     'u_component_of_wind',
                                                     'v_component_of_wind',
@@ -40,13 +47,25 @@ class ERA5Loader():
         self.client = cdsapi.Client()
 
     def download_season(self, season, year, target_dir, bounds=None, buffer_x=0, buffer_y=0, pl=850, surface_data=True):
-        # load radar information
+        """
+        Download environmental variables for the given year and season.
+
+        :param season: season of interest ('spring' or 'fall')
+        :param year: year of interest
+        :param target_dir: directory to write downloaded data to
+        :param bounds: bounds [North, West, South, East] of geographical area for which data is downloaded (if None, bounds of Voronoi tessellation are used)
+        :param buffer_x: buffer around bounds in x-direction (longitude)
+        :param buffer_y: buffer around bounds in y-direction (latitude)
+        :param pl: pressure level
+        :param surface_data: if True, download surface data in addition to pressure level data
+        """
+
+
         if bounds is None:
-            #radar_dir = osp.join(self.radar_path, season, year)
-            #radars = datahandling.load_radars(radar_dir)
+            # get bounds of Voronoi tesselation
             spatial = Spatial(self.radars)
             minx, miny, maxx, maxy = spatial.cells.to_crs(epsg=spatial.epsg_lonlat).total_bounds
-            bounds = [maxy + buffer_y, minx - buffer_x, miny - buffer_y, maxx + buffer_x]  # North, West, South, East
+            bounds = [maxy + buffer_y, minx - buffer_x, miny - buffer_y, maxx + buffer_x]
 
         if season == 'spring':
             months = [f'{m:02}' for m in range(3, 6)]
@@ -57,7 +76,6 @@ class ERA5Loader():
 
         # datetime is interpreted as 00:00 UTC
         days = [f'{(d + 1):02}' for d in range(31)]
-        #time = [f'{h:02}:{m:02}' for h in range(24) for m in range(0, 59, 15)]
         time = [f'{h:02}:00' for h in range(24)]
         resolution = [0.25, 0.25]
 
@@ -65,7 +83,7 @@ class ERA5Loader():
                  'month' : months,
                  'day' : days,
                  'area' : bounds,
-                 'grid' : resolution, #Default: 0.25 x 0.25
+                 'grid' : resolution,
                  'time' : time }
 
         os.makedirs(target_dir, exist_ok=True)
@@ -85,12 +103,20 @@ class ERA5Loader():
 
 
 def extract_points(data_path, lonlat_list, t_range, vars):
-    # t_range must be given as UTC
+    """
+    Open downloaded data and extract data at the given coordinates (interpolate if necessary)
+
+    :param data_path: path to downloaded data
+    :param lonlat_list: list of (lon, lat) coordinates
+    :param t_range: time range (in UTC)
+    :param vars: list of environmental variables to extract
+    :return: numpy.array with shape [number of coordinates, number of variables]
+    """
+
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
-    #t_range = t_range.tz_convert('UTC') # convert datetimeindex to UTC if it was given at a different timezone
     weather = {}
 
     for var, ds in data.items():
@@ -105,6 +131,14 @@ def extract_points(data_path, lonlat_list, t_range, vars):
     return weather
 
 def sample_point_from_polygon(polygon, seed):
+    """
+    Sample a random point within the given polygon.
+
+    :param polygon: shapely.geometry.Polygon
+    :param seed: random seed
+    :return: coordinates (lon, lat)
+    """
+
     rng = np.random.default_rng(seed)
     minx, miny, maxx, maxy = polygon.bounds
     lon = np.random.uniform(minx, maxx)
@@ -117,7 +151,18 @@ def sample_point_from_polygon(polygon, seed):
     return lon, lat
 
 def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
-    # t_range must be given as UTC, but not localized
+    """
+    For all cells, sample a number of points within the cell and compute cell averages of environmental variables.
+
+    :param data_path: path to downloaded data
+    :param cell_geometries: geopandas.GeoDataFrame with cell shapes
+    :param n_points: number of points to sample
+    :param t_range: time range (in UTC, not localized)
+    :param vars: list of variables to extract
+    :param seed: random seed
+    :return: numpy.array with shape [number of cells, number of variables]
+    """
+
     cell_geometries = cell_geometries.to_crs('EPSG:4326')
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
@@ -125,7 +170,6 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
 
     weather = {}
     for var, ds in data.items():
-        print(var)
         if var in vars:
             var_data = []
             for poly in cell_geometries:
@@ -140,29 +184,3 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
             weather[var] = np.stack(var_data, axis=0)
 
     return weather
-
-
-
-if __name__ == '__main__':
-#
-#     loader = ERA5Loader()
-#     base_dir = '/home/fiona/environmental_data/era5'
-#     for year in ['2015']: #'2015', '2016', '2017', '2018']:
-#         for season in ['spring', 'fall']:
-#             file_path = loader.download_season(year, season, osp.join(base_dir, season, year), f'wind_850.nc')
-
-    years = ['2015', '2016', '2017']
-    seasons = ['fall']
-
-    data_dir = '/home/fiona/birdMigration/data/raw'
-    #radar_path = osp.join(root, 'radar', 'fall', '2015')
-    #radars = datahandling.load_radars(radar_path)
-    df = gpd.read_file(osp.join(data_dir, 'abm', 'all_radars.shp'))
-    radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
-    dl = ERA5Loader(radars)
-
-    for year in years:
-        for season in seasons:
-            output_dir = osp.join(data_dir, 'env', season, year)
-            os.makedirs(output_dir, exist_ok=True)
-            dl.download_season(season, year, output_dir, pl=850, buffer_x=4, buffer_y=4, surface_data=True)

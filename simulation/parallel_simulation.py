@@ -8,12 +8,11 @@ import numpy as np
 import multiprocessing as mp
 import os
 import os.path as osp
-import sys
 import geopandas as gpd
 import glob
 import pickle5 as pickle
 
-#sys.path.insert(1, osp.join(sys.path[0], '../modules'))
+
 from birds import datahandling
 from birds.era5interface import ERA5Loader
 
@@ -21,8 +20,8 @@ home = osp.expanduser("~")
 
 parser = argparse.ArgumentParser(description='parallel ABM simulation')
 parser.add_argument('--root', type=str, default=osp.join(home, 'birdMigration', 'data'), help='entry point to required data')
-parser.add_argument('--buffer_x', type=int, default=0, help='longitude buffer around voronoi area')
-parser.add_argument('--buffer_y', type=int, default=0, help='latitude buffer around voronoi area')
+parser.add_argument('--buffer_x', type=int, default=4, help='longitude buffer around voronoi area')
+parser.add_argument('--buffer_y', type=int, default=4, help='latitude buffer around voronoi area')
 args = parser.parse_args()
 
 
