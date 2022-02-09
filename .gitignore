@@ -13,6 +13,7 @@ testdata/
 models/
 departure_models/
 results/*
+notebooks/
 scripts/outputs/
 checkpoints/
 *.tif
@@ -22,6 +23,11 @@ checkpoints/
 *.nc
 *.pkl
 *.npy
+*.cpg
+*.dbf
+*.prj
+*.shp
+*.shx
 
 # slurm output
 slurm*
