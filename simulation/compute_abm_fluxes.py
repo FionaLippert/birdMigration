@@ -7,8 +7,11 @@ import numpy as np
 import argparse
 import geopandas as gpd
 
+home = osp.expanduser("~")
+
 parser = argparse.ArgumentParser(description='process ABM simulation results')
-parser.add_argument('--root', type=str, default='/home/flipper/birdMigration/data', help='entry point to required data')
+parser.add_argument('--root', type=str, default=osp.join(home, 'birdMigration', 'data'),
+                    help='entry point to required data')
 parser.add_argument('--year', type=int, default=2017, help='year to be processed')
 parser.add_argument('--season', type=str, default='fall', help='season to be processed')
 parser.add_argument('--ndummy', type=int, default=25, help='number of dummy radars')
@@ -46,7 +49,6 @@ for tidx in range(T):
 
     if len(df_flows) > 0:
         groups = df_flows.groupby('radar')
-        #grouped = groups['dst_radar'].value_counts()
 
         for src, df_dst in groups:
             fluxes = df_dst['dst_radar'].value_counts()

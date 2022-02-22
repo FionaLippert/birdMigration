@@ -2,24 +2,21 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os.path as osp
 import xarray as xr
-import sys
 import os
 import glob
 import pickle5 as pickle
 import cartopy.crs as ccrs
 import geopandas as gpd
-import pandas as pd
 import geoplot as gplt
 import geoplot.crs as gcrs
 from shapely.geometry import Polygon, Point, LineString
-from shapely.ops import cascaded_union
 import imageio
 
 
 home = osp.expanduser("~")
 root = osp.join(home, 'birdMigration', 'data')
-countries = gpd.read_file(osp.join(d, 'ne_10m_admin_0_countries_lakes.shp'))
-departure_area = gpd.read_file(osp.join(d, 'departure_area.shp'))
+countries = gpd.read_file(osp.join(root, 'shapes', 'ne_10m_admin_0_countries_lakes.shp'))
+departure_area = gpd.read_file(osp.join(root, 'shapes', 'departure_area.shp'))
 abm_dir = osp.join(root, 'experiments', 'abm', 'fall', '2015', 'experiment_2021-02-17 19:11:34.724467')
 
 files = glob.glob(os.path.join(abm_dir, '*.pkl'))
@@ -55,7 +52,6 @@ def draw_birds(traj, states, output_path, tidx):
     ax, extent = background_map()
 
     mask = np.where(states)
-    print(mask)
     if len(mask[0]) > 0:
         xx = traj[mask, 0].flatten()
         yy = traj[mask, 1].flatten()

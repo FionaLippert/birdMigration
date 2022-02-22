@@ -12,16 +12,17 @@ import geopandas as gpd
 import glob
 import pickle5 as pickle
 
-
 from birds import datahandling
 from birds.era5interface import ERA5Loader
 
 home = osp.expanduser("~")
 
 parser = argparse.ArgumentParser(description='parallel ABM simulation')
-parser.add_argument('--root', type=str, default=osp.join(home, 'birdMigration', 'data'), help='entry point to required data')
+parser.add_argument('--root', type=str, default=osp.join(home, 'birdMigration', 'data'),
+                    help='entry point to required data')
 parser.add_argument('--buffer_x', type=int, default=4, help='longitude buffer around voronoi area')
 parser.add_argument('--buffer_y', type=int, default=4, help='latitude buffer around voronoi area')
+parser.agg_argument('--radar_year', type=int, default=2015)
 args = parser.parse_args()
 
 
@@ -34,8 +35,8 @@ with open(config_file) as f:
 # file paths
 root = args.root
 env_path = osp.join(root, 'raw', 'env', config['season'], config['year'],
-                    f'buffer_{args.buffer_x}_{args.buffer_y}') #, 'wind_850.nc')
-radar_path = osp.join(root, 'raw', 'radar', config['season'], '2015') #config['year'])
+                    f'buffer_{args.buffer_x}_{args.buffer_y}')
+radar_path = osp.join(root, 'raw', 'radar', config['season'], str(args.radar_year))
 output_path = osp.join(root, 'experiments', 'abm', config['season'], config['year'], f'experiment_{datetime.now()}')
 departure_area_path = osp.join(root, 'shapes', 'departure_area.shp')
 target_area_path = osp.join(root, 'shapes', 'target_area.shp')

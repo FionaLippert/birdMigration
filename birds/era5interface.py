@@ -46,14 +46,16 @@ class ERA5Loader():
 
         self.client = cdsapi.Client()
 
-    def download_season(self, season, year, target_dir, bounds=None, buffer_x=0, buffer_y=0, pl=850, surface_data=True):
+    def download_season(self, season, year, target_dir, bounds=None,
+                        buffer_x=0, buffer_y=0, pl=850, surface_data=True):
         """
         Download environmental variables for the given year and season.
 
         :param season: season of interest ('spring' or 'fall')
         :param year: year of interest
         :param target_dir: directory to write downloaded data to
-        :param bounds: bounds [North, West, South, East] of geographical area for which data is downloaded (if None, bounds of Voronoi tessellation are used)
+        :param bounds: bounds [North, West, South, East] of geographical area for which data is downloaded
+                    (if None, bounds of Voronoi tessellation are used)
         :param buffer_x: buffer around bounds in x-direction (longitude)
         :param buffer_y: buffer around bounds in y-direction (latitude)
         :param pl: pressure level

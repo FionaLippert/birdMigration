@@ -36,7 +36,6 @@ processes = set()
 max_processes = mp.cpu_count() - 1
 
 for t in time_range:
-    #print('---------- start new process ------------')
     processes.add(subprocess.Popen(['Rscript', 'generate_radar_images.R', subdir, str(t)],
                             stdout=open(logfile, 'a+'),
                             stderr=open(logfile, 'a+')))

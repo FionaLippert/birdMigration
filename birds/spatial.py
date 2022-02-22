@@ -3,7 +3,6 @@ import pandas as pd
 from geovoronoi import voronoi_regions_from_coords, plotting
 from shapely import geometry
 import pyproj
-from geopy.distance import geodesic, lonlat
 import itertools as it
 import networkx as nx
 import geopandas as gpd
@@ -34,7 +33,7 @@ class Spatial:
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
                                         crs=f'epsg:{self.epsg_lonlat}')
 
-        # setup local "aximuthal equidistant" coordinate system
+        # setup local "azimuthal equidistant" coordinate system
         lat_0 = self.pts_lonlat.y.mean()
         lon_0 = self.pts_lonlat.x.mean()
         self.crs_local = pyproj.Proj(proj='aeqd', ellps='WGS84', datum='WGS84', lat_0=lat_0, lon_0=lon_0).crs

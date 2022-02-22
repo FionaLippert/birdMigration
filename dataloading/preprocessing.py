@@ -97,8 +97,6 @@ class RasterImage:
             config = yaml.load(f, Loader=yaml.FullLoader)
         self.bounds = config['bounds']
 
-        # TODO:  get radar position in lat/long and pixel indices
-
 
 class RadarTimeSeries:
 
@@ -126,9 +124,6 @@ class RadarTimeSeries:
         if min_var is not None:
             img_arr[:, np.nanvar(img_arr, axis=0)<min_var] = np.nan
 
-        #dirname = f'min_var={min_var}'
-        #os.makedirs(os.path.join(config['data']['png'], dirname), exist_ok=True)
-
         x, y,z = np.where(np.isnan(img_arr))
         img_arr = colormap(img_arr, bytes = True)
         img_arr[x,y,z, -1] = 0
@@ -137,7 +132,7 @@ class RadarTimeSeries:
         # for img in images:
             #img.save(f'{dirname}/{self.timestamps[i]}.png','PNG')
 
-        #return t_range
+        return images
 
 
 

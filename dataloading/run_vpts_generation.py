@@ -9,7 +9,6 @@ import multiprocessing as mp
 
 parser = argparse.ArgumentParser(description='VPTS processing pipeline')
 parser.add_argument('output_dir', help='path to directory where data will be written to')
-#parser.add_argument('--test_local', default=False, action='store_true', help='use local file paths')
 args = parser.parse_args()
 
 with open('config.yml') as f:
@@ -37,7 +36,6 @@ processes = set()
 max_processes = mp.cpu_count() - 1
 
 for r in config['radars']:
-    #print('---------- start new process ------------')
     processes.add(subprocess.Popen(['Rscript', 'generate_vpts.R', args.output_dir, r],
                             stdout=open(logfile, 'a+'),
                             stderr=open(logfile, 'a+')))

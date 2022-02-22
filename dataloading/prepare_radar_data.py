@@ -30,7 +30,6 @@ args = parser.parse_args()
 
 def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
 
-    #print(glob(os.path.join(input_path, '*', '*.h5')))
     files = sorted([(FNAME.parse(os.path.basename(d)).named['datetime'], d) \
                         for d in glob(os.path.join(input_path, f'{n_subdirs*"*/"}*.nc'))], \
                         key = lambda x: x[0])
@@ -67,20 +66,14 @@ def prepare_data(input_path, output_path, seq_len, test_size, n_subdirs=0):
 
             output_file = os.path.join(output_path, dataset, \
                             f'{files[idx][0]}_to_{files[end][0]}.nc')
-            #os.makedirs(subdir, exist_ok = True)
             input_files = [f[1] for f in files[idx:end+1]]
-            #print(input_files)
-            print(output_file)
             combine_nc(input_files, output_file)
 
-            #all_bounds = [h5_to_numpy(f[1], os.path.join(subdir, f[0]))[1] \
-            #                    for f in files[idx:end+1]]
         else:
             print(f'discarding sequence {k} due to missing data')
 
 def combine_nc(input_files, output_file):
     new_nc = xr.open_mfdataset(input_files, combine='by_coords')
-    #print(np.array(new_nc.VID).shape)
     new_nc.to_netcdf(output_file, mode='w', format='NETCDF4_CLASSIC')
 
 def h5_to_numpy(input_path, output_path=None):

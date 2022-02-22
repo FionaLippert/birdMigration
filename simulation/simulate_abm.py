@@ -1,12 +1,10 @@
 import xarray as xr
 import os
 import os.path as osp
-import sys
 import argparse
 import yaml
 import geopandas as gpd
 
-sys.path.insert(1, osp.join(sys.path[0], '../modules'))
 from birds import abm
 
 parser = argparse.ArgumentParser(description='parallel ABM simulation')

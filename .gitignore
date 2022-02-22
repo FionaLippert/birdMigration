@@ -28,6 +28,7 @@ checkpoints/
 *.prj
 *.shp
 *.shx
+*.Rhistory
 
 # slurm output
 slurm*

@@ -9,14 +9,10 @@ import pyproj
 from shapely.ops import transform
 from shapely.geometry import Point, Polygon
 
-# sys.path.insert(1, osp.join(sys.path[0], '../modules'))
-# import abm
-# import datahandling
-# import spatial
+from birds import abm, datahandling, spatial
 
-from birds import datahandling, spatial
-
-data_root = '/home/fiona/birdMigration/data'
+home = osp.expanduser("~")
+data_root = osp.join(home, 'birdMigration', 'data')
 season = 'fall'
 year = '2015'
 
