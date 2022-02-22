@@ -7,12 +7,7 @@ __pycache__/
 *.so
 
 # data
-data_*/
 data/
-testdata/
-models/
-departure_models/
-results/*
 notebooks/
 scripts/outputs/
 checkpoints/
