@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 import os.path as osp
 import os
-import pickle5 as pickle
+import pickle
 import sys
 from functools import partial
 import pyproj

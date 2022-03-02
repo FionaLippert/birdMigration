@@ -4,7 +4,7 @@ import os.path as osp
 import xarray as xr
 import os
 import glob
-import pickle5 as pickle
+import pickle
 import cartopy.crs as ccrs
 import geopandas as gpd
 import geoplot as gplt

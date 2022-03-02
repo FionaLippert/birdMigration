@@ -2,7 +2,7 @@ from birds import abm, spatial, datahandling
 import os
 import os.path as osp
 import glob
-import pickle5 as pickle
+import pickle
 import numpy as np
 import argparse
 import geopandas as gpd

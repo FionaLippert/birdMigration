@@ -1,5 +1,5 @@
 import argparse
-import pickle5 as pickle
+import pickle
 import glob
 import numpy as np
 import os.path as osp

@@ -10,7 +10,7 @@ import os
 import os.path as osp
 import geopandas as gpd
 import glob
-import pickle5 as pickle
+import pickle
 
 from birds import datahandling
 from birds.era5interface import ERA5Loader

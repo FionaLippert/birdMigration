@@ -4,7 +4,7 @@ import os.path as osp
 import os
 import pandas as pd
 import geopandas as gpd
-import pickle5 as pickle
+import pickle
 from pvlib import solarposition
 import itertools as it
 
