@@ -1,4 +1,3 @@
-from omegaconf import DictConfig, OmegaConf
 import numpy as np
 import networkx as nx
 import os.path as osp

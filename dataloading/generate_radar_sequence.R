@@ -13,14 +13,10 @@ num_cores <- detectCores() - 1
 
 config = yaml.load_file("config.yml")
 
-# set credentials for UvA Radar Data Storage
-s3_set_key(username = config$login$username,
-           password = config$login$password)
-
 ts <- as.POSIXct(config$ts, "UTC")  # POSIXct start time
 te <- as.POSIXct(config$te, "UTC")  # POSIXct end time
 tl   <- as.numeric(difftime(te, ts, units = "mins"))    # total length in minutes
-tseq <- seq(0, tl, config$tr)                                  # delta t sequence
+tseq <- seq(0, tl, config$tr)                           # delta t sequence
 
 bbox <- st_bbox(get_radars_df(config$radars)$geometry)
 extent_x <- bbox$xmax - bbox$xmin
@@ -89,7 +85,7 @@ composite_timeseries <- function(job_idx){
                         integrate_to_ppi(pvol=pvol_list[[k]],
                                          vp=vp_list[[k]],
                                          raster=grid)
-                        })#, mc.cores=num_cores-1)
+                        })
 
               # TODO: adjust when new bioRad release is available (with res as input)
               composite <- composite_ppi(ppi_list, param=config$quantity, dim=img_size)
@@ -103,8 +99,6 @@ composite_timeseries <- function(job_idx){
           fname_d <- file.path(path, paste0(config['quantity'], ".tif"))
 
           if(length(l)>1){
-            #result <- st_set_dimensions(strs, 3, names="time",
-            #                 values = as.POSIXct(st_get_dimension_values(strs, 3)))
             write_json(as.POSIXct(st_get_dimension_values(strs, 3)), fname_t)
             write_stars(strs, fname_d, driver = "GTiff")
           }else{

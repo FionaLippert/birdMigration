@@ -1,18 +1,6 @@
-# target directories for preprocessed data
-#data :
-#  #TODO: replace hard-coded paths?!
-#  vid : /home/flipper/radar_data/vid/HRW_res=0.01_filtered
-#  vpi : /home/flipper/radar_data/vpi #/sdvvp_thresholds
-#  vpi_test : radar_data/vpi/test
-# login to radar database
-login :
-  username : flippert
-  password : eFd5cqJqpv8hJN2D
 # start time
-#ts : 2015-03-01 00:00:00
 ts : 2015-08-01 00:00:00
 # end time
-#te : 2015-05-30 23:59:59
 te : 2015-11-30 23:59:59
 # time resolution in minutes
 tr : 5
@@ -45,7 +33,8 @@ radars :
 night_only : false
 regularize: false
 alt_min : 200
-alt_max : 5000 #4000
+alt_max : 5000
+
 # radar quantity for 2D vertical integration
 #quantity : VID
 # raster resolution for 2D vertical integration

@@ -9,7 +9,7 @@ import geopandas as gpd
 from matplotlib import pyplot as plt
 import os
 import os.path as osp
-import pickle5 as pickle
+import pickle5 as pickle # TODO change to newest pickle version
 from datetime import datetime
 import xarray as xr
 import glob

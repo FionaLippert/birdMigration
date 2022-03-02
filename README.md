@@ -5,7 +5,10 @@ A collection of methods for
 - loading environmental data from ERA5
 - simulating nocturnal bird migration with an agent/indiviual based model.
 
-before accessing h5 data: `export WRADLIB_DATA=~/`
+## Getting started
+- the R package `uvaRadar` is used to download weather radar data (requires login)
+- the Python package `cdsapi` is used to download ERA5 reanalysis data (requires login; steps are described [here](https://cds.climate.copernicus.eu/api-how-to))
+- before accessing h5 data using `wradlib` run `export WRADLIB_DATA=~/`
 
 ## Weather radar data loading
 To load weather radar data from the database, first switch to the `dataloading` directory, 

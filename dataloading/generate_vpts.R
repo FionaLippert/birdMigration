@@ -24,10 +24,6 @@ radar_odim_format <- tolower(str_remove(radar, "/"))
 config = yaml.load_file(file.path(root, "config.yml"))
 sdvvp_config = yaml.load_file(file.path(root, "sdvvp_config.yml"))
 
-# set credentials for UvA Radar Data Storage
-s3_set_key(username = config$login$username,
-           password = config$login$password)
-
 print(radar)
 
 vpts <- tryCatch(
@@ -77,7 +73,6 @@ lon_dim <- ncdim_def("lon", "degrees south", c(lon), unlim=FALSE)
 
 
 # create netcdf file
-# fname <- paste0("vpi_", str_remove(radar, "/"), ".nc")
 fname <- paste0("vpi_", radar_odim_format, ".nc")
 ncpath <- file.path(root, fname)
 
@@ -97,7 +92,6 @@ for (var in attributes(vpi)$names){
 ncout <- nc_create(ncpath, var_def_list, force_v4=F)
 for (var in names(var_def_list)){
   if (var != "solarpos") {
-    #ncout <- nc_create(ncpath, var_def, force_v4=F)
     ncvar_put(ncout, var_def_list[[var]], vpi[[var]])
   } else {
     # add sun elevation angle as additional variable to dataset
@@ -118,4 +112,3 @@ ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
 nc_close(ncout)
 
 print('done')
-
