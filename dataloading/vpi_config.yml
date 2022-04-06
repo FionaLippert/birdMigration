@@ -1,0 +1,8 @@
+# start time
+ts : 2021-08-01 00:00:00
+# end time
+te : 2021-11-30 23:59:59
+night_only : false
+regularize: false
+alt_min : 200
+alt_max : 5000
