@@ -8,35 +8,32 @@ import multiprocessing as mp
 
 
 parser = argparse.ArgumentParser(description='VPTS processing pipeline')
+parser.add_argument('data_dir', help='path to directory containing vpts data')
 parser.add_argument('output_dir', help='path to directory where data will be written to')
 args = parser.parse_args()
 
-with open('config.yml') as f:
+with open('nexrad_config.yml') as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
-with open('sdvvp_config.yml') as f:
-    sdvvp_config = yaml.load(f, Loader=yaml.FullLoader)
 
 ts_str = config['ts'].strftime("%Y%m%dT%H%M")
 te_str = config['te'].strftime("%Y%m%dT%H%M")
-# subdir = config['data']['vpi_local'] if args.test_local else config['data']['vpi']
-# subdir = os.path.join(subdir, f'{ts_str}_to_{te_str}')
+year = config['ts'].strftime("%Y")
 
-os.makedirs(args.output_dir, exist_ok = True)
+output_dir = osp.join(args.output_dir, year)
+os.makedirs(output_dir, exist_ok = True)
 
-with open(os.path.join(args.output_dir, 'config.yml'), 'w+') as f:
+with open(os.path.join(output_dir, 'config.yml'), 'w+') as f:
     yaml.dump(config, f)
-with open(os.path.join(args.output_dir, 'sdvvp_config.yml'), 'w+') as f:
-    yaml.dump(sdvvp_config, f)
-logfile = os.path.join(args.output_dir, 'log.txt')
+logfile = os.path.join(output_dir, 'log.txt')
 
 start_time = datetime.now()
-
 
 processes = set()
 max_processes = mp.cpu_count() - 1
 
 for r in config['radars']:
-    processes.add(subprocess.Popen(['Rscript', 'generate_vpts.R', args.output_dir, r],
+    radar_file = osp.join(args.data_dir, year, f'{r}{year}.rds')
+    processes.add(subprocess.Popen(['Rscript', 'vpts2vpi.R', output_dir, radar_file],
                             stdout=open(logfile, 'a+'),
                             stderr=open(logfile, 'a+')))
     if len(processes) >= max_processes:
