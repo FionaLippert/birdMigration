@@ -15,8 +15,7 @@ require(ncdf4)
 root <- args[1]
 filepath <- args[2]
 
-config = yaml.load_file(file.path(root, "vpi_config.yml"))
-sdvvp_config = yaml.load_file(file.path(root, "sdvvp_config.yml"))
+config = yaml.load_file(file.path(root, "config.yml"))
 
 begin <- as.POSIXct(config$ts, tz = "UTC")
 end <- as.POSIXct(config$te, tz = "UTC")

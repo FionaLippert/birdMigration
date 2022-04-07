@@ -10,7 +10,7 @@ import itertools as it
 
 from birds import spatial, datahandling, era5interface, abm
 
-RADAR_REPLACEMENTS = {'nldbl': 'nlhrw'}
+# RADAR_REPLACEMENTS = {'nldbl': 'nlhrw'}
 
 
 def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
@@ -29,7 +29,7 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
         radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
     else:
         season = kwargs.get('season', 'fall')
-        radar_dir = osp.join(data_dir, 'radar', season, year)
+        radar_dir = osp.join(data_dir, data_source, season, year)
         radars = datahandling.load_radars(radar_dir)
 
     voronoi, radar_buffers, G = static_features(radars, **kwargs)
@@ -64,7 +64,9 @@ def static_features(radars, **kwargs):
     exclude = []
     exclude.extend(kwargs.get('exclude', []))
 
-    for r1, r2 in RADAR_REPLACEMENTS.items():
+    replacements = kwargs.get('replacements', {})
+
+    for r1, r2 in replacements.items():
         # if two radars are available for the same location, use the first one
         if (r1 in radars.values()) and (r2 in radars.values()):
             exclude.append(r2)
@@ -120,9 +122,9 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
     print(f'##### load data for {season} {year} #####')
 
-    if data_source == 'radar':
+    if data_source in ['radar', 'nexrad']:
         print(f'load radar data')
-        radar_dir = osp.join(data_dir, 'radar')
+        radar_dir = osp.join(data_dir, data_source)
         voronoi_radars = voronoi.query('observed == True')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, ['vid'],
                                                          t_unit=t_unit, mask_days=False,
@@ -161,18 +163,20 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
 
     print('load env data')
-    env_vars = ['u', 'v', 'u10', 'v10', 'cc', 'tp', 'sp', 't2m', 'sshf']
+    env_vars = kwargs.get('env_vars', ['u', 'v', 'u10', 'v10', 'cc', 'tp', 'sp', 't2m', 'sshf'])
+    env_vars = [v for v in env_vars if not v in ['night', 'dusk', 'dawn', 'dayofyear', 'solarpos', 'solarpos_dt']]
 
-    if edge_type == 'voronoi':
-        env_areas = voronoi.geometry
-    else:
-        env_areas = radar_buffers.geometry
-    env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
-                                         env_areas, env_points,
-                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
-    env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
-                                         env_areas, env_points,
-                                         t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+    if len(env_vars) > 0:
+        if edge_type == 'voronoi':
+            env_areas = voronoi.geometry
+        else:
+            env_areas = radar_buffers.geometry
+        env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
+                                             env_areas, env_points,
+                                             t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+        env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
+                                             env_areas, env_points,
+                                             t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
@@ -215,51 +219,51 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
             cols.extend(['bird_speed', 'bird_direction'])
 
+        if len(env_vars) > 0:
+            # environmental variables for radar ridx
+            for var in env_vars:
+                if var in env_850:
+                    print(f'found {var} in env_850 dataset')
+                    df[var] = env_850[var][ridx]
+                elif var in env_surface:
+                    print(f'found {var} in surface dataset')
+                    df[var] = env_surface[var][ridx]
+            df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
+            # Note that here wind direction is the direction into which the wind is blowing,
+            # which is the opposite of the standard meteorological wind direction
 
-        # environmental variables for radar ridx
-        for var in env_vars:
-            if var in env_850:
-                print(f'found {var} in env_850 dataset')
-                df[var] = env_850[var][ridx]
-            elif var in env_surface:
-                print(f'found {var} in surface dataset')
-                df[var] = env_surface[var][ridx]
-        df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
-        # Note that here wind direction is the direction into which the wind is blowing,
-        # which is the opposite of the standard meteorological wind direction
+            df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
 
-        df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
+            # compute accumulation variables (for baseline models)
+            groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
+            nights = [[item[0] for item in g] for g in groups if g[0][1]]
+            df['nightID'] = np.zeros(t_range.size)
+            df['acc_rain'] = np.zeros(t_range.size)
+            df['acc_wind'] = np.zeros(t_range.size)
+            df['wind_profit'] = np.zeros(t_range.size)
+            acc_rain = 0
+            u_rain = 0
+            acc_wind = 0
+            u_wind = 0
+            for nidx, night in enumerate(nights):
+                df['nightID'][night] = np.ones(len(night)) * (nidx + 1)
 
-        # compute accumulation variables (for baseline models)
-        groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
-        nights = [[item[0] for item in g] for g in groups if g[0][1]]
-        df['nightID'] = np.zeros(t_range.size)
-        df['acc_rain'] = np.zeros(t_range.size)
-        df['acc_wind'] = np.zeros(t_range.size)
-        df['wind_profit'] = np.zeros(t_range.size)
-        acc_rain = 0
-        u_rain = 0
-        acc_wind = 0
-        u_wind = 0
-        for nidx, night in enumerate(nights):
-            df['nightID'][night] = np.ones(len(night)) * (nidx + 1)
+                # accumulation due to rain in the past nights
+                acc_rain = acc_rain/3 + u_rain * 2/3
+                df['acc_rain'][night] = np.ones(len(night)) * acc_rain
+                # compute proportion of hours with rain during the night
+                u_rain = np.mean(df['tp'][night] > 0.01)
 
-            # accumulation due to rain in the past nights
-            acc_rain = acc_rain/3 + u_rain * 2/3
-            df['acc_rain'][night] = np.ones(len(night)) * acc_rain
-            # compute proportion of hours with rain during the night
-            u_rain = np.mean(df['tp'][night] > 0.01)
-
-            # accumulation due to unfavourable wind in the past nights
-            acc_wind = acc_wind/3 + u_wind * 2/3
-            df['acc_wind'][night] = np.ones(len(night)) * acc_wind
-            # compute wind profit for bird with speed 12 m/s and flight direction 223 degree north
-            v_air = np.ones(len(night)) * 12
-            alpha = np.ones(len(night)) * pref_dir
-            df['wind_profit'][night] = v_air - np.sqrt(v_air**2 + df['wind_speed'][night]**2 -
-                                                       2 * v_air * df['wind_speed'][night] *
-                                                       np.cos(np.deg2rad(alpha-df['wind_dir'][night])))
-            u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
+                # accumulation due to unfavourable wind in the past nights
+                acc_wind = acc_wind/3 + u_wind * 2/3
+                df['acc_wind'][night] = np.ones(len(night)) * acc_wind
+                # compute wind profit for bird with speed 12 m/s and flight direction 223 degree north
+                v_air = np.ones(len(night)) * 12
+                alpha = np.ones(len(night)) * pref_dir
+                df['wind_profit'][night] = v_air - np.sqrt(v_air**2 + df['wind_speed'][night]**2 -
+                                                           2 * v_air * df['wind_speed'][night] *
+                                                           np.cos(np.deg2rad(alpha-df['wind_dir'][night])))
+                u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
 
         radar_df = pd.DataFrame(df)
         radar_df['missing'] = 0

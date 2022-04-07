@@ -1,7 +1,9 @@
 #!/bin/bash
 
 YEAR=$1
+DIR=$2
 # make new directory
-rclone mkdir box:my_nexrad_vpts:$YEAR
+#rclone mkdir box.com:my_nexrad_vpts/$YEAR
+mkdir -p $DIR/$YEAR
 # copy data to private folder
-rclone copy --include "*$YEAR*" box:nexrad_vpts box:my_nexrad_vpts:$YEAR
+rclone copy --include "*$YEAR*" box.com:nexrad_vpts $DIR/$YEAR
