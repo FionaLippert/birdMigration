@@ -29,7 +29,7 @@ checkpoints/
 slurm*
 
 # pycharm stuff
-.idea/
+.idea/*
 
 # Distribution / packaging
 .Python
