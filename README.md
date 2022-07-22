@@ -6,6 +6,11 @@ A collection of methods for
 - simulating nocturnal bird migration with an agent/indiviual based model.
 
 ## Getting started
+To use the `birds` python package for simulating nocturnal bird migration or for preprocessing weather radar data, install the package by running
+```
+python setup.py install
+```
+In addition, note that
 - the R package `uvaRadar` is used to download weather radar data (requires login)
 - the Python package `cdsapi` is used to download ERA5 reanalysis data (requires login; steps are described [here](https://cds.climate.copernicus.eu/api-how-to))
 - before accessing h5 data using `wradlib` run `export WRADLIB_DATA=~/`
