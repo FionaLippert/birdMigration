@@ -1,4 +1,3 @@
-name: birdmigration
 channels:
   - anaconda
   - conda-forge
