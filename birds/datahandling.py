@@ -138,7 +138,7 @@ def resample(f, start, end, vars, unit, mask_days, interpolate_nans):
     ds = ds.sel(time=slice(start, end))[vars]
     with warnings.catch_warnings():
         warnings.filterwarnings(action='ignore', message='Mean of empty slice')
-        ds = ds.resample(time=unit, base=0, skipna=True).reduce(np.nanmean)
+        ds = ds.resample(time=unit, origin='start_day', skipna=True).reduce(np.nanmean)
     t_range = pd.date_range(start, end, freq=unit)
     ds = ds.reindex({'time': t_range})
     if interpolate_nans:
