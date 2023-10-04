@@ -64,7 +64,7 @@ class Spatial:
 
         # add helper points to handle infinite edges in Voronoi diagram
         helper_boundary = geometry.MultiPoint(self.pts_local).buffer(3 * self.buffer)
-        helper_points = [helper_boundary.interpolate(d) for d in
+        helper_points = [helper_boundary.boundary.interpolate(d) for d in
             np.linspace(0, helper_boundary.length, self.n_helper_points + 1)[:-1]]
 
         pts_voronoi = pd.concat([self.pts_local, gpd.GeoSeries(helper_points, crs=self.crs_local)], ignore_index=True)
