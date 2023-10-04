@@ -42,7 +42,7 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
     static_feature_df = voronoi.drop(columns='geometry')
     static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
     radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
-    nx.write_gpickle(G, osp.join(target_dir, 'delaunay.gpickle'), protocol=4)
+    nx.write_graphml(G, osp.join(target_dir, 'delaunay.graphml'), infer_numeric_types=True)
 
     if kwargs.get('process_dynamic', True):
         # load dynamic features
