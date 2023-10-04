@@ -38,16 +38,18 @@ def load_season(root, season, year, vars=['vid'], t_unit='1H', mask_days=True, r
         start = f'{year}-08-01 12:00:00'
         end = f'{year}-11-15 12:00:00'
 
-    dataset, radars, t_range = load_data(path, vars, start, end, t_unit, mask_days, interpolate_nans)
+    dataset, radars, t_range = load_data(path, vars, start, end, t_unit, mask_days, interpolate_nans, radar_names)
 
     if len(radar_names) == 0:
         radar_names = radars.values()
+
     data = np.stack([dataset[radar].to_array().squeeze() for radar in radar_names], axis=0)
 
     return data, radars, t_range
 
 
-def load_data(path, vars=['vid'], start=None, end=None, t_unit='1H', mask_days=True, interpolate_nans=False):
+def load_data(path, vars=['vid'], start=None, end=None, t_unit='1H', mask_days=True,
+              interpolate_nans=False, radar_names=[]):
     """
     Load data for all radars available in 'path'.
 
@@ -62,9 +64,23 @@ def load_data(path, vars=['vid'], start=None, end=None, t_unit='1H', mask_days=T
     """
 
     files = glob.glob(os.path.join(path, '*.nc'))
-    data = {get_name(f): resample(f, start, end, vars, t_unit, mask_days, interpolate_nans) for f in files}
-    names = {get_coords(f): get_name(f) for f in files}
+    if len(radar_names) > 0:
+        # process only radars that are part of the provided list
+        data = {}
+        names = {}
+        for f in files:
+            r = get_name(f)
+            if r in radar_names:
+                d = resample(f, start, end, vars, t_unit, mask_days, interpolate_nans)
+                data[r] = d
+                names[get_coords(f)] = r
+    else:
+        # process all radars available
+        data = {get_name(f): resample(f, start, end, vars, t_unit, mask_days, interpolate_nans) for f in files}
+        names = {get_coords(f): get_name(f) for f in files}
+
     t_range = pd.date_range(start, end, freq=t_unit)
+
     return data, names, t_range
 
 
@@ -76,8 +92,26 @@ def load_radars(path):
     :return: available radars (mapping from coordinates to radar names)
     """
     files = glob.glob(os.path.join(path, '*.nc'))
+    print(os.listdir(path))
+    print(f'found {len(files)} radars')
     radars = {get_coords(f): get_name(f) for f in files}
     return radars
+
+
+def load_radar_attributes(path, attr_name='name'):
+    """
+    Extract the given attribute for all radars for which data is available in the given path.
+
+    :param path: path to directory containing netcdf files (*.nc)
+    :param var: variable to extract
+    :return: list of radar attributes
+    """
+    files = glob.glob(os.path.join(path, '*.nc'))
+    print(f'found {len(files)} radars')
+
+    values = [get_radar_attribute(f, attr_name) for f in files]
+
+    return values
 
 
 def get_solarpos(t_range_utc, lonlat_pairs):
@@ -121,13 +155,19 @@ def add_coords_to_xr(f):
 
 
 def get_coords(f):
-    """Load dataset and extract coodinates (lon, lat) from it"""
+    """Load dataset and extract coordinates (lon, lat) from it"""
 
     ds = xr.open_dataset(f)
     if hasattr(ds, 'longitude') and hasattr(ds, 'latitude'):
         return (ds.longitude, ds.latitude)
     else:
-        return(ds.lon.values[0], ds.lat.values[0])
+        return (ds.lon.values[0], ds.lat.values[0])
+
+def get_radar_attribute(f, attr_name):
+    """Load dataset and extract the given radar attribute from it"""
+
+    ds = xr.open_dataset(f)
+    return ds.attrs.get(attr_name, None)
 
 
 def get_name(f, opera_format=True):

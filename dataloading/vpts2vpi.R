@@ -46,9 +46,9 @@ vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=confi
 
 #define dimensions
 time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00",
-                      as.numeric(c(vpi$datetime)), unlim=FALSE)
-lat_dim <- ncdim_def("lat", "degrees north", c(lat), unlim=FALSE)
-lon_dim <- ncdim_def("lon", "degrees south", c(lon), unlim=FALSE)
+                      as.integer(c(vpi$datetime)), unlim=FALSE)
+lat_dim <- ncdim_def("lat", "degrees north", as.double(c(lat)), unlim=FALSE)
+lon_dim <- ncdim_def("lon", "degrees south", as.double(c(lon)), unlim=FALSE)
 
 # create netcdf file
 fname <- paste0("vpi_", radar_odim_format, ".nc")
@@ -71,6 +71,7 @@ for (var in names(var_def_list)){
 ncatt_put(ncout, 0, "source", radar_odim_format)
 ncatt_put(ncout, 0, "latitude", lat)
 ncatt_put(ncout, 0, "longitude", lon)
+ncatt_put(ncout, 0, "altitude", radar_alt)
 ncatt_put(ncout, 0, "fillvalue", fillvalue)
 ncatt_put(ncout, 0, "history", paste("F. Lippert", date(), sep=", "))
 

@@ -25,13 +25,16 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
 
     # load static features
     if data_source == 'abm':
+        print('abm')
         df = gpd.read_file(osp.join(data_dir, 'abm', 'all_radars.shp'))
         radars = dict(zip(zip(df.lon, df.lat), df.radar.values))
     else:
+        print('radar')
         season = kwargs.get('season', 'fall')
         radar_dir = osp.join(data_dir, data_source, season, year)
+        print(radar_dir)
         radars = datahandling.load_radars(radar_dir)
-
+    print('prepare static features')
     voronoi, radar_buffers, G = static_features(radars, **kwargs)
 
     # save to disk
@@ -72,10 +75,12 @@ def static_features(radars, **kwargs):
             exclude.append(r2)
 
     radars = {k: v for k, v in radars.items() if not v in exclude}
+    print(f'radars: {radars}')
     print(f'excluded radars: {exclude}')
 
     # voronoi tesselation and associated graph
-    space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0))
+    space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0),
+                            buffer=kwargs.get('buffer', 150_000))
     voronoi, G = space.voronoi()
 
     print('create radar buffer dataframe')
@@ -128,12 +133,12 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         voronoi_radars = voronoi.query('observed == True')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, ['vid'],
                                                          t_unit=t_unit, mask_days=False,
-                                                         radar_names=voronoi_radars.radar,
+                                                         radar_names=voronoi_radars.radar.values,
                                                          interpolate_nans=False)
 
         radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['ff', 'dd', 'u', 'v'],
                                                           t_unit=t_unit, mask_days=False,
-                                                          radar_names=voronoi_radars.radar,
+                                                          radar_names=voronoi_radars.radar.values,
                                                           interpolate_nans=True)
 
         bird_speed = radar_data[:, 0, :]
@@ -155,9 +160,9 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
         # rescale to birds per km^2
         birds_km2 = data / voronoi_radars.area_km2.to_numpy()[:, None]
-        birds_km2_from_buffer = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None]
+        #birds_km2_from_buffer = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None]
         # rescale to birds per voronoi cell
-        birds_from_buffer = birds_km2_from_buffer * voronoi_radars.area_km2.to_numpy()[:, None]
+        #birds_from_buffer = birds_km2_from_buffer * voronoi_radars.area_km2.to_numpy()[:, None]
 
     # time range for solar positions to be able to infer dusk and dawn
     solar_t_range = t_range.insert(-1, t_range[-1] + pd.Timedelta(t_range.freq))
@@ -171,10 +176,10 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
             env_areas = voronoi.geometry
         else:
             env_areas = radar_buffers.geometry
-        env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'pressure_level_850.nc'),
+        env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
                                              env_areas, env_points,
                                              t_range.tz_localize(None), vars=env_vars, seed=random_seed)
-        env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', season, year, 'surface.nc'),
+        env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
                                              env_areas, env_points,
                                              t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
@@ -185,7 +190,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
         df['radar'] = [row.radar] * len(t_range)
 
-        print(f'preprocess radar {row.radar}')
+        #print(f'preprocess radar {row.radar}')
 
         # time related variables for radar ridx
         solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
@@ -203,17 +208,20 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         df['birds'] = data[ridx] if row.observed else [np.nan] * len(t_range)
         df['birds_km2'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
 
-        cols = ['birds', 'birds_km2', 'birds_from_buffer', 'birds_km2_from_buffer', 'bird_u', 'bird_v']
+        #cols = ['birds', 'birds_km2', 'birds_from_buffer', 'birds_km2_from_buffer', 'bird_u', 'bird_v']
+        cols = ['birds', 'birds_km2', 'bird_u', 'bird_v']
 
         df['bird_u'] = bird_u[ridx] if row.observed else [np.nan] * len(t_range)
         df['bird_v'] = bird_v[ridx] if row.observed else [np.nan] * len(t_range)
 
-        if data_source == 'abm':
-            df['birds_from_buffer'] = birds_from_buffer[ridx] if row.observed else [np.nan] * len(t_range)
-            df['birds_km2_from_buffer'] = birds_km2_from_buffer[ridx] if row.observed else [np.nan] * len(t_range)
-        else:
-            df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
-            df['birds_km2_from_buffer'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
+        # if data_source == 'abm':
+        #     df['birds_from_buffer'] = birds_from_buffer[ridx] if row.observed else [np.nan] * len(t_range)
+        #     df['birds_km2_from_buffer'] = birds_km2_from_buffer[ridx] if row.observed else [np.nan] * len(t_range)
+        # else:
+        #     df['birds_from_buffer'] = data[ridx] if row.observed else [np.nan] * len(t_range)
+        #     df['birds_km2_from_buffer'] = birds_km2[ridx] if row.observed else [np.nan] * len(t_range)
+
+        if not data_source == 'abm':
             df['bird_speed'] = bird_speed[ridx] if row.observed else [np.nan] * len(t_range)
             df['bird_direction'] = bird_direction[ridx] if row.observed else [np.nan] * len(t_range)
 
@@ -295,7 +303,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
                 radar_df[col].fillna(0, inplace=True)
 
         dfs.append(radar_df)
-        print(f'found {radar_df.missing.sum()} misssing time points')
+        print(f'found {radar_df.missing.sum()} missing time points')
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     print(f'columns: {dynamic_feature_df.columns}')
