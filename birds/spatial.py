@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
-from geovoronoi import voronoi_regions_from_coords, plotting
+# from geovoronoi import voronoi_regions_from_coords
+from scipy.spatial import Voronoi
+import shapely
 from shapely import geometry
 import pyproj
 import itertools as it
@@ -15,18 +17,21 @@ class Spatial:
     Delaunay triangulation, and other static node (radar) and edge (Voronoi face) features.
     """
 
-    def __init__(self, radars, seed=1234, buffer=150_000, n_dummy_radars=0):
+    def __init__(self, radars, seed=1234, buffer=150_000, n_dummy_radars=0, n_helper_points=10):
         """
         Initialization of Spatial object
 
         :param radars: mapping from radar coordinates (lon, lat) to names
         :param seed: random seed
-        :param buffer: radius for outline of boundary cells
+        :param buffer: radius for outline of boundary cells (in meters)
         :param n_dummy_radars: number of dummy radars, i.e. unobserved boundary cells
+        :param n_helper_points: number of points to use to avoid infinite cells in Voronoi tessellation
         """
 
         self.radars = radars
         self.rng = np.random.default_rng(seed)
+        self.buffer = buffer
+        self.n_helper_points = n_helper_points
 
         # setup geodesic (lonlat) coordinate system
         self.epsg_lonlat = '4326'
@@ -40,29 +45,40 @@ class Spatial:
         self.pts_local = self.pts_lonlat.to_crs(self.crs_local)
     
         # add dummy radars if applicable
-        self.add_dummy_radars(n_dummy_radars, buffer=buffer)
+        self.add_dummy_radars(n_dummy_radars)
         self.N_dummy = n_dummy_radars
         self.N = len(radars) + n_dummy_radars
         self.radar_names = list(self.radars.values()) + [f'boundary_{i}' for i in range(self.N_dummy)]
 
-    def voronoi(self, buffer=150_000, self_edges=False):
+
+    def voronoi(self, self_edges=False):
         """
         Construct Voronoi diagram based on radar coordinates
 
-        :param buffer: max distance around radar stations (in meters)
         :param self_edges: add self-edges to graph (booloean)
         :return: cells (polygons describing the Voronoi cells), G (Delaunay triangulation with edge attributes)
         """
 
-        boundary = geometry.MultiPoint(self.pts_local).buffer(buffer)
-        sink = boundary.buffer(buffer).difference(boundary)
-        self.sink = gpd.GeoSeries(sink, crs=self.crs_local)
+        boundary = geometry.MultiPoint(self.pts_local).buffer(self.buffer)
+        sink = boundary.buffer(self.buffer).difference(boundary)
+
+        # add helper points to handle infinite edges in Voronoi diagram
+        helper_boundary = geometry.MultiPoint(self.pts_local).buffer(3 * self.buffer)
+        helper_points = [helper_boundary.interpolate(d) for d in
+            np.linspace(0, helper_boundary.length, self.n_helper_points + 1)[:-1]]
+
+        pts_voronoi = pd.concat([self.pts_local, gpd.GeoSeries(helper_points, crs=self.crs_local)], ignore_index=True)
+
+        voronoi = Voronoi(points=self.pts2coords(pts_voronoi))
+        lines = [geometry.LineString(voronoi.vertices[line]) for line in voronoi.ridge_vertices if -1 not in line]
+        polygons = gpd.GeoDataFrame(geometry=gpd.GeoSeries(shapely.ops.polygonize(lines)), crs=self.crs_local)
+        polygons = polygons.intersection(boundary)
+
+        # match polygons with radar locations
+        sorted_polygons = [polygons[polygons.contains(point) == True].values[0] for point in self.pts_local]
 
         xy = self.pts2coords(self.pts_local)
         lonlat = self.pts2coords(self.pts_lonlat)
-
-        polygons, pts = voronoi_regions_from_coords(np.array(xy), boundary)
-        polygons = [polygons[pid] for pid, pt in sorted(pts.items(), key=lambda kv: kv[1])]
 
         cells = gpd.GeoDataFrame({'radar': self.radar_names,
                                   'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy,
@@ -71,7 +87,7 @@ class Spatial:
                                   'lon': [c[0] for c in lonlat],
                                   'lat': [c[1] for c in lonlat],
                                   },
-                                 geometry=polygons,
+                                 geometry=sorted_polygons,
                                  crs=self.crs_local)
 
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
@@ -112,23 +128,22 @@ class Spatial:
         return cells, G
 
 
-    def add_dummy_radars(self, n, buffer=150_000):
+    def add_dummy_radars(self, n):
         """
         Add dummy radars to list of radars.
 
         :param n: number of dummy radars to add
-        :param buffer: distance of dummy radars to other radars
         """
         if n == 0: return
-        boundary = geometry.MultiPoint(self.pts_local).buffer(buffer).boundary
+        boundary = geometry.MultiPoint(self.pts_local).buffer(self.buffer).boundary
 
         distances = np.linspace(0, boundary.length, n+1)
         points = [boundary.interpolate(d) for d in distances[:-1]]
 
         print(f'add {n} dummy radars')
         dummy_radars = gpd.GeoSeries([p for p in points], crs=self.crs_local).to_crs(f'epsg:{self.epsg_lonlat}')
-        self.pts_lonlat = self.pts_lonlat.append(dummy_radars, ignore_index=True)
-        self.pts_local = self.pts_local.append(dummy_radars.to_crs(self.crs_local), ignore_index=True)
+        self.pts_lonlat = pd.concat([self.pts_lonlat, dummy_radars], ignore_index=True)
+        self.pts_local = pd.concat([self.pts_local, dummy_radars.to_crs(self.crs_local)], ignore_index=True)
         self.pts_local = gpd.GeoSeries(self.pts_local, crs=self.crs_local)
 
 
