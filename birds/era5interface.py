@@ -24,7 +24,7 @@ class ERA5Loader():
 
         self.radars = radars
 
-        self.surface_data_config = {'variable' : ['2m_temperature',
+        self.single_level_config = {'variable' : ['2m_temperature',
                                                  'surface_sensible_heat_flux',
                                                  '10m_u_component_of_wind',
                                                  '10m_v_component_of_wind',
@@ -47,7 +47,7 @@ class ERA5Loader():
         self.client = cdsapi.Client()
 
     def download_season(self, season, year, target_dir, bounds=None,
-                        buffer_x=0, buffer_y=0, pl=850, surface_data=True):
+                        buffer_x=0, buffer_y=0, pl=850, surface_data=True, **kwargs):
         """
         Download environmental variables for the given year and season.
 
@@ -65,8 +65,9 @@ class ERA5Loader():
 
         if bounds is None:
             # get bounds of Voronoi tesselation
-            spatial = Spatial(self.radars)
-            minx, miny, maxx, maxy = spatial.cells.to_crs(epsg=spatial.epsg_lonlat).total_bounds
+            spatial = Spatial(self.radars, **kwargs)
+            cells, _ = spatial.voronoi()
+            minx, miny, maxx, maxy = cells.to_crs(epsg=spatial.epsg_lonlat).total_bounds
             bounds = [maxy + buffer_y, minx - buffer_x, miny - buffer_y, maxx + buffer_x]
 
         if season == 'spring':
@@ -91,9 +92,9 @@ class ERA5Loader():
         os.makedirs(target_dir, exist_ok=True)
 
         if surface_data:
-            self.surface_data_config.update(info)
-            self.client.retrieve('reanalysis-era5-land',
-                                self.surface_data_config,
+            self.single_level_config.update(info)
+            self.client.retrieve('reanalysis-era5-single-levels',
+                                self.single_level_config,
                                 osp.join(target_dir, 'surface.nc'))
         if isinstance(pl, int):
             self.pressure_level_config.update(info)
