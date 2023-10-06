@@ -176,12 +176,19 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
             env_areas = voronoi.geometry
         else:
             env_areas = radar_buffers.geometry
-        env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
-                                             env_areas, env_points,
-                                             t_range.tz_localize(None), vars=env_vars, seed=random_seed)
-        env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
-                                             env_areas, env_points,
-                                             t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+        # env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
+        #                                      env_areas, env_points,
+        #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+        # env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+        #                                      env_areas, env_points,
+        #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
+
+        env_850 = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
+                                             voronoi.lon.values, voronoi.lat.values, t_range.tz_localize(None), vars=env_vars)
+        env_surface = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+                                             voronoi.lon.values, voronoi.lat.values, t_range.tz_localize(None), vars=env_vars)
+
+        env_data = env_850.merge(env_surface)
 
     dfs = []
     for ridx, row in voronoi.iterrows():
@@ -230,12 +237,13 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         if len(env_vars) > 0:
             # environmental variables for radar ridx
             for var in env_vars:
-                if var in env_850:
-                    print(f'found {var} in env_850 dataset')
-                    df[var] = env_850[var][ridx]
-                elif var in env_surface:
-                    print(f'found {var} in surface dataset')
-                    df[var] = env_surface[var][ridx]
+                df[var] = env_data[var].data[:, ridx]
+            #     if var in env_850:
+            #         print(f'found {var} in env_850 dataset')
+            #         df[var] = env_850[var][ridx]
+            #     elif var in env_surface:
+            #         print(f'found {var} in surface dataset')
+            #         df[var] = env_surface[var][ridx]
             df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
             # Note that here wind direction is the direction into which the wind is blowing,
             # which is the opposite of the standard meteorological wind direction

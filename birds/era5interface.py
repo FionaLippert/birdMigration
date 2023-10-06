@@ -77,6 +77,8 @@ class ERA5Loader():
         else:
             months = ['09']
 
+        print(season, months)
+
         # datetime is interpreted as 00:00 UTC
         days = [f'{(d + 1):02}' for d in range(31)]
         time = [f'{h:02}:00' for h in range(24)]
@@ -105,12 +107,13 @@ class ERA5Loader():
 
 
 
-def extract_points(data_path, lonlat_list, t_range, vars):
+def extract_points(data_path, lons, lats, t_range, vars):
     """
     Open downloaded data and extract data at the given coordinates (interpolate if necessary)
 
     :param data_path: path to downloaded data
-    :param lonlat_list: list of (lon, lat) coordinates
+    :param lons: list of longitude values
+    :param lats: list of latitude values
     :param t_range: time range (in UTC)
     :param vars: list of environmental variables to extract
     :return: numpy.array with shape [number of coordinates, number of variables]
@@ -120,20 +123,29 @@ def extract_points(data_path, lonlat_list, t_range, vars):
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
-    weather = {}
+    lons = xr.DataArray(lons, dims='points')
+    lats = xr.DataArray(lats, dims='points')
 
-    for var, ds in data.items():
-        if var in vars:
-            var_data = []
-            for lonlat in lonlat_list:
-                # Extract time-series data at given point (interpolate between available grid points)
-                data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
-                var_data.append(data_point.sel(time=t_range).data.flatten())
-            weather[var] = np.stack(var_data)
+    vars = set(data.keys()).intersection(set(vars))
 
-    return weather
+    data_points = data[vars].interp(longitude=lons, latitude=lats, time=t_range, method='linear')
 
-def sample_point_from_polygon(polygon, seed):
+    # weather = {}
+    #
+    # for var, ds in data.items():
+    #     if var in vars:
+    #         var_data = []
+    #         for lonlat in lonlat_list:
+    #             # Extract time-series data at given point (interpolate between available grid points)
+    #             data_point = ds.interp(longitude=lonlat[0], latitude=lonlat[1], method='linear')
+    #             var_data.append(data_point.sel(time=t_range).data.flatten())
+    #         weather[var] = np.stack(var_data)
+
+    # return weather
+
+    return data_points
+
+def sample_points_from_polygon(polygon, seed, n_points=1):
     """
     Sample a random point within the given polygon.
 
@@ -144,14 +156,19 @@ def sample_point_from_polygon(polygon, seed):
 
     rng = np.random.default_rng(seed)
     minx, miny, maxx, maxy = polygon.bounds
-    lon = np.random.uniform(minx, maxx)
-    lat = np.random.uniform(miny, maxy)
-    pos = geometry.Point(lon, lat)
-    while not polygon.contains(pos):
-        lon = rng.uniform(minx, maxx)
-        lat = rng.uniform(miny, maxy)
-        pos = geometry.Point(lon, lat)
-    return lon, lat
+
+    final_lons = []
+    final_lats = []
+
+    while len(final_lons) < n_points:
+        lons = rng.random.uniform(minx, maxx, n_points)
+        lats = rng.random.uniform(miny, maxy, n_points)
+        points = gpd.points_from_xy(lons, lats)
+        idx = points.within(polygon)
+        final_lons.extend(lons[idx])
+        final_lats.extend(lats[idx])
+
+    return {'lon': final_lons[:n_points], 'lat': final_lats[:n_points]}
 
 def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
     """
@@ -171,14 +188,21 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
+
+    # sample points within cells
+    points = {i: sample_points_from_polygon(poly, seed=seed, n_points=n_points)
+              for i, poly in enumerate(cell_geometries)}
+
     weather = {}
     for var, ds in data.items():
         if var in vars:
             var_data = []
-            for poly in cell_geometries:
+            for i, poly in enumerate(cell_geometries):
                 var_data_poly = []
-                for i in range(n_points):
-                    lon, lat = sample_point_from_polygon(poly, seed=seed)
+                for j in range(n_points):
+                    # lon, lat = sample_point_from_polygon(poly, seed=seed)
+                    lon = points[i]['lon'][j]
+                    lat = points[i]['lat'][j]
                     # Extract time-series data at given point (interpolate between available grid points)
                     interp = ds.interp(longitude=lon, latitude=lat, method='linear')
                     interp = interp.sel(time=t_range).data.flatten()
@@ -187,3 +211,4 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
             weather[var] = np.stack(var_data, axis=0)
 
     return weather
+
