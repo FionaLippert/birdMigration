@@ -32,6 +32,23 @@ radar_alt <- vpts$attributes$where$height
 lat <- vpts$attributes$where$lat
 lon <- vpts$attributes$where$lon
 
+filter_dbzh <- function(vpts, threshold=7,height=1000, agl_max=Inf, drop=F, quantity="DBZH"){
+  height_index_max <- ((vpts$attributes$where$height + agl_max) %/% vpts$attributes$where$interval)
+  height_index_max <- min(dim(vpts)[2],height_index_max)
+  height_range <- colSums(vpts$data[[quantity]][1:height_index_max,]>threshold,na.rm=T)*vpts$attributes$where$interval
+  index <- which(height_range > height)
+  if(length(index)==0) return(vpts)
+  # if remove, drop the profiles
+  if(drop) return(vpts[-index])
+  # otherwise set the density field to NA, but keep the profile
+  vpts$data$DBZH[,index] <- NA
+  vpts$data$dens[,index] <- NA
+  vpts
+}
+
+sd_vvp_threshold(vpts) <- 0
+
+
 # make a subselection for night time only
 if(config$night_only){
   index_night <- check_night(vpts)
@@ -40,6 +57,8 @@ if(config$night_only){
 if(config$regularize){
   vpts <- regularize_vpts(vpts, date_min=begin, date_max=end, interval=1, fill=7.5, units="hours")
 }
+
+vpts <- filter_dbzh(vpts, threshold=500, height=2000, agl_max=Inf, drop=F, quantity="dens")
 
 # vertical integration
 #vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
