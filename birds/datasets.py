@@ -285,7 +285,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         radar_df['missing'] = 0
 
         for col in cols:
-            if data_source == 'radar':
+            if not data_source == 'abm':
                 # radar quantities being exactly 0 during the night are missing,
                 # radar quantities during the day are set to 0
                 print(f'check missing data for column {col}')
