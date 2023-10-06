@@ -38,11 +38,12 @@ if(config$night_only){
   vpts <- vpts[index_night]
 }
 if(config$regularize){
-  vpts <- regularize_vpts(vpts)
+  vpts <- regularize_vpts(vpts, date_min=begin, date_max=end, interval=1, fill=7.5, units="hours")
 }
 
 # vertical integration
-vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
+#vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
+vpi <- integrate_profile(vpts, alt_min="antenna", alt_max=config$alt_max)
 
 #define dimensions
 time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00",
