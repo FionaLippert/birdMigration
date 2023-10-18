@@ -125,6 +125,16 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     edge_type = kwargs.get('edge_type', 'voronoi')
     t_unit = kwargs.get('t_unit', '1H')
 
+    # load list of radars and time points to exclude due to rain and other artifacts
+    excludes_path = kwargs.get('excludes', '')
+    if osp.isfile(excludes_path) and excludes_path.endswith('.csv'):
+        df_excludes = pd.read_csv(excludes_path)
+        df_excludes.start = pd.DatetimeIndex(df_excludes.start).tz_localize('UTC')
+        df_excludes.end = pd.DatetimeIndex(df_excludes.end).tz_localize('UTC')
+        df_excludes.radar = df_excludes.radar.str.lower()
+    else:
+        df_excludes = pd.DataFrame({'radar': [], 'start': [], 'end': []})
+
     print(f'##### load data for {season} {year} #####')
 
     if data_source in ['radar', 'nexrad']:
@@ -139,7 +149,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['ff', 'dd', 'u', 'v'],
                                                           t_unit=t_unit, mask_days=False,
                                                           radar_names=voronoi_radars.radar.values,
-                                                          interpolate_nans=True)
+                                                          interpolate_nans=False)
 
         bird_speed = radar_data[:, 0, :]
         bird_direction = radar_data[:, 1, :]
@@ -282,7 +292,15 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
                 u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
 
         radar_df = pd.DataFrame(df)
+
+        # find time points to exclude for this radar
         radar_df['missing'] = 0
+        for edx, exclude in df_excludes.query(f'radar == "{row.radar}"').iterrows:
+            radar_df['missing'] += (t_range >= exclude.start & t_range <= exclude.end)
+        radar_df['missing'] = radar_df['missing'].astype(bool)
+
+        # set bird quantities to NaN for these time points
+        radar_df.loc[radar_df['missing'], cols] = np.nan
 
         for col in cols:
             if not data_source == 'abm':
