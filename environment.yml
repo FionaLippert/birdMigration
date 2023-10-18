@@ -1,29 +1,30 @@
+name: birdmigration
 channels:
   - anaconda
   - conda-forge
   - defaults
 dependencies:
   - python>=3.8.3
+  - pip
   - numpy
   - tqdm
   - yaml
   - geopy
-  - shapely
-  - pandas
+  #- shapely
+  #- pandas
   - geopandas
-  - matplotlib
+  #- matplotlib
   - xarray
   - networkx
   - rioxarray
-  - pyproj
-  - geopy
+  #- pyproj
   - wradlib
-  - scikit-learn
+  #- scikit-learn
   - rasterio
-  - pillow
   - cartopy
-  - imageio
-  - pip:
-  	- cdsapi==0.5.1
-    	- geovoronoi==0.3.0
-    	- pvlib==0.8.1
+  - cdsapi
+  - pvlib
+  - hydra-core>=1.3.2
+  #- pip:
+    #- geovoronoi==0.4.0
+    #- pvlib==0.8.1
