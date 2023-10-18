@@ -298,10 +298,10 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
                 # fill missing bird measurements by interpolation
                 if col == 'bird_direction':
                     # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
-                    radar_df[col].interpolate(method='nearest', inplace=True)
+                    radar_df[col] = radar_df[col].interpolate(method='nearest').ffill().bfill()
                 else:
                     # for all other quantities simply interpolate linearly
-                    radar_df[col].interpolate(method='linear', inplace=True)
+                    radar_df[col] = radar_df[col].interpolate(method='linear', limit_direction='both')
             else:
                 radar_df[col] = radar_df.apply(lambda row: np.nan if (row.night and np.isnan(row[col]))
                                                             else (0 if not row.night else row[col]), axis=1)
@@ -315,4 +315,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     print(f'columns: {dynamic_feature_df.columns}')
+
+    print(dynamic_feature_df.isna().sum())
+
     return dynamic_feature_df
