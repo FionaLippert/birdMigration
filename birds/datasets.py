@@ -126,14 +126,17 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     t_unit = kwargs.get('t_unit', '1H')
 
     # load list of radars and time points to exclude due to rain and other artifacts
-    excludes_path = kwargs.get('excludes', '')
+    excludes_path = osp.join(data_dir, data_source, kwargs.get('excludes', ''))
     if osp.isfile(excludes_path) and excludes_path.endswith('.csv'):
+        print('load exclude file')
         df_excludes = pd.read_csv(excludes_path)
         df_excludes.start = pd.DatetimeIndex(df_excludes.start).tz_localize('UTC')
         df_excludes.end = pd.DatetimeIndex(df_excludes.end).tz_localize('UTC')
         df_excludes.radar = df_excludes.radar.str.lower()
     else:
         df_excludes = pd.DataFrame({'radar': [], 'start': [], 'end': []})
+        print(f'did not find file {excludes_path}')
+    print(df_excludes.head())
 
     print(f'##### load data for {season} {year} #####')
 
@@ -295,12 +298,14 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
         # find time points to exclude for this radar
         radar_df['missing'] = 0
-        for edx, exclude in df_excludes.query(f'radar == "{row.radar}"').iterrows:
-            radar_df['missing'] += (t_range >= exclude.start & t_range <= exclude.end)
+        for edx, exclude in df_excludes.query(f'radar == "{row.radar}"').iterrows():
+            radar_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
         radar_df['missing'] = radar_df['missing'].astype(bool)
 
         # set bird quantities to NaN for these time points
         radar_df.loc[radar_df['missing'], cols] = np.nan
+
+        print(f'radar {row.radar}: excluded {radar_df.missing.sum()} time points')
 
         for col in cols:
             if not data_source == 'abm':
