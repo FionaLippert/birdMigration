@@ -10,7 +10,7 @@ import networkx as nx
 import geopandas as gpd
 import h3
 import h3pandas
-
+import math
 
 
 class Spatial:
@@ -74,22 +74,7 @@ class Spatial:
         radar_region = gpd.GeoDataFrame(geometry=[self.pts_local.buffer(self.buffer).unary_union],
                                         crs=self.crs_local).to_crs(self.crs_lonlat)
         hexagons = radar_region.h3.polyfill_resample(resolution).reset_index(names=['h3_id'])
-
-        # get lonlat coordinates of hexagon centers
-        lonlat = np.stack(hexagons.h3_id.apply(h3.h3_to_geo).values)
-        hexagons['lon'] = lonlat[:, 0]
-        hexagons['lat'] = lonlat[:, 1]
-
-        # get local coordinates of hexagon centers
-        local_coords = np.stack(gpd.GeoSeries([geometry.Point(xy) for xy in lonlat],
-                                              crs=self.crs_lonlat).to_crs(self.crs_local).values)
-        hexagons['x'] = local_coords[:, 0]
-        hexagons['y'] = local_coords[:, 1]
-
-        # find boundary cells
-        boundary = hexagons.unary_union.to_crs(self.crs_local).buffer(10)
-        boundary = boundary.difference(boundary.buffer(-20))
-        hexagons['boundary'] = hexagons.to_crs(self.crs_local).geometry.apply(lambda cell: cell.intersects(boundary))
+        hexagons.drop(columns=['index'], inplace=True)
 
         # find observed cells and include radar info (each cell has a list of radars falling into that cell)
         radar_gdf = gpd.GeoDataFrame({'radar': [[r] for r in self.radar_names],
@@ -97,37 +82,59 @@ class Spatial:
                                      geometry=self.pts_lonlat, crs=self.crs_lonlat)
         radar_gdf = radar_gdf.h3.geo_to_h3_aggregate(resolution, return_geometry=False).reset_index(names=['h3_id'])
         hexagons = hexagons.merge(radar_gdf, how='outer', on='h3_id').to_crs(self.crs_local)
-        hexagons['observed'] = hexagons['observed'].fillna(0)
+        hexagons['observed'] = hexagons['observed'].fillna(False)
+        hexagons['radar'] = hexagons['radar'].apply(lambda radar_list: str(radar_list))
+
+        # get lonlat coordinates of hexagon centers
+        lonlat = np.stack(hexagons.h3_id.apply(h3.h3_to_geo).values)
+        hexagons['lon'] = lonlat[:, 0]
+        hexagons['lat'] = lonlat[:, 1]
+
+        # get local coordinates of hexagon centers
+        #local_coords = gpd.GeoSeries([geometry.Point(xy) for xy in lonlat],
+        #                                      crs=self.crs_lonlat).to_crs(self.crs_local)
+        #local_coords = np.stack(self.pts2coords(local_coords))
+        #hexagons['x'] = local_coords[:, 0]
+        #hexagons['y'] = local_coords[:, 1]
+
+        # find boundary cells
+        boundary = hexagons.to_crs(self.crs_local).unary_union.buffer(10)
+        boundary = boundary.difference(boundary.buffer(-20))
+        hexagons['boundary'] = hexagons.to_crs(self.crs_local).geometry.apply(lambda cell: cell.intersects(boundary))
+        
+        # store cell indices
+        hexagons.reset_index(names=['ID'], inplace=True)
 
         # construct graph
         G = nx.DiGraph()
 
-        for i, row_i in enumerate(hexagons.iterrows()):
+        for i, row_i in hexagons.iterrows():
             # process all neighboring hexagons
-            n_neighbors = len(row_i.geometry.get_coordinates()) - 1
+            n_neighbors = len(shapely.get_coordinates(row_i.geometry)) - 1
             for h3_id in h3.k_ring(row_i.h3_id, 1):
                 if (h3_id != row_i.h3_id) and (h3_id in hexagons.h3_id.values):
-                    row_j = hexagons.query(f'h3_id == "{h3_id}"')
-                    j = row_j.index[0]
+                    row_j = hexagons.query(f'h3_id == "{h3_id}"').iloc[0]
+                    j = row_j.ID
 
-                    # compute distance between cell centers
-                    distance = self.distance((row_i.x, row_i.y), (row_j.x, row_j.y))
+                    distance = self.great_circle_distance(lonlat[i], lonlat[j])
 
                     # make sure face_length is the same for both edge directions
                     face_length_i = row_i.geometry.length / n_neighbors
-                    face_length_j = row_j.geometry.length / (len(row_i.geometry.get_coordinates()) - 1)
+                    n_neighbors_j = len(shapely.get_coordinates(row_j.geometry)) - 1
+                    face_length_j = row_j.geometry.length / n_neighbors_j
                     face_length = (face_length_i + face_length_j) / 2
 
                     G.add_edge(i, j, distance=distance, face_length=face_length,
-                               angle=self.angle((row_i.lon, row_i.lat), (row_j.lon, row_j.lat)))
+                               angle=self.angle(lonlat[i], lonlat[j]))
 
         if self_edges:
             [G.add_edge(i, i, distance=0, face_length=0, angle=0) for i in hexagons.index]
 
-        nx.set_node_attributes(G, pd.Series(hexagons['radar']).to_dict(), 'radar')
-        nx.set_node_attributes(G, pd.Series(hexagons['h3_id']).to_dict(), 'h3_id')
-        nx.set_node_attributes(G, pd.Series(hexagons['boundary']).to_dict(), 'boundary')
-        nx.set_node_attributes(G, pd.Series(hexagons['observed']).to_dict(), 'observed')
+
+        nx.set_node_attributes(G, hexagons['radar'].to_dict(), 'radar')
+        nx.set_node_attributes(G, hexagons['h3_id'].to_dict(), 'h3_id')
+        nx.set_node_attributes(G, hexagons['boundary'].to_dict(), 'boundary')
+        nx.set_node_attributes(G, hexagons['observed'].to_dict(), 'observed')
 
         self.cells = hexagons
         self.G = G
@@ -163,15 +170,19 @@ class Spatial:
         # match polygons with radar locations
         sorted_polygons = [polygons[polygons.contains(point) == True].values[0] for point in self.pts_local]
 
-        xy = self.pts2coords(self.pts_local)
-        lonlat = self.pts2coords(self.pts_lonlat)
+        xy = np.stack(self.pts2coords(self.pts_local))
+        lonlat = np.stack(self.pts2coords(self.pts_lonlat))
 
         cells = gpd.GeoDataFrame({'radar': self.radar_names,
                                   'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy,
-                                  'x': [c[0] for c in xy],
-                                  'y': [c[1] for c in xy],
-                                  'lon': [c[0] for c in lonlat],
-                                  'lat': [c[1] for c in lonlat],
+                                  #'x': [c[0] for c in xy],
+                                  #'y': [c[1] for c in xy],
+                                  #'lon': [c[0] for c in lonlat],
+                                  #'lat': [c[1] for c in lonlat],
+                                  'x': xy[:, 0],
+                                  'y': xy[:, 1],
+                                  'lon': lonlat[:, 0],
+                                  'lat': lonlat[:, 1]
                                   },
                                  geometry=sorted_polygons,
                                  crs=self.crs_local)
@@ -298,6 +309,20 @@ class Spatial:
 
         dist = np.linalg.norm(np.array(coord1) - np.array(coord2))
         return dist
+
+    def great_circle_distance(self, lonlat1, lonlat2):
+        """
+        Compute the great circle distance between two geographical locations in lonlat crs
+
+        :param lonlat1: coordinates of first location (lon, lat)
+        :param lonlat2: coordinates of second location (lon, lat)
+        :return: distance in meters
+        """
+
+        lon1, lat1, lon2, lat2 = map(math.radians, [lonlat1[0], lonlat1[1], lonlat2[0], lonlat2[1]])
+        dist = 6371 * (math.acos(math.sin(lat1) * math.sin(lat2) + math.cos(lat1) * math.cos(lat2) * math.cos(lon1 - lon2)))
+
+        return dist * 1000
 
     def angle(self, coord1, coord2):
         """
