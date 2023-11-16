@@ -35,31 +35,31 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
         print(radar_dir)
         radars = datahandling.load_radars(radar_dir)
     print('prepare static features')
-    voronoi, radar_buffers, G = static_features(radars, **kwargs)
+    cells, radar_buffers, G = static_features(radars, **kwargs)
 
     # save to disk
-    voronoi.to_file(osp.join(target_dir, 'voronoi.shp'))
-    static_feature_df = voronoi.drop(columns='geometry')
+    cells.to_file(osp.join(target_dir, 'tessellation.shp'))
+    static_feature_df = cells.drop(columns='geometry')
     static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
     radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
     nx.write_graphml(G, osp.join(target_dir, 'delaunay.graphml'), infer_numeric_types=True)
 
     if kwargs.get('process_dynamic', True):
         # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs)
+        dynamic_feature_df = dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs)
         # save to disk
         dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
 
 
 def static_features(radars, **kwargs):
     """
-    For a given set of radars, construct Voronoi tessellation and associated static features.
+    For a given set of radars, construct tessellation and associated static features.
 
-    These features include: Delaunay triangulation (graph), Voronoi cell areas, length and orientation of Voronoi faces,
+    These features include: Delaunay triangulation (graph), cell areas, length and orientation of cell faces,
     distances between radars, and 25km buffers around radars used for bird estimation.
 
     :param radars: mapping from radar coordinates (lon, lat) to names
-    :return: Voronoi tessellation (geopandas dataframe), radar buffers (geopandas dataframe),
+    :return: tessellation (geopandas dataframe), radar buffers (geopandas dataframe),
         Delaunay triangulation (networkx graph)
     """
 
@@ -81,27 +81,29 @@ def static_features(radars, **kwargs):
     # voronoi tesselation and associated graph
     space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0),
                             buffer=kwargs.get('buffer', 150_000))
-    voronoi, G = space.voronoi()
+
+    edge_type = kwargs.get('edge_type', 'voronoi')
+    if edge_type == 'hexagons':
+        cells, G = space.hexagons(resolution=kwargs.get('h3_resolution', 3))
+    else:
+        cells, G = space.voronoi()
 
     print('create radar buffer dataframe')
     # 25 km buffers around radars
-    radar_buffers = gpd.GeoDataFrame({'radar': voronoi.radar,
-                                     'observed' : voronoi.observed},
-                                     geometry=space.pts_local.buffer(25_000),
-                                     crs=space.crs_local)
+    radar_buffers = space.radar_buffers(25_000)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
     radar_buffers['area_km2'] = radar_buffers.area / 10**6
-    voronoi['area_km2'] = voronoi.area / 10**6
+    cells['area_km2'] = cells.area / 10**6
 
     radar_buffers = radar_buffers.to_crs(f'epsg:{space.epsg_lonlat}')
-    voronoi = voronoi.to_crs(f'epsg:{space.epsg_lonlat}')
+    cells = cells.to_crs(space.crs_lonlat)
 
     print('done with static preprocessing')
 
-    return voronoi, radar_buffers, G
+    return cells, radar_buffers, G
 
-def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwargs):
+def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs):
     """
     Load all dynamic features, including bird densities and velocities, environmental data, and derived features
     such as estimated accumulation of bird on the ground due to adverse weather.
@@ -116,9 +118,10 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     :return: dynamic features (pandas dataframe)
     """
 
-    env_points = kwargs.get('env_points', 100)
+    # env_points = kwargs.get('env_points', 100)
+    # random_seed = kwargs.get('seed', 1234)
+
     season = kwargs.get('season', 'fall')
-    random_seed = kwargs.get('seed', 1234)
     pref_dirs = kwargs.get('pref_dirs', {'spring': 58, 'fall': 223})
     pref_dir = pref_dirs[season]
     wp_threshold = kwargs.get('wp_threshold', -0.5)
@@ -140,15 +143,15 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
     if data_source in ['radar', 'nexrad']:
         print(f'load radar data')
         radar_dir = osp.join(data_dir, data_source)
-        voronoi_radars = voronoi.query('observed == True')
+        observed_cells = cells.query('observed == True')
         birds_km2, _, t_range = datahandling.load_season(radar_dir, season, year, ['vid'],
                                                          t_unit=t_unit, mask_days=False,
-                                                         radar_names=voronoi_radars.radar.values,
+                                                         radar_names=observed_cells.radar.values,
                                                          interpolate_nans=False)
 
         radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['ff', 'dd', 'u', 'v'],
                                                           t_unit=t_unit, mask_days=False,
-                                                          radar_names=voronoi_radars.radar.values,
+                                                          radar_names=observed_cells.radar.values,
                                                           interpolate_nans=False)
 
         bird_speed = radar_data[:, 0, :]
@@ -157,19 +160,19 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         bird_v = radar_data[:, 3, :]
 
         # rescale according to voronoi cell size
-        data = birds_km2 * voronoi_radars.area_km2.to_numpy()[:, None]
+        data = birds_km2 * observed_cells.area_km2.to_numpy()[:, None]
         t_range = t_range.tz_localize('UTC')
 
     elif data_source == 'abm':
         print(f'load abm data')
         abm_dir = osp.join(data_dir, 'abm')
-        voronoi_radars = voronoi.query('observed == True')
+        observed_cells = cells.query('observed == True')
         radar_buffers_radars = radar_buffers.query('observed == True')
-        data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, voronoi_radars)
+        data, t_range, bird_u, bird_v = abm.load_season(abm_dir, season, year, observed_cells)
         buffer_data = abm.load_season(abm_dir, season, year, radar_buffers_radars, uv=False)[0]
 
         # rescale to birds per km^2
-        birds_km2 = data / voronoi_radars.area_km2.to_numpy()[:, None]
+        birds_km2 = data / observed_cells.area_km2.to_numpy()[:, None]
         #birds_km2_from_buffer = buffer_data / radar_buffers_radars.area_km2.to_numpy()[:, None]
         # rescale to birds per voronoi cell
         #birds_from_buffer = birds_km2_from_buffer * voronoi_radars.area_km2.to_numpy()[:, None]
@@ -183,7 +186,7 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
 
     if len(env_vars) > 0:
         if edge_type == 'voronoi':
-            env_areas = voronoi.geometry
+            env_areas = cells.geometry
         else:
             env_areas = radar_buffers.geometry
         # env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
@@ -194,14 +197,14 @@ def dynamic_features(data_dir, year, data_source, voronoi, radar_buffers, **kwar
         #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
         env_850 = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
-                                             voronoi.lon.values, voronoi.lat.values, t_range.tz_localize(None), vars=env_vars)
+                                             cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
         env_surface = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
-                                             voronoi.lon.values, voronoi.lat.values, t_range.tz_localize(None), vars=env_vars)
+                                             cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
 
         env_data = env_850.merge(env_surface)
 
     dfs = []
-    for ridx, row in voronoi.iterrows():
+    for ridx, row in cells.iterrows():
 
         df = {}
 

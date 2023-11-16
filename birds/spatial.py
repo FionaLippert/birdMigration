@@ -8,6 +8,8 @@ import pyproj
 import itertools as it
 import networkx as nx
 import geopandas as gpd
+import h3
+import h3pandas
 
 
 
@@ -35,8 +37,9 @@ class Spatial:
 
         # setup geodesic (lonlat) coordinate system
         self.epsg_lonlat = '4326'
+        self.crs_lonlat = f'epsg:{self.epsg_lonlat}'
         self.pts_lonlat = gpd.GeoSeries([geometry.Point(xy) for xy in radars.keys()],
-                                        crs=f'epsg:{self.epsg_lonlat}')
+                                        crs=self.crs_lonlat)
 
         # setup local "azimuthal equidistant" coordinate system
         lat_0 = self.pts_lonlat.y.mean()
@@ -49,6 +52,89 @@ class Spatial:
         self.N_dummy = n_dummy_radars
         self.N = len(radars) + n_dummy_radars
         self.radar_names = list(self.radars.values()) + [f'boundary_{i}' for i in range(self.N_dummy)]
+
+
+    def radar_buffers(self, radar_range):
+
+        buffers = gpd.GeoDataFrame({'radar': self.radar_names,
+                                     'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy},
+                                      geometry=self.pts_local.buffer(radar_range),
+                                      crs=self.crs_local)
+        return buffers
+
+
+    def hexagons(self, resolution=3, self_edges=False):
+        """
+        Construct hexagonal H3 tessellation based on radar coordinates
+
+        :param self_edges: add self-edges to graph (booloean)
+        :return: cells (polygons describing the hexagonal cells), G (Delaunay triangulation with edge attributes)
+        """
+
+        radar_region = gpd.GeoDataFrame(geometry=[self.pts_local.buffer(self.buffer).unary_union],
+                                        crs=self.crs_local).to_crs(self.crs_lonlat)
+        hexagons = radar_region.h3.polyfill_resample(resolution).reset_index(names=['h3_id'])
+
+        # get lonlat coordinates of hexagon centers
+        lonlat = np.stack(hexagons.h3_id.apply(h3.h3_to_geo).values)
+        hexagons['lon'] = lonlat[:, 0]
+        hexagons['lat'] = lonlat[:, 1]
+
+        # get local coordinates of hexagon centers
+        local_coords = np.stack(gpd.GeoSeries([geometry.Point(xy) for xy in lonlat],
+                                              crs=self.crs_lonlat).to_crs(self.crs_local).values)
+        hexagons['x'] = local_coords[:, 0]
+        hexagons['y'] = local_coords[:, 1]
+
+        # find boundary cells
+        boundary = hexagons.unary_union.to_crs(self.crs_local).buffer(10)
+        boundary = boundary.difference(boundary.buffer(-20))
+        hexagons['boundary'] = hexagons.to_crs(self.crs_local).geometry.apply(lambda cell: cell.intersects(boundary))
+
+        # find observed cells and include radar info (each cell has a list of radars falling into that cell)
+        radar_gdf = gpd.GeoDataFrame({'radar': [[r] for r in self.radar_names],
+                                      'observed': [True] * (self.N - self.N_dummy) + [False] * self.N_dummy},
+                                     geometry=self.pts_lonlat, crs=self.crs_lonlat)
+        radar_gdf = radar_gdf.h3.geo_to_h3_aggregate(resolution, return_geometry=False).reset_index(names=['h3_id'])
+        hexagons = hexagons.merge(radar_gdf, how='outer', on='h3_id').to_crs(self.crs_local)
+        hexagons['observed'] = hexagons['observed'].fillna(0)
+
+        # construct graph
+        G = nx.DiGraph()
+
+        for i, row_i in enumerate(hexagons.iterrows()):
+            # process all neighboring hexagons
+            n_neighbors = len(row_i.geometry.get_coordinates()) - 1
+            for h3_id in h3.k_ring(row_i.h3_id, 1):
+                if (h3_id != row_i.h3_id) and (h3_id in hexagons.h3_id.values):
+                    row_j = hexagons.query(f'h3_id == "{h3_id}"')
+                    j = row_j.index[0]
+
+                    # compute distance between cell centers
+                    distance = self.distance((row_i.x, row_i.y), (row_j.x, row_j.y))
+
+                    # make sure face_length is the same for both edge directions
+                    face_length_i = row_i.geometry.length / n_neighbors
+                    face_length_j = row_j.geometry.length / (len(row_i.geometry.get_coordinates()) - 1)
+                    face_length = (face_length_i + face_length_j) / 2
+
+                    G.add_edge(i, j, distance=distance, face_length=face_length,
+                               angle=self.angle((row_i.lon, row_i.lat), (row_j.lon, row_j.lat)))
+
+        if self_edges:
+            [G.add_edge(i, i, distance=0, face_length=0, angle=0) for i in hexagons.index]
+
+        nx.set_node_attributes(G, pd.Series(hexagons['radar']).to_dict(), 'radar')
+        nx.set_node_attributes(G, pd.Series(hexagons['h3_id']).to_dict(), 'h3_id')
+        nx.set_node_attributes(G, pd.Series(hexagons['boundary']).to_dict(), 'boundary')
+        nx.set_node_attributes(G, pd.Series(hexagons['observed']).to_dict(), 'observed')
+
+        self.cells = hexagons
+        self.G = G
+        self.max_dist = np.max(nx.get_edge_attributes(G, 'distance').values())
+
+        return hexagons, G
+
 
 
     def voronoi(self, self_edges=False):
