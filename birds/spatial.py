@@ -60,6 +60,7 @@ class Spatial:
                                      'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy},
                                       geometry=self.pts_local.buffer(radar_range),
                                       crs=self.crs_local)
+
         return buffers
 
 
@@ -83,6 +84,9 @@ class Spatial:
         radar_gdf = radar_gdf.h3.geo_to_h3_aggregate(resolution, return_geometry=False).reset_index(names=['h3_id'])
         hexagons = hexagons.merge(radar_gdf, how='outer', on='h3_id').to_crs(self.crs_local)
         hexagons['observed'] = hexagons['observed'].fillna(False)
+
+        # store all radars falling within each hexagon as string of list
+        hexagons['radar'] = hexagons['radar'].fillna("[]")
         hexagons['radar'] = hexagons['radar'].apply(lambda radar_list: str(radar_list))
 
         # get lonlat coordinates of hexagon centers
