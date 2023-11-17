@@ -56,7 +56,11 @@ class Spatial:
 
     def radar_buffers(self, radar_range):
 
+        lonlat = np.stack(self.pts2coords(self.pts_lonlat))
+
         buffers = gpd.GeoDataFrame({'radar': self.radar_names,
+                                    'lon': lonlat[:, 0],
+                                    'lat': lonlat[:, 1],
                                      'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy},
                                       geometry=self.pts_local.buffer(radar_range),
                                       crs=self.crs_local)
@@ -192,6 +196,8 @@ class Spatial:
                                  crs=self.crs_local)
 
         cells['boundary'] = cells.geometry.map(lambda x: x.intersects(sink))
+        
+        cells.reset_index(names=['ID'], inplace=True)
 
         adj = np.zeros((self.N, self.N))
         G = nx.DiGraph()
