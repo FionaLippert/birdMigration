@@ -388,7 +388,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
     print(dynamic_feature_df.isna().sum())
 
     dfs = []
-    for ridx, row in radar_buffers.query('observed == True').iterrows():
+    for ridx, row in radar_buffers.iterrows():
 
         df = {}
 
@@ -405,9 +405,14 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         cols = ['birds_km2', 'bird_u', 'bird_v']
 
         # bird measurements for radar ridx
-        df['birds_km2'] = birds_km2[ridx]
-        df['bird_u'] = bird_u[ridx]
-        df['bird_v'] = bird_v[ridx]
+        if row.observed:
+            df['birds_km2'] = birds_km2[ridx]
+            df['bird_u'] = bird_u[ridx]
+            df['bird_v'] = bird_v[ridx]
+        else:
+            df['birds_km2'] = [np.nan] * T
+            df['bird_u'] = [np.nan] * T
+            df['bird_v'] = [np.nan] * T
 
         radar_df = pd.DataFrame(df)
 
