@@ -56,12 +56,20 @@ class Spatial:
 
     def radar_buffers(self, radar_range):
 
-        buffers = gpd.GeoDataFrame({'radar': self.radar_names,
-                                     'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy},
-                                      geometry=self.pts_local.buffer(radar_range),
-                                      crs=self.crs_local)
+        radar_df = self.radar_overview()
+        radar_df = radar_df.set_geometry(radar_df.buffer(radar_range), self.crs_local)
 
-        return buffers
+        return radar_df
+
+    def radar_overview(self):
+
+        radar_df = gpd.GeoDataFrame({'radar': self.radar_names,
+                                     'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy},
+                                      geometry=self.pts_local,
+                                      crs=self.crs_local)
+        radar_df.reset_index(names=['ID'], inplace=True)
+
+        return radar_df
 
 
     def hexagons(self, resolution=3, self_edges=False):
@@ -229,6 +237,71 @@ class Spatial:
         return cells, G
 
 
+    def cell_to_radar_edges(self, max_dist):
+        """
+        Create graph linking cells to radars according to the given radar observation range max_dist.
+
+        :param max_dist: distance up to which cell values should be included in radar observation model
+
+        :return edge_list: DataFrame containing list of all edges (including weights) linking cells to radars
+        """
+
+        radar_buffers = self.radar_buffers(max_dist)
+
+        # find all cells within each radar buffer
+        observed_cells = gpd.sjoin(radar_buffers, self.cells)
+
+        # compute great circle distances [km] between cell centers and radar locations
+        observed_cells = observed_cells.to_crs(self.crs_lonlat)
+        cells = self.cells.to_crs(self.crs_lonlat)
+        observed_cells['distance'] = observed_cells.apply(
+            lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
+                                                   cells.iloc[row.index_right].geometry.centroid.coords[0]) / 1000
+        )
+        observed_cells['weight'] = 1 / observed_cells['distance']
+
+        observed_cells.rename({'ID_left': 'ridx',
+                               'ID_right': 'cidx'},
+                              axis='columns', inplace=True)
+
+        edge_list = observed_cells[['cidx', 'ridx', 'weight']]
+
+        return edge_list
+
+    def radar_to_cell_edges(self, max_dist):
+        """
+        Create graph linking cells to radars according to the given radar observation range.
+
+        :param max_dist: distance up to which radar observations should be used to interpolate cell values
+
+        :return edge_list: DataFrame containing list of all edges (including weights) linking radars to cells
+        """
+        cell_buffers = self.cells.to_crs(self.crs_local).buffer(max_dist)
+        cell_buffers = self.cells.set_geometry(cell_buffers, crs=self.crs_local)
+
+        radars = self.radar_overview()
+
+        # find all radars within each cell buffer
+        nearest_radars = gpd.sjoin(cell_buffers, radars)
+
+        # compute great circle distances [km] between cell centers and radar locations
+        nearest_radars = nearest_radars.to_crs(self.crs_lonlat)
+        radars = radars.to_crs(self.crs_lonlat)
+        nearest_radars['distance'] = nearest_radars.apply(
+            lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
+                                                   radars.iloc[row.index_right].geometry.coords[0]) / 1000
+        )
+        nearest_radars['weight'] = 1 / nearest_radars['distance']
+
+        nearest_radars.rename({'ID_left': 'cidx',
+                               'ID_right': 'ridx'},
+                              axis='columns', inplace=True)
+
+        edge_list = nearest_radars[['ridx', 'cidx', 'weight']]
+
+        return edge_list
+
+
     def add_dummy_radars(self, n):
         """
         Add dummy radars to list of radars.
@@ -324,7 +397,8 @@ class Spatial:
         """
 
         lon1, lat1, lon2, lat2 = map(math.radians, [lonlat1[0], lonlat1[1], lonlat2[0], lonlat2[1]])
-        dist = 6371 * (math.acos(math.sin(lat1) * math.sin(lat2) + math.cos(lat1) * math.cos(lat2) * math.cos(lon1 - lon2)))
+        dist = 6371 * (math.acos(math.sin(lat1) * math.sin(lat2) +
+                                 math.cos(lat1) * math.cos(lat2) * math.cos(lon1 - lon2)))
 
         return dist * 1000
 

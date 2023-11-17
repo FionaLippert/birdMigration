@@ -35,20 +35,27 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
         print(radar_dir)
         radars = datahandling.load_radars(radar_dir)
     print('prepare static features')
-    cells, radar_buffers, G = static_features(radars, **kwargs)
+    cells, radar_buffers, G, cell_to_radar_edges, radar_to_cell_edges = static_features(radars, **kwargs)
 
     # save to disk
     cells.to_file(osp.join(target_dir, 'tessellation.shp'))
+    radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
+
     static_feature_df = cells.drop(columns='geometry')
     static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
-    radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
+
+    radar_to_cell_edges.to_csv(osp.join(target_dir, 'radar_to_cell_edges.csv'))
+    cell_to_radar_edges.to_csv(osp.join(target_dir, 'cell_to_radar_edges.csv'))
+
     nx.write_graphml(G, osp.join(target_dir, 'delaunay.graphml'), infer_numeric_types=True)
 
     if kwargs.get('process_dynamic', True):
         # load dynamic features
-        dynamic_feature_df = dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs)
+        dynamic_feature_df, measurement_df = dynamic_features(data_dir, year, data_source,
+                                                              cells, radar_buffers, **kwargs)
         # save to disk
         dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
+        measurement_df.to_csv(osp.join(target_dir, 'measurements.csv'))
 
 
 def static_features(radars, **kwargs):
@@ -89,8 +96,11 @@ def static_features(radars, **kwargs):
         cells, G = space.voronoi()
 
     print('create radar buffer dataframe')
+    obs_range = kwargs.get('observation_range', 25_000)
+    interp_range = kwargs.get('interpolation_range', 300_000)
+
     # 25 km buffers around radars
-    radar_buffers = space.radar_buffers(25_000)
+    radar_buffers = space.radar_buffers(obs_range)
 
     # compute areas of voronoi cells and radar buffers [unit is km^2]
     radar_buffers['area_km2'] = radar_buffers.area / 10**6
@@ -99,9 +109,15 @@ def static_features(radars, **kwargs):
     radar_buffers = radar_buffers.to_crs(f'epsg:{space.epsg_lonlat}')
     cells = cells.to_crs(space.crs_lonlat)
 
+    # edges defining observation model from cells to radars
+    cell_to_radar_edges = spatial.cell_to_radar_edges(obs_range)
+
+    # edges defining interpolation model from radars to cells
+    radar_to_cell_edges = spatial.radar_to_cell_edges(interp_range)
+
     print('done with static preprocessing')
 
-    return cells, radar_buffers, G
+    return cells, radar_buffers, G, cell_to_radar_edges, radar_to_cell_edges
 
 def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs):
     """
@@ -115,7 +131,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
     :param data_source: 'radar' or 'abm' (simulated data)
     :param voronoi: Voronoi tessellation (geopandas dataframe)
     :param radar_buffers: radar buffers with static features (geopandas dataframe)
-    :return: dynamic features (pandas dataframe)
+    :return: dynamic features (pandas dataframe), measurements (pandas dataframe)
     """
 
     # env_points = kwargs.get('env_points', 100)
@@ -367,8 +383,61 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         print(f'found {cell_df.missing.sum()} missing time points')
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
-    print(f'columns: {dynamic_feature_df.columns}')
+    print(f'feature columns: {dynamic_feature_df.columns}')
 
     print(dynamic_feature_df.isna().sum())
 
-    return dynamic_feature_df
+    dfs = []
+    for ridx, row in radar_buffers.query('observed == True').iterrows():
+
+        df = {}
+
+        df['radar'] = [row.radar] * len(t_range)
+        df['ID'] = [row.ID] * len(t_range)
+
+        # time related variables for radar ridx
+        solarpos = np.array(solarposition.get_solarposition(solar_t_range, row.lat, row.lon).elevation)
+        df['night'] = np.logical_or(solarpos[:-1] < -6, solarpos[1:] < -6)
+        df['datetime'] = t_range
+        df['tidx'] = np.arange(t_range.size)
+
+        # bird related columns
+        cols = ['birds_km2', 'bird_u', 'bird_v']
+
+        # bird measurements for radar ridx
+        df['birds_km2'] = birds_km2[ridx]
+        df['bird_u'] = bird_u[ridx]
+        df['bird_v'] = bird_v[ridx]
+
+        radar_df = pd.DataFrame(df)
+
+        # find time points to exclude for radars within this cell
+        radar_df['missing'] = 0
+        for edx, exclude in df_excludes.query(f'radar == "{row.radar}"').iterrows():
+            radar_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
+        radar_df['missing'] = radar_df['missing'].astype(bool)
+
+        # set bird quantities to NaN for these time points
+        radar_df.loc[radar_df['missing'], cols] = np.nan
+
+        for col in cols:
+            # radar quantities being exactly 0 during the night are missing,
+            # radar quantities during the day are set to 0
+            radar_df[col] = radar_df.apply(lambda row: np.nan if (row.night and not row[col])
+            else (0 if not row.night else row[col]), axis=1)
+
+            print(f'check missing data for column {col}')
+
+            # remember missing radar observations
+            radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
+
+            # for all other quantities simply interpolate linearly
+            radar_df[col] = radar_df[col].interpolate(method='linear', limit_direction='both')
+
+        dfs.append(radar_df)
+        print(f'found {radar_df.missing.sum()} missing time points')
+
+    measurement_df = pd.concat(dfs, ignore_index=True)
+    print(f'measurement columns: {measurement_df.columns}')
+
+    return dynamic_feature_df, measurement_df
