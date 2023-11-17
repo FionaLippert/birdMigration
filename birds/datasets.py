@@ -226,6 +226,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
                                              cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
 
         env_data = env_850.merge(env_surface)
+        print(env_data)
 
     dfs = []
     for ridx, row in cells.iterrows():
@@ -278,25 +279,29 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
                 df['bird_direction'] = bird_direction[data_indices].mean(0)
 
                 cols.extend(['bird_speed', 'bird_direction'])
+            
+            df['missing'] = [False] * T
 
         else:
             # no observations available for this cell
-            df['birds'] = [np.nan] * T
-            df['birds_km2'] = [np.nan] * T
-            df['bird_u'] = [np.nan] * T
-            df['bird_v'] = [np.nan] * T
+            df['birds'] = [0] * T
+            df['birds_km2'] = [0] * T
+            df['bird_u'] = [0] * T
+            df['bird_v'] = [0] * T
 
             if not data_source == 'abm':
-                df['bird_speed'] = [np.nan] * T
-                df['bird_direction'] = [np.nan] * T
+                df['bird_speed'] = [0] * T
+                df['bird_direction'] = [0] * T
 
                 cols.extend(['bird_speed', 'bird_direction'])
 
+            df['missing'] = [True] * T
 
         if len(env_vars) > 0:
             # environmental variables for radar ridx
             for var in env_vars:
                 df[var] = env_data[var].data[:, ridx]
+                print(f'{var} data: {df[var]}')
             #     if var in env_850:
             #         print(f'found {var} in env_850 dataset')
             #         df[var] = env_850[var][ridx]
@@ -342,10 +347,11 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
 
         cell_df = pd.DataFrame(df)
 
+        #cell_df['missing'] = 0
+
         if row.observed:
 
             # find time points to exclude for radars within this cell
-            cell_df['missing'] = 0
             for r in radars:
                 for edx, exclude in df_excludes.query(f'radar == "{r}"').iterrows():
                     cell_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
@@ -359,8 +365,6 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
                 # radar quantities during the day are set to 0
                 cell_df[col] = cell_df.apply(lambda row: np.nan if (row.night and not row[col])
                                                         else (0 if not row.night else row[col]), axis=1)
-
-                print(f'check missing data for column {col}')
 
                 # remember missing radar observations
                 cell_df['missing'] = cell_df['missing'] | cell_df[col].isna()
