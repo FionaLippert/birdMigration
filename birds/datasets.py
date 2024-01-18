@@ -110,10 +110,10 @@ def static_features(radars, **kwargs):
     cells = cells.to_crs(space.crs_lonlat)
 
     # edges defining observation model from cells to radars
-    cell_to_radar_edges = spatial.cell_to_radar_edges(obs_range)
+    cell_to_radar_edges = spatial.cell_to_radar_edges(obs_range if edge_type == 'hexagons' else 0)
 
     # edges defining interpolation model from radars to cells
-    radar_to_cell_edges = spatial.radar_to_cell_edges(interp_range)
+    radar_to_cell_edges = spatial.radar_to_cell_edges(interp_range if edge_type == 'hexagons' else 0)
 
     print('done with static preprocessing')
 
