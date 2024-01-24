@@ -89,10 +89,10 @@ def static_features(radars, **kwargs):
     print(f'excluded radars: {exclude}')
 
     # voronoi tesselation and associated graph
-    space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0),
-                            buffer=kwargs.get('buffer', 150_000))
-
     edge_type = kwargs.get('edge_type', 'voronoi')
+    ndummy = kwargs.get('n_dummy_radars', 0) if edge_type == 'voronoi' else 0
+    space = spatial.Spatial(radars, n_dummy_radars=ndummy, buffer=kwargs.get('buffer', 150_000))
+
     if edge_type == 'hexagons':
         cells, G = space.hexagons(resolution=kwargs.get('h3_resolution', 3))
     else:
