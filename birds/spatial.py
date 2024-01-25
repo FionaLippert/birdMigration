@@ -102,16 +102,16 @@ class Spatial:
         hexagons['radar'] = hexagons['radar'].apply(lambda radar_list: str(radar_list))
 
         # get lonlat coordinates of hexagon centers
-        lonlat = np.stack(hexagons.h3_id.apply(h3.h3_to_geo).values)
+        lonlat = np.flip(np.stack(hexagons.h3_id.apply(h3.h3_to_geo).values), axis=1)
         hexagons['lon'] = lonlat[:, 0]
         hexagons['lat'] = lonlat[:, 1]
 
         # get local coordinates of hexagon centers
         #local_coords = gpd.GeoSeries([geometry.Point(xy) for xy in lonlat],
         #                                      crs=self.crs_lonlat).to_crs(self.crs_local)
-        #local_coords = np.stack(self.pts2coords(local_coords))
-        #hexagons['x'] = local_coords[:, 0]
-        #hexagons['y'] = local_coords[:, 1]
+        local_coords = np.stack(self.pts2coords(hexagons.centroid))
+        hexagons['x'] = local_coords[:, 0]
+        hexagons['y'] = local_coords[:, 1]
 
         # find boundary cells
         boundary = hexagons.to_crs(self.crs_local).unary_union.buffer(10)
@@ -149,8 +149,8 @@ class Spatial:
 
         nx.set_node_attributes(G, hexagons['radar'].to_dict(), 'radar')
         nx.set_node_attributes(G, hexagons['h3_id'].to_dict(), 'h3_id')
-        nx.set_node_attributes(G, hexagons['boundary'].to_dict(), 'boundary')
-        nx.set_node_attributes(G, hexagons['observed'].to_dict(), 'observed')
+        nx.set_node_attributes(G, hexagons['boundary'].astype('int').to_dict(), 'boundary')
+        nx.set_node_attributes(G, hexagons['observed'].astype('int').to_dict(), 'observed')
 
         self.cells = hexagons
         self.G = G
@@ -232,8 +232,8 @@ class Spatial:
             [G.add_edge(i, i, distance=0, face_length=0, angle=0) for i in cells.index]
 
 
-        nx.set_node_attributes(G, pd.Series(cells['radar']).to_dict(), 'radar')
-        nx.set_node_attributes(G, pd.Series(cells['boundary']).to_dict(), 'boundary')
+        nx.set_node_attributes(G, cells['radar'].to_dict(), 'radar')
+        nx.set_node_attributes(G, cells['boundary'].astype('int').to_dict(), 'boundary')
 
         self.cells = cells
         self.G = G
@@ -262,8 +262,8 @@ class Spatial:
         cells = self.cells.to_crs(self.crs_lonlat)
         observed_cells['distance'] = observed_cells.apply(
             lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
-                                                   cells.iloc[row.index_right].geometry.centroid.coords[0]) / 1000
-        )
+                                                   cells.iloc[row.index_right].geometry.centroid.coords[0]) / 1000, axis=1)
+
         observed_cells['weight'] = 1 / observed_cells['distance']
 
         observed_cells.rename({'ID_left': 'ridx',
@@ -295,8 +295,8 @@ class Spatial:
         radars = radars.to_crs(self.crs_lonlat)
         nearest_radars['distance'] = nearest_radars.apply(
             lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
-                                                   radars.iloc[row.index_right].geometry.coords[0]) / 1000
-        )
+                                                   radars.iloc[row.index_right].geometry.coords[0]) / 1000, axis=1)
+
         nearest_radars['weight'] = 1 / nearest_radars['distance']
 
         nearest_radars.rename({'ID_left': 'cidx',

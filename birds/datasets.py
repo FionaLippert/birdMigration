@@ -22,6 +22,7 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
     :param year: year of interest
     :param data_source: 'radar' or 'abm' (simulated data)
     """
+    print(target_dir)
 
     # load static features
     if data_source == 'abm':
@@ -85,13 +86,20 @@ def static_features(radars, **kwargs):
     print(f'radars: {radars}')
     print(f'excluded radars: {exclude}')
 
-    # voronoi tesselation and associated graph
-    space = spatial.Spatial(radars, n_dummy_radars=kwargs.get('n_dummy_radars', 0),
-                            buffer=kwargs.get('buffer', 150_000))
 
     edge_type = kwargs.get('edge_type', 'voronoi')
+
+    # voronoi tesselation and associated graph
     if edge_type == 'hexagons':
-        cells, G = space.hexagons(resolution=kwargs.get('h3_resolution', 3))
+        n_dummy_radars = 0
+    else:
+        n_dummy_radars = kwargs.get('n_dummy_radars', 0)
+
+    space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars,
+                            buffer=kwargs.get('buffer', 150_000))
+
+    if edge_type == 'hexagons':
+        cells, G = space.hexagons(resolution=kwargs.get('h3_resolution'))
     else:
         cells, G = space.voronoi()
 
@@ -110,10 +118,10 @@ def static_features(radars, **kwargs):
     cells = cells.to_crs(space.crs_lonlat)
 
     # edges defining observation model from cells to radars
-    cell_to_radar_edges = spatial.cell_to_radar_edges(obs_range)
+    cell_to_radar_edges = space.cell_to_radar_edges(obs_range)
 
     # edges defining interpolation model from radars to cells
-    radar_to_cell_edges = spatial.radar_to_cell_edges(interp_range)
+    radar_to_cell_edges = space.radar_to_cell_edges(interp_range)
 
     print('done with static preprocessing')
 
@@ -392,7 +400,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
     print(dynamic_feature_df.isna().sum())
 
     dfs = []
-    for ridx, row in radar_buffers.query('observed == True').iterrows():
+    for ridx, row in radar_buffers.iterrows():
 
         df = {}
 
@@ -409,14 +417,20 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         cols = ['birds_km2', 'bird_u', 'bird_v']
 
         # bird measurements for radar ridx
-        df['birds_km2'] = birds_km2[ridx]
-        df['bird_u'] = bird_u[ridx]
-        df['bird_v'] = bird_v[ridx]
+        if row.observed:
+            df['birds_km2'] = birds_km2[ridx]
+            df['bird_u'] = bird_u[ridx]
+            df['bird_v'] = bird_v[ridx]
+            df['missing'] = [0] * T
+        else:
+            df['birds_km2'] = [np.nan] * T
+            df['bird_u'] = [np.nan] * T
+            df['bird_v'] = [np.nan] * T
+            df['missing'] = [1] * T
 
         radar_df = pd.DataFrame(df)
 
         # find time points to exclude for radars within this cell
-        radar_df['missing'] = 0
         for edx, exclude in df_excludes.query(f'radar == "{row.radar}"').iterrows():
             radar_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
         radar_df['missing'] = radar_df['missing'].astype(bool)
