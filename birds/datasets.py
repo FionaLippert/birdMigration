@@ -42,8 +42,11 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
     cells.to_file(osp.join(target_dir, 'tessellation.shp'))
     radar_buffers.to_file(osp.join(target_dir, 'radar_buffers.shp'))
 
-    static_feature_df = cells.drop(columns='geometry')
-    static_feature_df.to_csv(osp.join(target_dir, 'static_features.csv'))
+    cell_df = cells.drop(columns='geometry')
+    cell_df.to_csv(osp.join(target_dir, 'static_cell_features.csv'))
+
+    radar_df = radar_buffers.drop(columns='geometry')
+    radar_df.to_csv(osp.join(target_dir, 'static_radar_features.csv'))
 
     radar_to_cell_edges.to_csv(osp.join(target_dir, 'radar_to_cell_edges.csv'))
     cell_to_radar_edges.to_csv(osp.join(target_dir, 'cell_to_radar_edges.csv'))
@@ -55,8 +58,8 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
         dynamic_feature_df, measurement_df = dynamic_features(data_dir, year, data_source,
                                                               cells, radar_buffers, **kwargs)
         # save to disk
-        dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_features.csv'))
-        measurement_df.to_csv(osp.join(target_dir, 'measurements.csv'))
+        dynamic_feature_df.to_csv(osp.join(target_dir, 'dynamic_cell_features.csv'))
+        measurement_df.to_csv(osp.join(target_dir, 'dynamic_radar_features.csv'))
 
 
 def static_features(radars, **kwargs):
@@ -87,16 +90,10 @@ def static_features(radars, **kwargs):
     print(f'excluded radars: {exclude}')
 
 
-    edge_type = kwargs.get('edge_type', 'voronoi')
-
     # voronoi tesselation and associated graph
-    if edge_type == 'hexagons':
-        n_dummy_radars = 0
-    else:
-        n_dummy_radars = kwargs.get('n_dummy_radars', 0)
-
-    space = spatial.Spatial(radars, n_dummy_radars=n_dummy_radars,
-                            buffer=kwargs.get('buffer', 150_000))
+    edge_type = kwargs.get('edge_type', 'voronoi')
+    ndummy = kwargs.get('n_dummy_radars', 0) if edge_type == 'voronoi' else 0
+    space = spatial.Spatial(radars, n_dummy_radars=ndummy, buffer=kwargs.get('buffer', 150_000))
 
     if edge_type == 'hexagons':
         cells, G = space.hexagons(resolution=kwargs.get('h3_resolution'))
@@ -114,7 +111,7 @@ def static_features(radars, **kwargs):
     radar_buffers['area_km2'] = radar_buffers.area / 10**6
     cells['area_km2'] = cells.area / 10**6
 
-    radar_buffers = radar_buffers.to_crs(f'epsg:{space.epsg_lonlat}')
+    radar_buffers = radar_buffers.to_crs(space.crs_lonlat) #(f'epsg:{space.epsg_lonlat}')
     cells = cells.to_crs(space.crs_lonlat)
 
     # edges defining observation model from cells to radars
@@ -236,6 +233,15 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         env_data = env_850.merge(env_surface)
         print(env_data)
 
+        env_850_radars = era5interface.extract_points(
+            osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
+            radar_buffers.lon.values, radar_buffers.lat.values, t_range.tz_localize(None), vars=env_vars)
+        env_surface_radars = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+                                                   radar_buffers.lon.values, radar_buffers.lat.values, t_range.tz_localize(None),
+                                                   vars=env_vars)
+
+        env_data_radars = env_850_radars.merge(env_surface_radars)
+
     dfs = []
     for ridx, row in cells.iterrows():
 
@@ -261,52 +267,53 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         # bird related columns
         cols = ['birds', 'birds_km2', 'bird_u', 'bird_v']
 
-        # bird measurements for radar ridx
-        radars = []
-        if row.observed:
-            if data_source == 'abm':
-                # link to cell observations
-                data_indices = [cells2dataID[row.ID]]
-            else:
-                # link to radar observations within cell
-                if edge_type == 'hexagons':
-                    radars = eval(row.radar)
-                else:
-                    radars = [row.radar]
-                data_indices = [radar2dataID[r] for r in radars]
-
-            # average over all observations
-            df['birds_km2'] = birds_km2[data_indices].mean(0)
-            df['bird_u'] = bird_u[data_indices].mean(0)
-            df['bird_v'] = bird_v[data_indices].mean(0)
-
-            df['birds'] = df['birds_km2'] * row.area_km2
-
-            if not data_source == 'abm':
-                df['bird_speed'] = bird_speed[data_indices].mean(0)
-                df['bird_direction'] = bird_direction[data_indices].mean(0)
-
-                cols.extend(['bird_speed', 'bird_direction'])
-            
-            df['missing'] = [False] * T
-
-        else:
-            # no observations available for this cell
-            df['birds'] = [0] * T
-            df['birds_km2'] = [0] * T
-            df['bird_u'] = [0] * T
-            df['bird_v'] = [0] * T
-
-            if not data_source == 'abm':
-                df['bird_speed'] = [0] * T
-                df['bird_direction'] = [0] * T
-
-                cols.extend(['bird_speed', 'bird_direction'])
-
-            df['missing'] = [True] * T
+        # # bird measurements for cell ridx
+        # radars = []
+        # if row.observed:
+        #     if data_source == 'abm':
+        #         # link to cell observations
+        #         data_indices = [cells2dataID[row.ID]]
+        #     else:
+        #         # link to radar observations within cell
+        #         if edge_type == 'hexagons':
+        #             radars = eval(row.radar)
+        #         else:
+        #             radars = [row.radar]
+        #         data_indices = [radar2dataID[r] for r in radars]
+        #
+        #     # average over all observations
+        #     df['birds_km2'] = birds_km2[data_indices].mean(0)
+        #     df['bird_u'] = bird_u[data_indices].mean(0)
+        #     df['bird_v'] = bird_v[data_indices].mean(0)
+        #
+        #     df['birds'] = df['birds_km2'] * row.area_km2
+        #
+        #     if not data_source == 'abm':
+        #         df['bird_speed'] = bird_speed[data_indices].mean(0)
+        #         df['bird_direction'] = bird_direction[data_indices].mean(0)
+        #
+        #         cols.extend(['bird_speed', 'bird_direction'])
+        #
+        #     df['missing'] = [False] * T
+        #
+        # else:
+        #     # no observations available for this cell
+        #     df['birds'] = [0] * T
+        #     df['birds_km2'] = [0] * T
+        #     df['bird_u'] = [0] * T
+        #     df['bird_v'] = [0] * T
+        #
+        #     if not data_source == 'abm':
+        #         df['bird_speed'] = [0] * T
+        #         df['bird_direction'] = [0] * T
+        #
+        #         cols.extend(['bird_speed', 'bird_direction'])
+        #
+        #     df['missing'] = [True] * T
+        #
 
         if len(env_vars) > 0:
-            # environmental variables for radar ridx
+            # environmental variables for cell ridx
             for var in env_vars:
                 df[var] = env_data[var].data[:, ridx]
                 print(f'{var} data: {df[var]}')
@@ -326,6 +333,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
             nights = [[item[0] for item in g] for g in groups if g[0][1]]
             df['nightID'] = np.zeros(t_range.size)
+            df['frac_night'] = np.zeros(t_range.size)
             df['acc_rain'] = np.zeros(t_range.size)
             df['acc_wind'] = np.zeros(t_range.size)
             df['wind_profit'] = np.zeros(t_range.size)
@@ -335,6 +343,10 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             u_wind = 0
             for nidx, night in enumerate(nights):
                 df['nightID'][night] = np.ones(len(night)) * (nidx + 1)
+
+                # relative night time
+                df['frac_night_fw'][night] = np.arange(1, len(night) + 1) / len(night) # increasing
+                df['frac_night_bw'][night] = np.arange(len(night), 0, -1) / len(night) # decreasing
 
                 # accumulation due to rain in the past nights
                 acc_rain = acc_rain/3 + u_rain * 2/3
@@ -352,52 +364,51 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
                                                            2 * v_air * df['wind_speed'][night] *
                                                            np.cos(np.deg2rad(alpha-df['wind_dir'][night])))
                 u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
-
         cell_df = pd.DataFrame(df)
 
         #cell_df['missing'] = 0
 
-        if row.observed:
-
-            # find time points to exclude for radars within this cell
-            for r in radars:
-                for edx, exclude in df_excludes.query(f'radar == "{r}"').iterrows():
-                    cell_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
-            cell_df['missing'] = cell_df['missing'].astype(bool)
-
-            # set bird quantities to NaN for these time points
-            cell_df.loc[cell_df['missing'], cols] = np.nan
-
-            for col in cols:
-                # radar quantities being exactly 0 during the night are missing,
-                # radar quantities during the day are set to 0
-                cell_df[col] = cell_df.apply(lambda row: np.nan if (row.night and not row[col])
-                                                        else (0 if not row.night else row[col]), axis=1)
-
-                # remember missing radar observations
-                cell_df['missing'] = cell_df['missing'] | cell_df[col].isna()
-
-                if not data_source == 'abm':
-
-                    # fill missing bird measurements by interpolation
-                    if col == 'bird_direction':
-                        # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
-                        cell_df[col] = cell_df[col].interpolate(method='nearest').ffill().bfill()
-                    else:
-                        # for all other quantities simply interpolate linearly
-                        cell_df[col] = cell_df[col].interpolate(method='linear', limit_direction='both')
-                else:
-
-                    # fill missing bird measurements with 0
-                    cell_df[col].fillna(0, inplace=True)
+        # if row.observed:
+        #
+        #     # find time points to exclude for radars within this cell
+        #     for r in radars:
+        #         for edx, exclude in df_excludes.query(f'radar == "{r}"').iterrows():
+        #             cell_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
+        #     cell_df['missing'] = cell_df['missing'].astype(bool)
+        #
+        #     # set bird quantities to NaN for these time points
+        #     cell_df.loc[cell_df['missing'], cols] = np.nan
+        #
+        #     for col in cols:
+        #         # radar quantities being exactly 0 during the night are missing,
+        #         # radar quantities during the day are set to 0
+        #         cell_df[col] = cell_df.apply(lambda row: np.nan if (row.night and not row[col])
+        #                                                 else (0 if not row.night else row[col]), axis=1)
+        #
+        #         # remember missing radar observations
+        #         cell_df['missing'] = cell_df['missing'] | cell_df[col].isna()
+        #
+        #         if not data_source == 'abm':
+        #
+        #             # fill missing bird measurements by interpolation
+        #             if col == 'bird_direction':
+        #                 # use "nearest", to avoid artifacts of interpolating between e.g. 350 and 2 degree
+        #                 cell_df[col] = cell_df[col].interpolate(method='nearest').ffill().bfill()
+        #             else:
+        #                 # for all other quantities simply interpolate linearly
+        #                 cell_df[col] = cell_df[col].interpolate(method='linear', limit_direction='both')
+        #         else:
+        #
+        #             # fill missing bird measurements with 0
+        #             cell_df[col].fillna(0, inplace=True)
 
         dfs.append(cell_df)
-        print(f'found {cell_df.missing.sum()} missing time points')
+        # print(f'found {cell_df.missing.sum()} missing time points')
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     print(f'feature columns: {dynamic_feature_df.columns}')
 
-    print(dynamic_feature_df.isna().sum())
+    # print(dynamic_feature_df.isna().sum())
 
     dfs = []
     for ridx, row in radar_buffers.iterrows():
@@ -412,6 +423,16 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         df['night'] = np.logical_or(solarpos[:-1] < -6, solarpos[1:] < -6)
         df['datetime'] = t_range
         df['tidx'] = np.arange(t_range.size)
+        df['solarpos_dt'] = solarpos[:-1] - solarpos[1:]
+        df['solarpos'] = solarpos[:-1]
+        df['dusk'] = np.logical_and(solarpos[:-1] >= 6, solarpos[1:] < 6)  # switching from day to night
+        df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >= 6)  # switching from night to day
+        df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
+
+        if len(env_vars) > 0:
+            # environmental variables for radar ridx
+            for var in env_vars:
+                df[var] = env_data_radars[var].data[:, ridx]
 
         # bird related columns
         cols = ['birds_km2', 'bird_u', 'bird_v']

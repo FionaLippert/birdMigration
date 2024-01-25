@@ -64,10 +64,13 @@ class Spatial:
     def radar_overview(self):
 
         lonlat = np.stack(self.pts2coords(self.pts_lonlat))
+        xy = np.stack(self.pts2coords(self.pts_local))
 
         radar_df = gpd.GeoDataFrame({'radar': self.radar_names,
                                      'lon': lonlat[:, 0],
                                      'lat': lonlat[:, 1],
+                                     'x': xy[:, 0],
+                                     'y': xy[:, 1],
                                      'observed' : [True] * (self.N-self.N_dummy) + [False] * self.N_dummy},
                                       geometry=self.pts_local,
                                       crs=self.crs_local)
@@ -264,13 +267,13 @@ class Spatial:
             lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
                                                    cells.iloc[row.index_right].geometry.centroid.coords[0]) / 1000, axis=1)
 
-        observed_cells['weight'] = 1 / observed_cells['distance']
+        # observed_cells['weight'] = 1 / observed_cells['distance']
 
         observed_cells.rename({'ID_left': 'ridx',
                                'ID_right': 'cidx'},
                               axis='columns', inplace=True)
 
-        edge_list = observed_cells[['cidx', 'ridx', 'weight']]
+        edge_list = observed_cells[['cidx', 'ridx', 'distance']]
 
         return edge_list
 
@@ -297,13 +300,13 @@ class Spatial:
             lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
                                                    radars.iloc[row.index_right].geometry.coords[0]) / 1000, axis=1)
 
-        nearest_radars['weight'] = 1 / nearest_radars['distance']
+        # nearest_radars['weight'] = 1 / nearest_radars['distance']
 
         nearest_radars.rename({'ID_left': 'cidx',
                                'ID_right': 'ridx'},
                               axis='columns', inplace=True)
 
-        edge_list = nearest_radars[['ridx', 'cidx', 'weight']]
+        edge_list = nearest_radars[['ridx', 'cidx', 'distance']]
 
         return edge_list
 
