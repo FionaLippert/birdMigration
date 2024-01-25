@@ -126,6 +126,8 @@ def extract_points(data_path, lons, lats, t_range, vars):
     lons = xr.DataArray(lons, dims='points')
     lats = xr.DataArray(lats, dims='points')
 
+    print(f'available ERA5 variables: {data.keys()}')
+
     vars = set(data.keys()).intersection(set(vars))
 
     data_points = data[vars].interp(longitude=lons, latitude=lats, time=t_range, method='linear')
