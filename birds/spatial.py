@@ -257,8 +257,12 @@ class Spatial:
 
         radar_buffers = self.radar_buffers(max_dist)
 
-        # find all cells within each radar buffer
-        observed_cells = gpd.sjoin(radar_buffers, self.cells)
+        # find all cells within each radar buffer and compute intersection
+        # observed_cells = gpd.sjoin(radar_buffers, self.cells, op='intersects')
+        observed_cells = gpd.overlay(radar_buffers, self.cells)
+
+        # compute area of intersection in km^2
+        observed_cells['intersection'] = observed_cells.geometry.area / 1e6
 
         # compute great circle distances [km] between cell centers and radar locations
         observed_cells = observed_cells.to_crs(self.crs_lonlat)
@@ -273,7 +277,7 @@ class Spatial:
                                'ID_right': 'cidx'},
                               axis='columns', inplace=True)
 
-        edge_list = observed_cells[['cidx', 'ridx', 'distance']]
+        edge_list = observed_cells[['cidx', 'ridx', 'distance', 'intersection']]
 
         return edge_list
 
