@@ -97,8 +97,8 @@ def static_features(radars, **kwargs):
     space = spatial.Spatial(radars, n_dummy_radars=ndummy, buffer=kwargs.get('buffer', 150_000))
 
     # load nlcd land cover data as geopandas dataframe
-    landcover_fp = kwargs.get('landcover_data', None)
-    if landcover_fp is not None:
+    landcover_fp = kwargs.get('landcover_data', '')
+    if osp.isfile(landcover_fp):
         landcover_gdf = gpd.read_file(landcover_fp)
     else:
         landcover_gdf = None
