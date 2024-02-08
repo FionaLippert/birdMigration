@@ -338,7 +338,7 @@ class Spatial:
     def add_landcover_info(self, cells, landcover_gdf, on='h3_id'):
 
         if landcover_gdf is not None:
-            return cells.merge(landcover_gdf[['nlcd_hist', 'nlcd_maj_c', on]], on=on, how='left')
+            return cells.merge(landcover_gdf[['nlcd_hist', on]], on=on, how='left')
         else:
             return cells
 
