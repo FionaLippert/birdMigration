@@ -11,6 +11,7 @@ import geopandas as gpd
 import h3
 import h3pandas
 import math
+import ee # google earth engine
 
 
 class Spatial:
@@ -332,6 +333,14 @@ class Spatial:
         self.pts_lonlat = pd.concat([self.pts_lonlat, dummy_radars], ignore_index=True)
         self.pts_local = pd.concat([self.pts_local, dummy_radars.to_crs(self.crs_local)], ignore_index=True)
         self.pts_local = gpd.GeoSeries(self.pts_local, crs=self.crs_local)
+
+
+    def add_landcover_info(self, cells, landcover_gdf, on='h3_id'):
+
+        if landcover_gdf is not None:
+            return cells.merge(landcover_gdf[['nlcd_hist', 'nlcd_maj_c', on]], on=on, how='left')
+        else:
+            return cells
 
 
     def G_max_dist(self, max_distance):
