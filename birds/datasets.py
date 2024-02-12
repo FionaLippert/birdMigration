@@ -35,6 +35,7 @@ def prepare_features(target_dir, data_dir, year, data_source, **kwargs):
         radar_dir = osp.join(data_dir, data_source, season, year)
         print(radar_dir)
         radars = datahandling.load_radars(radar_dir)
+
     print('prepare static features')
     cells, radar_buffers, G, cell_to_radar_edges, radar_to_cell_edges = static_features(radars, **kwargs)
 
@@ -95,10 +96,19 @@ def static_features(radars, **kwargs):
     ndummy = kwargs.get('n_dummy_radars', 0) if edge_type == 'voronoi' else 0
     space = spatial.Spatial(radars, n_dummy_radars=ndummy, buffer=kwargs.get('buffer', 150_000))
 
+    # load nlcd land cover data as geopandas dataframe
+    landcover_fp = kwargs.get('landcover_data', '')
+    if osp.isfile(landcover_fp):
+        landcover_gdf = gpd.read_file(landcover_fp)
+    else:
+        landcover_gdf = None
+
     if edge_type == 'hexagons':
         cells, G = space.hexagons(resolution=kwargs.get('h3_resolution'))
+        cells = space.add_landcover_info(cells, landcover_gdf, on='h3_id')
     else:
         cells, G = space.voronoi()
+        cells = space.add_landcover_info(cells, landcover_gdf, on='ID')
 
     print('create radar buffer dataframe')
     obs_range = kwargs.get('observation_range', 25_000)
@@ -430,10 +440,10 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >= 6)  # switching from night to day
         df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
 
-        if len(env_vars) > 0:
-            # environmental variables for radar ridx
-            for var in env_vars:
-                df[var] = env_data_radars[var].data[:, ridx]
+        # if len(env_vars) > 0:
+        #     # environmental variables for radar ridx
+        #     for var in env_vars:
+        #         df[var] = env_data_radars[var].data[:, ridx]
 
         # bird related columns
         cols = ['birds_km2', 'bird_u', 'bird_v']
