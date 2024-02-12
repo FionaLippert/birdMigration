@@ -439,10 +439,10 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >= 6)  # switching from night to day
         df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
 
-        if len(env_vars) > 0:
-            # environmental variables for radar ridx
-            for var in env_vars:
-                df[var] = env_data_radars[var].data[:, ridx]
+        # if len(env_vars) > 0:
+        #     # environmental variables for radar ridx
+        #     for var in env_vars:
+        #         df[var] = env_data_radars[var].data[:, ridx]
 
         # bird related columns
         cols = ['birds_km2', 'bird_u', 'bird_v']
