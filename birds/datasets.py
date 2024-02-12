@@ -333,7 +333,8 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
             nights = [[item[0] for item in g] for g in groups if g[0][1]]
             df['nightID'] = np.zeros(t_range.size)
-            df['frac_night'] = np.zeros(t_range.size)
+            df['frac_night_fw'] = np.zeros(t_range.size)
+            df['frac_night_bw'] = np.zeros(t_range.size)
             df['acc_rain'] = np.zeros(t_range.size)
             df['acc_wind'] = np.zeros(t_range.size)
             df['wind_profit'] = np.zeros(t_range.size)
