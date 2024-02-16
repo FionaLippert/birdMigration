@@ -93,6 +93,9 @@ class Spatial:
         hexagons = radar_region.h3.polyfill_resample(resolution).reset_index(names=['h3_id'])
         hexagons.drop(columns=['index'], inplace=True)
 
+        # make sure cells are always in same order
+        hexagons = hexagons.sort_values('h3_id', ignore_index=True)
+
         # find observed cells and include radar info (each cell has a list of radars falling into that cell)
         radar_gdf = gpd.GeoDataFrame({'radar': [[r] for r in self.radar_names],
                                       'observed': [True] * (self.N - self.N_dummy) + [False] * self.N_dummy},
@@ -269,13 +272,13 @@ class Spatial:
         observed_cells = observed_cells.to_crs(self.crs_lonlat)
         cells = self.cells.to_crs(self.crs_lonlat)
         observed_cells['distance'] = observed_cells.apply(
-            lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
-                                                   cells.iloc[row.index_right].geometry.centroid.coords[0]) / 1000, axis=1)
-
+            lambda row: self.great_circle_distance((row.lon_1, row.lat_1),
+                                                   #cells.iloc[row.ID_2].geometry.centroid.coords[0]) / 1000, axis=1)
+                                                    (row.lon_2, row.lat_2)) / 1000, axis=1)
         # observed_cells['weight'] = 1 / observed_cells['distance']
 
-        observed_cells.rename({'ID_left': 'ridx',
-                               'ID_right': 'cidx'},
+        observed_cells.rename({'ID_1': 'ridx',
+                               'ID_2': 'cidx'},
                               axis='columns', inplace=True)
 
         edge_list = observed_cells[['cidx', 'ridx', 'distance', 'intersection']]
