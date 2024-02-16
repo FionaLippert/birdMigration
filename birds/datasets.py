@@ -184,15 +184,15 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
                                                          radar_names=radar_names,
                                                          interpolate_nans=False)
 
-        radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['ff', 'dd', 'u', 'v'],
+        radar_data, _, t_range = datahandling.load_season(radar_dir, season, year, ['u', 'v'], #['ff', 'dd', 'u', 'v'],
                                                           t_unit=t_unit, mask_days=False,
                                                           radar_names=radar_names,
                                                           interpolate_nans=False)
 
-        bird_speed = radar_data[:, 0, :]
-        bird_direction = radar_data[:, 1, :]
-        bird_u = radar_data[:, 2, :]
-        bird_v = radar_data[:, 3, :]
+        #bird_speed = radar_data[:, 0, :]
+        #bird_direction = radar_data[:, 1, :]
+        bird_u = radar_data[:, 0, :]
+        bird_v = radar_data[:, 1, :]
 
         # rescale according to voronoi cell size
         # data = birds_km2 * observed_cells.area_km2.to_numpy()[:, None]
@@ -243,14 +243,14 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         env_data = env_850.merge(env_surface)
         print(env_data)
 
-        env_850_radars = era5interface.extract_points(
-            osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
-            radar_buffers.lon.values, radar_buffers.lat.values, t_range.tz_localize(None), vars=env_vars)
-        env_surface_radars = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
-                                                   radar_buffers.lon.values, radar_buffers.lat.values, t_range.tz_localize(None),
-                                                   vars=env_vars)
-
-        env_data_radars = env_850_radars.merge(env_surface_radars)
+        # env_850_radars = era5interface.extract_points(
+        #     osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
+        #     radar_buffers.lon.values, radar_buffers.lat.values, t_range.tz_localize(None), vars=env_vars)
+        # # env_surface_radars = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+        #                                            radar_buffers.lon.values, radar_buffers.lat.values, t_range.tz_localize(None),
+        #                                            vars=env_vars)
+        #
+        # env_data_radars = env_850_radars.merge(env_surface_radars)
 
     dfs = []
     for ridx, row in cells.iterrows():
@@ -274,8 +274,8 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
         df['tidx'] = np.arange(t_range.size)
 
-        # bird related columns
-        cols = ['birds', 'birds_km2', 'bird_u', 'bird_v']
+        # # bird related columns
+        # cols = ['birds', 'birds_km2', 'bird_u', 'bird_v']
 
         # # bird measurements for cell ridx
         # radars = []
@@ -452,22 +452,27 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             df['birds_km2'] = birds_km2[ridx]
             df['bird_u'] = bird_u[ridx]
             df['bird_v'] = bird_v[ridx]
-            df['missing'] = [0] * T
+            df['missing_birds_km2'] = [0] * T
+            df['missing_birds_uv'] = [0] * T
         else:
             df['birds_km2'] = [np.nan] * T
             df['bird_u'] = [np.nan] * T
             df['bird_v'] = [np.nan] * T
-            df['missing'] = [1] * T
+            df['missing_birds_km2'] = [1] * T
+            df['missing_birds_uv'] = [1] * T
 
         radar_df = pd.DataFrame(df)
 
         # find time points to exclude for radars within this cell
         for edx, exclude in df_excludes.query(f'radar == "{row.radar}"').iterrows():
-            radar_df['missing'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
-        radar_df['missing'] = radar_df['missing'].astype(bool)
+            radar_df['missing_birds_km2'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
+            radar_df['missing_birds_uv'] += ((t_range >= exclude.start) & (t_range <= exclude.end))
+        radar_df['missing_birds_km2'] = radar_df['missing_birds_km2'].astype(bool)
+        radar_df['missing_birds_uv'] = radar_df['missing_birds_uv'].astype(bool)
 
         # set bird quantities to NaN for these time points
-        radar_df.loc[radar_df['missing'], cols] = np.nan
+        radar_df.loc[radar_df['missing_birds_km2'], 'birds_km2'] = np.nan
+        radar_df.loc[radar_df['missing_birds_uv'], ['bird_u', 'bird_v']] = np.nan
 
         for col in cols:
             # radar quantities being exactly 0 during the night are missing,
@@ -478,13 +483,22 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             print(f'check missing data for column {col}')
 
             # remember missing radar observations
-            radar_df['missing'] = radar_df['missing'] | radar_df[col].isna()
+            if col == 'birds_kms':
+                radar_df['missing_birds_km2'] = radar_df['missing_birds_km2'] | radar_df[col].isna()
+            else:
+                radar_df['missing_birds_uv'] = radar_df['missing_birds_uv'] | radar_df[col].isna()
 
-            # for all other quantities simply interpolate linearly
+            # interpolate linearly to fill missing data points
             radar_df[col] = radar_df[col].interpolate(method='linear', limit_direction='both')
 
+        radar_df['missing'] = radar_df.missing_birds_km2 or radar_df.missing_birds_uv
+
         dfs.append(radar_df)
-        print(f'found {radar_df.missing.sum()} missing time points')
+        print(f'found {radar_df.missing_birds_km2.sum()} missing birds_km2 time points')
+        print(f'found {radar_df.missing_birds_uv.sum()} missing birds_uv time points')
+        print(f'found {radar_df.missing.sum()} missing time points in total')
+
+
 
     measurement_df = pd.concat(dfs, ignore_index=True)
     print(f'measurement columns: {measurement_df.columns}')
