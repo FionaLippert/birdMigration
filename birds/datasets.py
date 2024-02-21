@@ -271,7 +271,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         df['dusk'] = np.logical_and(solarpos[:-1] >=6, solarpos[1:] < 6)  # switching from day to night
         df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >=6)  # switching from night to day
         df['datetime'] = t_range
-        df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
+        #df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
         df['tidx'] = np.arange(t_range.size)
 
         # # bird related columns
@@ -326,18 +326,17 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             # environmental variables for cell ridx
             for var in env_vars:
                 df[var] = env_data[var].data[:, ridx]
-                print(f'{var} data: {df[var]}')
             #     if var in env_850:
             #         print(f'found {var} in env_850 dataset')
             #         df[var] = env_850[var][ridx]
             #     elif var in env_surface:
             #         print(f'found {var} in surface dataset')
             #         df[var] = env_surface[var][ridx]
-            df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
+            #df['wind_speed'] = np.sqrt(np.square(df['u']) + np.square(df['v']))
             # Note that here wind direction is the direction into which the wind is blowing,
             # which is the opposite of the standard meteorological wind direction
 
-            df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
+            #df['wind_dir'] = (abm.uv2deg(df['u'], df['v']) + 360) % 360
 
             # compute accumulation variables (for baseline models)
             groups = [list(g) for k, g in it.groupby(enumerate(df['night']), key=lambda x: x[-1])]
@@ -345,13 +344,13 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             df['nightID'] = np.zeros(t_range.size)
             df['frac_night_fw'] = np.zeros(t_range.size)
             df['frac_night_bw'] = np.zeros(t_range.size)
-            df['acc_rain'] = np.zeros(t_range.size)
-            df['acc_wind'] = np.zeros(t_range.size)
-            df['wind_profit'] = np.zeros(t_range.size)
-            acc_rain = 0
-            u_rain = 0
-            acc_wind = 0
-            u_wind = 0
+            #df['acc_rain'] = np.zeros(t_range.size)
+            #df['acc_wind'] = np.zeros(t_range.size)
+            #df['wind_profit'] = np.zeros(t_range.size)
+            #acc_rain = 0
+            #u_rain = 0
+            #acc_wind = 0
+            #u_wind = 0
             for nidx, night in enumerate(nights):
                 df['nightID'][night] = np.ones(len(night)) * (nidx + 1)
 
@@ -360,21 +359,21 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
                 df['frac_night_bw'][night] = np.arange(len(night), 0, -1) / len(night) # decreasing
 
                 # accumulation due to rain in the past nights
-                acc_rain = acc_rain/3 + u_rain * 2/3
-                df['acc_rain'][night] = np.ones(len(night)) * acc_rain
+                #acc_rain = acc_rain/3 + u_rain * 2/3
+                #df['acc_rain'][night] = np.ones(len(night)) * acc_rain
                 # compute proportion of hours with rain during the night
-                u_rain = np.mean(df['tp'][night] > 0.01)
+                #u_rain = np.mean(df['tp'][night] > 0.01)
 
                 # accumulation due to unfavourable wind in the past nights
-                acc_wind = acc_wind/3 + u_wind * 2/3
-                df['acc_wind'][night] = np.ones(len(night)) * acc_wind
+                #acc_wind = acc_wind/3 + u_wind * 2/3
+                #df['acc_wind'][night] = np.ones(len(night)) * acc_wind
                 # compute wind profit for bird with speed 12 m/s and flight direction 223 degree north
-                v_air = np.ones(len(night)) * 12
-                alpha = np.ones(len(night)) * pref_dir
-                df['wind_profit'][night] = v_air - np.sqrt(v_air**2 + df['wind_speed'][night]**2 -
-                                                           2 * v_air * df['wind_speed'][night] *
-                                                           np.cos(np.deg2rad(alpha-df['wind_dir'][night])))
-                u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
+                #v_air = np.ones(len(night)) * 12
+                #alpha = np.ones(len(night)) * pref_dir
+                #df['wind_profit'][night] = v_air - np.sqrt(v_air**2 + df['wind_speed'][night]**2 -
+                #                                           2 * v_air * df['wind_speed'][night] *
+                #                                           np.cos(np.deg2rad(alpha-df['wind_dir'][night])))
+                #u_wind = np.mean(df['wind_profit'][night]) < wp_threshold
         cell_df = pd.DataFrame(df)
 
         #cell_df['missing'] = 0
@@ -418,7 +417,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
 
     dynamic_feature_df = pd.concat(dfs, ignore_index=True)
     print(f'feature columns: {dynamic_feature_df.columns}')
-
+    print(dynamic_feature_df.head())
     # print(dynamic_feature_df.isna().sum())
 
     dfs = []
@@ -436,9 +435,9 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         df['tidx'] = np.arange(t_range.size)
         df['solarpos_dt'] = solarpos[:-1] - solarpos[1:]
         df['solarpos'] = solarpos[:-1]
-        df['dusk'] = np.logical_and(solarpos[:-1] >= 6, solarpos[1:] < 6)  # switching from day to night
-        df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >= 6)  # switching from night to day
-        df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
+        #df['dusk'] = np.logical_and(solarpos[:-1] >= 6, solarpos[1:] < 6)  # switching from day to night
+        #df['dawn'] = np.logical_and(solarpos[:-1] < 6, solarpos[1:] >= 6)  # switching from night to day
+        #df['dayofyear'] = pd.DatetimeIndex(t_range).dayofyear
 
         # if len(env_vars) > 0:
         #     # environmental variables for radar ridx
@@ -492,12 +491,12 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             # interpolate linearly to fill missing data points
             radar_df[col] = radar_df[col].interpolate(method='linear', limit_direction='both')
 
-        radar_df['missing'] = radar_df.missing_birds_km2 or radar_df.missing_birds_uv
+        #radar_df['missing'] = radar_df.apply(lambda row: row.missing_birds_km2 or row.missing_birds_uv, axis=1)
 
         dfs.append(radar_df)
         print(f'found {radar_df.missing_birds_km2.sum()} missing birds_km2 time points')
         print(f'found {radar_df.missing_birds_uv.sum()} missing birds_uv time points')
-        print(f'found {radar_df.missing.sum()} missing time points in total')
+        #print(f'found {radar_df.missing.sum()} missing time points in total')
 
 
 

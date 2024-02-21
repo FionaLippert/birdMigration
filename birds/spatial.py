@@ -11,7 +11,7 @@ import geopandas as gpd
 import h3
 import h3pandas
 import math
-import ee # google earth engine
+#import ee # google earth engine
 
 
 class Spatial:
@@ -341,9 +341,12 @@ class Spatial:
     def add_landcover_info(self, cells, landcover_gdf, on='h3_id'):
 
         if landcover_gdf is not None:
-            return cells.merge(landcover_gdf[['nlcd_hist', on]], on=on, how='left')
-        else:
-            return cells
+            nlcd_cols = [col for col in landcover_gdf if col.startswith('nlcd')]
+            print(f'num cells before landcover merge: {len(cells)}')
+            cells = cells.merge(landcover_gdf[nlcd_cols + [on]], on=on, how='left')
+            print(f'num cells after: {len(cells)}')
+            
+        return cells
 
 
     def G_max_dist(self, max_distance):
