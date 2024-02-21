@@ -224,10 +224,10 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
     env_vars = [v for v in env_vars if not v in ['night', 'dusk', 'dawn', 'dayofyear', 'solarpos', 'solarpos_dt']]
 
     if len(env_vars) > 0:
-        # if edge_type == 'voronoi':
-        #     env_areas = cells.geometry
-        # else:
-        #     env_areas = radar_buffers.geometry
+        if edge_type == 'none':
+            env_areas = radar_buffers.geometry
+        else:
+            env_areas = cells.geometry
         # env_850 = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
         #                                      env_areas, env_points,
         #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
@@ -235,10 +235,16 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         #                                      env_areas, env_points,
         #                                      t_range.tz_localize(None), vars=env_vars, seed=random_seed)
 
-        env_850 = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
-                                             cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
-        env_surface = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
-                                             cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
+        # env_850 = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
+        #                                      cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
+        # env_surface = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+        #                                      cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
+
+        env_850 = era5interface.compute_cell_avg(
+            osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
+            env_areas, t_range.tz_localize(None), vars=env_vars)
+        env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+                                                   env_areas, t_range.tz_localize(None), vars=env_vars)
 
         env_data = env_850.merge(env_surface)
         print(env_data)
