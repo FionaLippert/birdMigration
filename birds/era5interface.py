@@ -3,6 +3,7 @@ import os
 import os.path as osp
 import xarray as xr
 import rioxarray
+#import xesmf as xe
 import numpy as np
 from shapely import geometry
 import geopandas as gpd
@@ -172,7 +173,7 @@ def sample_points_from_polygon(polygon, seed, n_points=1):
 
     return {'lon': final_lons[:n_points], 'lat': final_lats[:n_points]}
 
-def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
+def compute_cell_avg_sampled(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
     """
     For all cells, sample a number of points within the cell and compute cell averages of environmental variables.
 
@@ -211,6 +212,34 @@ def compute_cell_avg(data_path, cell_geometries, n_points, t_range, vars, seed=1
                     var_data_poly.append(interp)
                 var_data.append(np.nanmean(np.stack(var_data_poly, axis=0), axis=0))
             weather[var] = np.stack(var_data, axis=0)
+
+    return weather
+
+
+def compute_cell_avg(data_path, cell_geometries, t_range, vars):
+    """
+    For all cells, compute cell averages of environmental variables.
+
+    :param data_path: path to downloaded data
+    :param cell_geometries: geopandas.GeoDataFrame with cell shapes
+    :param t_range: time range (in UTC, not localized)
+    :param vars: list of variables to extract
+    :param seed: random seed
+    :return: numpy.array with shape [number of cells, number of variables]
+    """
+
+    cell_geometries = cell_geometries.to_crs('EPSG:4326')
+    data = xr.open_dataset(data_path)
+    data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
+    data = data.rio.interpolate_na() # fill nan's by interpolating spatially
+
+    weather = {}
+    for var, ds in data.items():
+        if var in vars:
+            ds = ds.sel(time=t_range)
+            # compute cell averages
+            weather[var] = np.stack([ds.rio.clip([cell], cell_geometries.crs).mean(dim=['latitude', 'longitude']).values
+                                     for cell in cell_geometries], axis=0)
 
     return weather
 
