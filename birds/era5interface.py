@@ -133,6 +133,11 @@ def extract_points(data_path, lons, lats, t_range, vars):
 
     data_points = data[vars].interp(longitude=lons, latitude=lats, time=t_range, method='linear')
 
+    weather = {}
+
+    for var in vars:
+        weather[var] = data_points[var].data
+
     # weather = {}
     #
     # for var, ds in data.items():
@@ -146,7 +151,7 @@ def extract_points(data_path, lons, lats, t_range, vars):
 
     # return weather
 
-    return data_points
+    return weather
 
 def sample_points_from_polygon(polygon, seed, n_points=1):
     """
@@ -211,7 +216,7 @@ def compute_cell_avg_sampled(data_path, cell_geometries, n_points, t_range, vars
                     interp = interp.sel(time=t_range).data.flatten()
                     var_data_poly.append(interp)
                 var_data.append(np.nanmean(np.stack(var_data_poly, axis=0), axis=0))
-            weather[var] = np.stack(var_data, axis=0)
+            weather[var] = np.stack(var_data, axis=1)
 
     return weather
 
@@ -239,7 +244,7 @@ def compute_cell_avg(data_path, cell_geometries, t_range, vars):
             ds = ds.sel(time=t_range)
             # compute cell averages
             weather[var] = np.stack([ds.rio.clip([cell], cell_geometries.crs).mean(dim=['latitude', 'longitude']).values
-                                     for cell in cell_geometries], axis=0)
+                                     for cell in cell_geometries], axis=1) # shape [time, cells]
 
     return weather
 

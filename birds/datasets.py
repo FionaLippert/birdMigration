@@ -246,7 +246,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
                                                    env_areas, t_range.tz_localize(None), vars=env_vars)
 
-        env_data = env_850.merge(env_surface)
+        env_data = env_850.update(env_surface)
         print(env_data)
 
         # env_850_radars = era5interface.extract_points(
@@ -331,7 +331,8 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         if len(env_vars) > 0:
             # environmental variables for cell ridx
             for var in env_vars:
-                df[var] = env_data[var].data[:, ridx]
+                # df[var] = env_data[var].data[:, ridx]
+                df[var] = env_data[var][:, ridx]
                 print(f'{var} data: {df[var]}')
             #     if var in env_850:
             #         print(f'found {var} in env_850 dataset')
