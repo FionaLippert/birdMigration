@@ -1,8 +1,7 @@
 #!/usr/bin/env Rscript
-# Title     : VPTS2VPI
-# Objective : load vertical profile time series from disk, apply vertical integration, and save as netcdf
+# Title     : VPTS2VP
+# Objective : load vertical profile time series from disk, compute average vertical profile, and save as netcdf
 # Created by: fiona
-# Created on: 18-03-22
 
 args = commandArgs(trailingOnly=TRUE)
 
@@ -48,43 +47,53 @@ filter_dbzh <- function(vpts, threshold=7,height=1000, agl_max=Inf, drop=F, quan
 
 sd_vvp_threshold(vpts) <- 0
 
-
 # make a subselection for night time only
-if(config$night_only){
-  index_night <- check_night(vpts)
-  vpts <- vpts[index_night]
-}
-if(config$regularize){
-  vpts <- regularize_vpts(vpts, date_min=begin, date_max=end, interval=1, fill=7.5, units="hours")
-}
+index_night <- check_night(vpts)
+vpts <- vpts[index_night]
 
+# regularize to hourly resolution
+#vpts <- regularize_vpts(vpts, date_min=begin, date_max=end, interval=1, fill=7.5, units="hours")
+
+
+# remove some more rain
 vpts <- filter_dbzh(vpts, threshold=500, height=2000, agl_max=Inf, drop=F, quantity="dens")
 
-# vertical integration
-#vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
-vpi <- integrate_profile(vpts, alt_min="antenna", alt_max=config$alt_max)
+
+############################################################
+# TODO: compute average vertical profile for this radar
+############################################################
+# print(attributes(vpts$data)$names)
 
 #define dimensions
-time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00",
-                      as.integer(c(vpi$datetime)), unlim=FALSE)
+height_dim <- ncdim_def("height", "meters",
+                      as.integer(c(vpts$height)), unlim=FALSE)
+#time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00",
+#                      as.integer(c(vpts$datetime)), unlim=FALSE)
 lat_dim <- ncdim_def("lat", "degrees north", as.double(c(lat)), unlim=FALSE)
 lon_dim <- ncdim_def("lon", "degrees south", as.double(c(lon)), unlim=FALSE)
 
 # create netcdf file
-fname <- paste0("vpi_", radar_odim_format, ".nc")
+fname <- paste0("vp_avg_", radar_odim_format, ".nc")
 ncpath <- file.path(root, fname)
 
 # define variables
 fillvalue <- 1e32
 var_def_list <- list()
-for (var in attributes(vpi)$names){
-  if (var != "datetime"){
-    var_def_list[[var]] <- ncvar_def(var, "", list(lat_dim, lon_dim, time_dim), fillvalue, var)
-  }
+for (var in attributes(vpts$data)$names){
+  # var_def_list[[var]] <- ncvar_def(var, "", list(lat_dim, lon_dim, height_dim, time_dim), fillvalue, var)
+  var_def_list[[var]] <- ncvar_def(var, "", list(lat_dim, lon_dim, height_dim), fillvalue, var)
 }
 ncout <- nc_create(ncpath, var_def_list, force_v4=F)
 for (var in names(var_def_list)){
-    ncvar_put(ncout, var_def_list[[var]], vpi[[var]])
+  if (var %in% c("dens", "heading", "dd")){
+    # print(dim(vpts$data[[var]]))
+    # print(dim(apply(vpts$data[[var]], 1, mean)))
+    # ncvar_put(ncout, var_def_list[[var]], vpts$data[[var]])
+    vpts_var <- vpts$data[[var]]
+    vpts_var[is.nan(vpts_var)] <- 0
+    avg_vp <- apply(vpts_var, 1, mean) #function(x) mean(na.omit(x)))
+    ncvar_put(ncout, var_def_list[[var]], avg_vp)
+  }
 }
 
 # add global attributes
