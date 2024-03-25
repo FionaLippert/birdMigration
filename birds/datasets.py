@@ -240,13 +240,13 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         # env_surface = era5interface.extract_points(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
         #                                      cells.lon.values, cells.lat.values, t_range.tz_localize(None), vars=env_vars)
 
-        env_850 = era5interface.compute_cell_avg(
+        env_data = era5interface.compute_cell_avg(
             osp.join(data_dir, 'env', data_source, season, year, 'pressure_level_850.nc'),
             env_areas, t_range.tz_localize(None), vars=env_vars)
-        env_surface = era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
-                                                   env_areas, t_range.tz_localize(None), vars=env_vars)
-
-        env_data = env_850.update(env_surface)
+        env_data.update(era5interface.compute_cell_avg(osp.join(data_dir, 'env', data_source, season, year, 'surface.nc'),
+                                                   env_areas, t_range.tz_localize(None), vars=env_vars))
+        
+        #env_data = env_850.update(env_surface)
         print(env_data)
 
         # env_850_radars = era5interface.extract_points(
