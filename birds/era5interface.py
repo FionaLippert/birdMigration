@@ -1,114 +1,103 @@
 import cdsapi
+from cdo import Cdo
 import os
 import os.path as osp
+import glob
 import xarray as xr
 import rioxarray
-#import xesmf as xe
 import numpy as np
-from shapely import geometry
 import geopandas as gpd
 
-from birds.spatial import Spatial
 
 
 class ERA5Loader():
     """
-    Wrapper for easy loading of ERA5 environmental data for given radar locations.
+    Wrapper for easy loading of ERA5 environmental data for given area and season.
     """
 
-    def __init__(self, radars):
+    def __init__(self, **kwargs):
         """
-        Initialization of radars and variables to download.
-
-        :param radars: mapping from coordinates to radar names
+        Initialization of variables to download
         """
 
-        self.radars = radars
-
-        self.single_level_config = {'variable' : ['2m_temperature',
-                                                 'surface_sensible_heat_flux',
-                                                 '10m_u_component_of_wind',
-                                                 '10m_v_component_of_wind',
-                                                 'surface_pressure',
-                                                 'total_precipitation',
-                                                 ],
-                                    'format' : 'netcdf',
-                                    'product_type'  : 'reanalysis',}
-
-        self.pressure_level_config = {'variable' : ['fraction_of_cloud_cover',
-                                                    'specific_humidity',
-                                                    'temperature',
-                                                    'u_component_of_wind',
-                                                    'v_component_of_wind',
-                                                    ],
-                                    'pressure_level': '850',
-                                    'format' : 'netcdf',
-                                    'product_type' :'reanalysis',}
+        self.single_level_config = kwargs.get('single_level_config', None)
+        self.pressure_level_config = kwargs.get('pressure_level_config', None)
+        self.model_level_config = kwargs.get('model_level_config', None)
 
         self.client = cdsapi.Client()
 
-    def download_season(self, season, year, target_dir, bounds=None,
-                        buffer_x=0, buffer_y=0, pl=850, surface_data=True, **kwargs):
+
+    def download_season(self, season, year, target_dir, **kwargs):
         """
         Download environmental variables for the given year and season.
 
         :param season: season of interest ('spring' or 'fall')
         :param year: year of interest
         :param target_dir: directory to write downloaded data to
-        :param bounds: bounds [North, West, South, East] of geographical area for which data is downloaded
-                    (if None, bounds of Voronoi tessellation are used)
-        :param buffer_x: buffer around bounds in x-direction (longitude)
-        :param buffer_y: buffer around bounds in y-direction (latitude)
-        :param pl: pressure level
-        :param surface_data: if True, download surface data in addition to pressure level data
         """
 
-
-        if bounds is None:
-            # get bounds of Voronoi tesselation
-            spatial = Spatial(self.radars, **kwargs)
-            cells, _ = spatial.voronoi()
-            minx, miny, maxx, maxy = cells.to_crs(epsg=spatial.epsg_lonlat).total_bounds
-            bounds = [maxy + buffer_y, minx - buffer_x, miny - buffer_y, maxx + buffer_x]
-
         if season == 'spring':
-            months = [f'{m:02}' for m in range(3, 6)]
-        elif season in ['fall', 'autumn']:
-            months = [f'{m:02}' for m in range(8, 12)]
+            months = [f'{m:02}' for m in range(3, 7)]
+            levels = '135/127/115' # corresponds to 54m, 334m, 1329m for the ICAO Standard Atmosphere
         else:
-            months = ['09']
+            months = [f'{m:02}' for m in range(8, 12)]
+            levels = '135/128/115' # corresponds to 54m, 288m, 1329m for the ICAO Standard Atmosphere
 
         print(season, months)
 
         # datetime is interpreted as 00:00 UTC
         days = [f'{(d + 1):02}' for d in range(31)]
         time = [f'{h:02}:00' for h in range(24)]
-        resolution = [0.25, 0.25]
 
         info = { 'year' : year,
                  'month' : months,
                  'day' : days,
-                 'area' : bounds,
-                 'grid' : resolution,
                  'time' : time }
 
         os.makedirs(target_dir, exist_ok=True)
 
-        if surface_data:
+        if self.single_level_config is not None:
             self.single_level_config.update(info)
             self.client.retrieve('reanalysis-era5-single-levels',
                                 self.single_level_config,
                                 osp.join(target_dir, 'surface.nc'))
-        if isinstance(pl, int):
+
+        if self.pressure_level_config is not None:
             self.pressure_level_config.update(info)
-            self.pressure_level_config['pressure_level'] = str(pl)
             self.client.retrieve('reanalysis-era5-pressure-levels',
                                  self.pressure_level_config,
-                                 osp.join(target_dir, f'pressure_level_{pl}.nc'))
+                                 osp.join(target_dir, f'pressure_levels.nc'))
+
+        if self.model_level_config is not None:
+            # model levels are downloaded from MARS tape, and thus need to be loaded month by month
+            for month in months:
+                info = {'date': f'{year}-{month}-01/to/{year}-{month}-31',
+                        'time': '00/to/23/by/1',
+                        'levelist': levels
+                        }
+                self.model_level_config.update(info)
+
+                self.client.retrieve('reanalysis-era5-complete',
+                                     self.model_level_config,
+                                     osp.join(target_dir, f'{year}_{month}_model_levels.nc'))
+
+            # use CDO to merge all files of the same year
+            cdo = Cdo()
+            filenames = glob.glob(osp.join(target_dir, f'{year}_*_model_levels.nc'))
+            output_file = osp.join(target_dir, f'model_levels.nc')
+            cdo.mergetime(input=' '.join(filenames), output=output_file, options='-b F64')
+
+            # remove level dimension and instead include level info in variable name
+            split_level_data(output_file, output_file)
+
+            # remove individual files after merge
+            for item in os.listdir(target_dir):
+                if item.startswith(year):
+                    os.remove(osp.join(target_dir, item))
 
 
 
-def extract_points(data_path, lons, lats, t_range, vars):
+def extract_points(data_path, lons, lats, t_range, vars='all'):
     """
     Open downloaded data and extract data at the given coordinates (interpolate if necessary)
 
@@ -123,6 +112,8 @@ def extract_points(data_path, lons, lats, t_range, vars):
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
+
+    vars = data.data_vars if vars == 'all' else vars
 
     lons = xr.DataArray(lons, dims='points')
     lats = xr.DataArray(lats, dims='points')
@@ -178,7 +169,8 @@ def sample_points_from_polygon(polygon, seed, n_points=1):
 
     return {'lon': final_lons[:n_points], 'lat': final_lats[:n_points]}
 
-def compute_cell_avg_sampled(data_path, cell_geometries, n_points, t_range, vars, seed=1234):
+
+def compute_cell_avg_sampled(data_path, cell_geometries, n_points, t_range, vars='all', seed=1234):
     """
     For all cells, sample a number of points within the cell and compute cell averages of environmental variables.
 
@@ -196,6 +188,7 @@ def compute_cell_avg_sampled(data_path, cell_geometries, n_points, t_range, vars
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
+    vars = data.data_vars if vars == 'all' else vars
 
     # sample points within cells
     points = {i: sample_points_from_polygon(poly, seed=seed, n_points=n_points)
@@ -221,7 +214,7 @@ def compute_cell_avg_sampled(data_path, cell_geometries, n_points, t_range, vars
     return weather
 
 
-def compute_cell_avg(data_path, cell_geometries, t_range, vars):
+def compute_cell_avg(data_path, cell_geometries, t_range, vars='all'):
     """
     For all cells, compute cell averages of environmental variables.
 
@@ -238,13 +231,30 @@ def compute_cell_avg(data_path, cell_geometries, t_range, vars):
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
     data = data.rio.interpolate_na() # fill nan's by interpolating spatially
 
+    vars = data.data_vars if vars == 'all' else vars
+
     weather = {}
     for var, ds in data.items():
         if var in vars:
+            # select time period
             ds = ds.sel(time=t_range)
+
             # compute cell averages
             weather[var] = np.stack([ds.rio.clip([cell], cell_geometries.crs).mean(dim=['latitude', 'longitude']).values
                                      for cell in cell_geometries], axis=1) # shape [time, cells]
 
     return weather
 
+def split_level_data(input_file, output_file):
+
+    data = xr.open_dataset(input_file)
+
+    ds_list = []
+    for var, ds in data.items():
+        if 'level' in ds.coords:
+            ds = ds.to_dataset(dim='level')
+            ds = ds.rename({l: f'{var}_L{l}' for l in ds.data_vars})
+        ds_list.append(ds)
+
+    data = xr.merge(ds_list)
+    data.to_netcdf(output_file)

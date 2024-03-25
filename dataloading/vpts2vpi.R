@@ -32,6 +32,7 @@ radar_alt <- vpts$attributes$where$height
 lat <- vpts$attributes$where$lat
 lon <- vpts$attributes$where$lon
 
+# function by Adriaan to remove any rain left in the vertical profiles
 filter_dbzh <- function(vpts, threshold=7,height=1000, agl_max=Inf, drop=F, quantity="DBZH"){
   height_index_max <- ((vpts$attributes$where$height + agl_max) %/% vpts$attributes$where$interval)
   height_index_max <- min(dim(vpts)[2],height_index_max)
@@ -61,8 +62,8 @@ if(config$regularize){
 vpts <- filter_dbzh(vpts, threshold=500, height=2000, agl_max=Inf, drop=F, quantity="dens")
 
 # vertical integration
-#vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=config$alt_max)
-vpi <- integrate_profile(vpts, alt_min="antenna", alt_max=config$alt_max)
+vpi <- integrate_profile(vpts, alt_min=(radar_alt+config$alt_min), alt_max=(radar_alt+config$alt_max))
+#vpi <- integrate_profile(vpts, alt_min=config$alt_min, alt_max=config$alt_max)
 
 #define dimensions
 time_dim <- ncdim_def("time", "seconds since 1970-01-01 00:00:00",

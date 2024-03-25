@@ -1,69 +1,25 @@
-# start time
 years:
+  - 2013
+  - 2014
   - 2015
   - 2016
   - 2017
   - 2018
   - 2019
+  - 2020
+  - 2021
+
+# start time
+# ts : YEAR-03-01 00:00:00
 ts : YEAR-08-01 00:00:00
+
 # end time
+#te : YEAR-06-30 23:59:59
 te : YEAR-11-30 23:59:59
-#te : 2019-08-05 23:59:59
-# list of radar stations
-#radars :
-#  - KILN # Ohio
-#  - KCLE # Ohio
-#  - KVWX # Indiana
-#  - KIND # Indiana
-#  - KIWX # Indiana
-#  - KJKL # Kentucky
-#  - KLVX # Kentucky
-#  - KPAH # Kentucky
-#  - KHPX # Kentucky
-#  - KDTX # Michigan
-#  - KAPX # Michigan
-#  - KGRR # Michigan
-#  - KMQT # Michigan
-#  - KILX # Illinois
-#  - KLOT # Illinois
-#  - KMKX # Wisconsin
-#  - KGRB # Wisconsin
-#  - KARX # Wisconsin
-#  - KDVN # Iowa
-#  - KDMX # Iowa
-#  - KSGF # Missouri
-#  - KLSX # Missouri
-#  - KEAX # Missouri
-#  - KSRX # Arkansas
-#  - KLZK # Arkansas
-#  - KOHX # Tennessee
-#  - KMRX # Tennessee
-#  - KNQA # Tennessee
-#  - KMOB # Alabama
-#  - KBMX # Alabama
-#  - KEOX # Alabama
-#  - KHTX # Alabama
-#  - KMXX # Alabama
-#  - KDGX # Mississippi
-#  - KGWX # Mississippi
-#  - KLCH # Louisiana
-#  - KLIX # Louisiana
-#  - KSHV # Louisiana
-#  - KPOE # Louisiana
-#  - KRLX # West Virginia
-#  - KMHX # North Carolina
-#  - KRAX # North Carolina
-#  - KLTX # North Carolina
-#  - KCLX # South Carolina
-#  - KCAE # South Carolina
-#  - KGSP # South Carolina
-#  - KVAX # Georgia
-#  - KJGX # Georgia
-#  - KFFC # Georgia
-#  - KAKQ # Virginia
-#  - KFCX # Virginia (more radars in Virginia are left out for now)
+
+# other settings
 night_only : false
 regularize: false
-alt_min : 200
-alt_max : 5000
+alt_min : 0 #antenna
+alt_max : 3000
 
