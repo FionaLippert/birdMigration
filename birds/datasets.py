@@ -108,6 +108,9 @@ def static_features(radars, **kwargs):
         cells = space.add_landcover_info(cells, landcover_gdf, on='h3_id')
     else:
         cells, G = space.voronoi()
+        print(cells)
+        print(cells.ID)
+        print(landcover_gdf.ID)
         cells = space.add_landcover_info(cells, landcover_gdf, on='ID')
 
     print('create radar buffer dataframe')
@@ -238,7 +241,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
         #                                            vars=env_vars)
         #
         # env_data_radars = env_850_radars.merge(env_surface_radars)
-
+        print(t_range.tz_localize(None))
         env_data = {}
         for fname in env_files:
             env_data.update(
@@ -371,7 +374,7 @@ def dynamic_features(data_dir, year, data_source, cells, radar_buffers, **kwargs
             print(f'check missing data for column {col}')
 
             # remember missing radar observations
-            if col == 'birds_kms':
+            if col == 'birds_km2':
                 radar_df['missing_birds_km2'] = radar_df['missing_birds_km2'] | radar_df[col].isna()
             else:
                 radar_df['missing_birds_uv'] = radar_df['missing_birds_uv'] | radar_df[col].isna()

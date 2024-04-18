@@ -272,7 +272,7 @@ class Spatial:
         observed_cells = observed_cells.to_crs(self.crs_lonlat)
         cells = self.cells.to_crs(self.crs_lonlat)
         observed_cells['distance'] = observed_cells.apply(
-            lambda row: self.great_circle_distance((row.lon_1, row.lat_1),
+            lambda row: 0 if (row.lon_1 == row.lon_2 and row.lat_1 == row.lat_2) else self.great_circle_distance((row.lon_1, row.lat_1),
                                                    #cells.iloc[row.ID_2].geometry.centroid.coords[0]) / 1000, axis=1)
                                                     (row.lon_2, row.lat_2)) / 1000, axis=1)
         # observed_cells['weight'] = 1 / observed_cells['distance']
@@ -305,7 +305,7 @@ class Spatial:
         nearest_radars = nearest_radars.to_crs(self.crs_lonlat)
         radars = radars.to_crs(self.crs_lonlat)
         nearest_radars['distance'] = nearest_radars.apply(
-            lambda row: self.great_circle_distance(row.geometry.centroid.coords[0],
+            lambda row: 0 if (row.geometry.centroid.coords[0] == radars.iloc[row.index_right].geometry.coords[0]) else self.great_circle_distance(row.geometry.centroid.coords[0],
                                                    radars.iloc[row.index_right].geometry.coords[0]) / 1000, axis=1)
 
         # nearest_radars['weight'] = 1 / nearest_radars['distance']
@@ -341,6 +341,7 @@ class Spatial:
     def add_landcover_info(self, cells, landcover_gdf, on='h3_id'):
 
         if landcover_gdf is not None:
+            landcover_gdf = landcover_gdf.astype({on: cells[on].dtype})
             nlcd_cols = [col for col in landcover_gdf if col.startswith('nlcd')]
             print(f'num cells before landcover merge: {len(cells)}')
             cells = cells.merge(landcover_gdf[nlcd_cols + [on]], on=on, how='left')

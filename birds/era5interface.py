@@ -6,6 +6,7 @@ import glob
 import xarray as xr
 import rioxarray
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 
 
@@ -42,6 +43,7 @@ class ERA5Loader():
         else:
             months = [f'{m:02}' for m in range(8, 12)]
             levels = '135/128/115' # corresponds to 54m, 288m, 1329m for the ICAO Standard Atmosphere
+        level_names = ['q10', 'q50', 'q90']
 
         print(season, months)
 
@@ -84,11 +86,16 @@ class ERA5Loader():
             # use CDO to merge all files of the same year
             cdo = Cdo()
             filenames = glob.glob(osp.join(target_dir, f'{year}_*_model_levels.nc'))
-            output_file = osp.join(target_dir, f'model_levels.nc')
-            cdo.mergetime(input=' '.join(filenames), output=output_file, options='-b F64')
+            combined_file = osp.join(target_dir, f'model_levels_combined.nc')
+            final_file = osp.join(target_dir, f'model_levels.nc')
+
+            cdo.mergetime(input=' '.join(filenames), output=combined_file, options='-b F64')
 
             # remove level dimension and instead include level info in variable name
-            split_level_data(output_file, output_file)
+            level_mapping = dict(zip(levls.split('/'), level_names))
+            prepare_model_level_data(combined_file, final_file, level_mapping)
+
+            os.remove(combined_file)
 
             # remove individual files after merge
             for item in os.listdir(target_dir):
@@ -229,7 +236,15 @@ def compute_cell_avg(data_path, cell_geometries, t_range, vars='all'):
     cell_geometries = cell_geometries.to_crs('EPSG:4326')
     data = xr.open_dataset(data_path)
     data = data.rio.write_crs('EPSG:4326') # set crs to lat lon
-    data = data.rio.interpolate_na() # fill nan's by interpolating spatially
+    #data = data.rio.interpolate_na() # fill nan's by interpolating spatially
+
+    #data = adjust_coords(data, coord='longitude')
+    #data = adjust_coords(data, coord='latitude')
+
+    #tidx = data.time.isin(t_range)
+    #data = data.isel(time=tidx)
+    data = data.drop_duplicates('time')
+    data = data.sel(time=t_range)
 
     vars = data.data_vars if vars == 'all' else vars
 
@@ -237,24 +252,58 @@ def compute_cell_avg(data_path, cell_geometries, t_range, vars='all'):
     for var, ds in data.items():
         if var in vars:
             # select time period
-            ds = ds.sel(time=t_range)
-
+            #tidx = ds.time.isin(t_range)
+            #ds = ds.isel(time=tidx)
+            print(ds.shape, len(t_range))
             # compute cell averages
-            weather[var] = np.stack([ds.rio.clip([cell], cell_geometries.crs).mean(dim=['latitude', 'longitude']).values
-                                     for cell in cell_geometries], axis=1) # shape [time, cells]
+            
+            weather[var] = []
+            for cell in cell_geometries:
+                weather[var].append(ds.rio.clip([cell], cell_geometries.crs).mean(dim=['latitude', 'longitude']).values)
+            weather[var] = np.stack(weather[var], axis=1)
+            #weather[var] = np.stack([ds.rio.clip([cell], cell_geometries.crs).mean(dim=['latitude', 'longitude']).values
+            #                         for cell in cell_geometries], axis=1) # shape [time, cells]
 
     return weather
 
-def split_level_data(input_file, output_file):
+def prepare_model_level_data(input_file, output_file, level_mapping={}):
 
     data = xr.open_dataset(input_file)
+
+    data = flatten_levels(data, level_mapping)
+    data = adjust_coords(data, 'longitude')
+    data = adjust_coords(data, 'latitude')
+    data = data.drop_duplicates(dim='time')
+    
+    data.to_netcdf(output_file)
+
+
+def flatten_levels(data, level_mapping):
 
     ds_list = []
     for var, ds in data.items():
         if 'level' in ds.coords:
             ds = ds.to_dataset(dim='level')
-            ds = ds.rename({l: f'{var}_L{l}' for l in ds.data_vars})
+            var_mapping = {l: f'{var}_{level_mapping[str(l)] if str(l) in level_mapping else f"L{l}"}' for l in ds.data_vars}
+            ds = ds.rename(var_mapping)
         ds_list.append(ds)
 
     data = xr.merge(ds_list)
-    data.to_netcdf(output_file)
+
+    return data
+
+def adjust_coords(ds, coord='longitude'):
+
+    # Adjust lon values to make sure they are within (-180, 180)
+    ds[f'_{coord}_adjusted'] = xr.where(ds[coord] > 180, ds[coord] - 360, ds[coord])
+
+    # reassign the new coords to as the main lon coords
+    # and sort DataArray using new coordinate values
+    ds = (ds
+        .swap_dims({coord: f'_{coord}_adjusted'})
+        .sel(**{f'_{coord}_adjusted': sorted(ds[f'_{coord}_adjusted'])})
+        .drop(coord))
+
+    ds = ds.rename({f'_{coord}_adjusted': coord})
+
+    return ds
